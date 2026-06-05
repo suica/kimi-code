@@ -80,6 +80,8 @@ export interface DaemonQuestionBrokerOptions {
 }
 
 export class DaemonQuestionBroker extends Disposable implements IQuestionBroker {
+  readonly _serviceBrand: undefined;
+
   /** Indexed by daemon-minted `question_id` (REST path key). */
   private readonly _pending = new Map<string, PendingQuestion>();
   /** Bounded set of resolved/dismissed ids for idempotency. */

@@ -26,6 +26,8 @@ import type {} from '@moonshot-ai/protocol'; // type-only marker — keep protoc
 export type { ApprovalRequest, ApprovalResponse };
 
 export interface IApprovalBroker {
+  readonly _serviceBrand: undefined;
+
   /**
    * Called by the bridge when KimiCore needs user approval. Resolves with the
    * user's decision (or a cancelled response if no client is connected /

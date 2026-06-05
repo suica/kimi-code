@@ -151,6 +151,8 @@ export class PromptServiceImpl
   extends Disposable
   implements IPromptService, IPromptLifecycleObserver
 {
+  readonly _serviceBrand: undefined;
+
   /** Active prompt per session. Cleared on completion / abort emission. */
   private readonly _active = new Map<string, PromptState>();
 

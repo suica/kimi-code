@@ -31,6 +31,8 @@ import { createDecorator } from '@moonshot-ai/agent-core';
 import type { McpServer } from '@moonshot-ai/protocol';
 
 export interface IMcpService {
+  readonly _serviceBrand: undefined;
+
   /** Return all MCP servers known to the in-process KimiCore. */
   list(): Promise<readonly McpServer[]>;
 

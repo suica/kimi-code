@@ -82,6 +82,8 @@ export interface DaemonEventBusOptions {
 export const DEFAULT_MAX_BUFFER_SIZE = 1000;
 
 export class DaemonEventBus extends Disposable implements IEventBus {
+  readonly _serviceBrand: undefined;
+
   private readonly _sessions = new Map<string, SessionState>();
   private readonly _maxBufferSize: number;
   private readonly _observers = new Set<IPromptLifecycleObserver>();

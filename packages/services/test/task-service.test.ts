@@ -51,6 +51,7 @@ function makeBridge(state: FakeState): IHarnessBridge {
     rpc: rpc as HarnessRPC,
     ready: async () => undefined,
     dispose: () => undefined,
+    _serviceBrand: undefined,
   };
 }
 

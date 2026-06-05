@@ -25,6 +25,8 @@ import { createDecorator } from '@moonshot-ai/agent-core';
 import type { AuthSummary } from '@moonshot-ai/protocol';
 
 export interface IAuthSummaryService {
+  readonly _serviceBrand: undefined;
+
   /**
    * Compute the current readiness snapshot. Cheap (one config read + one
    * cached-token lookup); safe to call on every `GET /v1/auth`.

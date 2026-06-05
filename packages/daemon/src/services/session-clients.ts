@@ -28,6 +28,8 @@ import { ILogger } from './logger.js';
 import type { WsConnection } from '../ws/connection.js';
 
 export interface ISessionClientsService {
+  readonly _serviceBrand: undefined;
+
   /** Add `connection` as a subscriber to `sessionId`. Idempotent. */
   subscribe(connection: WsConnection, sessionId: string): void;
   /** Remove a single (connection, sessionId) subscription. Idempotent. */
@@ -46,6 +48,8 @@ export const ISessionClientsService = createDecorator<ISessionClientsService>(
 );
 
 export class SessionClientsService extends Disposable implements ISessionClientsService {
+  readonly _serviceBrand: undefined;
+
   private readonly _bySession = new Map<string, Set<WsConnection>>();
 
   /**

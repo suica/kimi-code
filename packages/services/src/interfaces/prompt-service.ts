@@ -42,6 +42,8 @@ export interface PromptAbortResult {
 }
 
 export interface IPromptService {
+  readonly _serviceBrand: undefined;
+
   /**
    * `POST /v1/sessions/{sid}/prompts` — submit a prompt for execution.
    *

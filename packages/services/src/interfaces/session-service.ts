@@ -39,6 +39,8 @@ export interface SessionListQuery extends CursorQuery {
 }
 
 export interface ISessionService {
+  readonly _serviceBrand: undefined;
+
   /**
    * `POST /v1/sessions` — create a new session. Requires `metadata.cwd`
    * (agent-core's `createSession` calls `requiredWorkDir`; missing cwd ⇒ throw).

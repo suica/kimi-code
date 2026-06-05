@@ -192,6 +192,8 @@ export interface FsChangedFrame {
 }
 
 export interface IFsWatcher {
+  readonly _serviceBrand: undefined;
+
   /**
    * Add a (sessionId, paths) subscription tied to a specific connection.
    * Caller MUST have already resolved each path through `resolveSafePath`
@@ -323,6 +325,8 @@ export interface FsWatcherServiceOptions {
 }
 
 export class FsWatcherService extends Disposable implements IFsWatcher {
+  readonly _serviceBrand: undefined;
+
   private readonly debounceMs: number;
   private readonly maxChangesPerWindow: number;
   private readonly maxPathsPerConnection: number;

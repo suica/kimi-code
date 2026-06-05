@@ -130,6 +130,7 @@ function overrideTaskService(
   stub: Partial<ITaskService>,
 ): void {
   const defaultImpl: ITaskService = {
+    _serviceBrand: undefined,
     list: async () => [],
     get: async () => {
       throw new TaskNotFoundError('s', 't');

@@ -21,6 +21,8 @@ import {
 } from '../src';
 
 class FakeEventBus implements IEventBus {
+  readonly _serviceBrand: undefined;
+
   readonly events: Event[] = [];
   publish(event: Event): void {
     this.events.push(event);
@@ -28,6 +30,8 @@ class FakeEventBus implements IEventBus {
 }
 
 class FakeApprovalBroker implements IApprovalBroker {
+  readonly _serviceBrand: undefined;
+
   readonly received: ApprovalRequest[] = [];
   resolveCalls: Array<{ id: string; response: ApprovalResponse }> = [];
   async request(
@@ -42,6 +46,8 @@ class FakeApprovalBroker implements IApprovalBroker {
 }
 
 class FakeQuestionBroker implements IQuestionBroker {
+  readonly _serviceBrand: undefined;
+
   readonly received: QuestionRequest[] = [];
   resolveCalls: Array<{ id: string; response: QuestionResult }> = [];
   dismissCalls: string[] = [];

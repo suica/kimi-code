@@ -22,6 +22,8 @@ import { createDecorator } from '@moonshot-ai/agent-core';
 import type { ToolDescriptor } from '@moonshot-ai/protocol';
 
 export interface IToolService {
+  readonly _serviceBrand: undefined;
+
   /**
    * Return the available tool descriptors. When `sessionId` is supplied, the
    * impl may return a session-effective subset; today it returns the global

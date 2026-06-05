@@ -263,6 +263,8 @@ export function toProtocolMessage(
 }
 
 export class MessageServiceImpl extends Disposable implements IMessageService {
+  readonly _serviceBrand: undefined;
+
   constructor(@IHarnessBridge private readonly bridge: IHarnessBridge) {
     super();
   }

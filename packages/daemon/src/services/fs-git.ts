@@ -74,6 +74,8 @@ export class FsGitUnavailableError extends Error {
 // ---------------------------------------------------------------------------
 
 export interface IFsGitService extends IDisposable {
+  readonly _serviceBrand: undefined;
+
   status(
     sessionId: string,
     req: FsGitStatusRequest,
@@ -88,6 +90,8 @@ export const IFsGitService = createDecorator<IFsGitService>('IFsGitService');
 // ---------------------------------------------------------------------------
 
 export class FsGitServiceImpl extends Disposable implements IFsGitService {
+  readonly _serviceBrand: undefined;
+
   constructor(@ISessionService protected readonly sessions: ISessionService) {
     super();
   }

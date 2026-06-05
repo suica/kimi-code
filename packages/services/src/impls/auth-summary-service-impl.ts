@@ -49,6 +49,8 @@ export class AuthSummaryServiceImpl
   extends Disposable
   implements IAuthSummaryService
 {
+  readonly _serviceBrand: undefined;
+
   private readonly _authFacade: KimiAuthFacade;
 
   constructor(

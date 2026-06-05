@@ -125,6 +125,8 @@ export interface GetResult {
 }
 
 export interface IFileStore {
+  readonly _serviceBrand: undefined;
+
   /**
    * Stream `source` to disk under a fresh `file_id`. Enforces the size
    * cap during streaming; throws `FileTooLargeError` on overrun and
@@ -172,6 +174,8 @@ interface IndexFile {
 }
 
 export class FileStoreImpl extends Disposable implements IFileStore {
+  readonly _serviceBrand: undefined;
+
   private readonly baseDir: string;
   private readonly indexPath: string;
   private readonly maxUploadBytes: number;

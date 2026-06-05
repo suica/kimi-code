@@ -26,6 +26,8 @@ import type {} from '@moonshot-ai/protocol'; // type-only marker — keep protoc
 export type { QuestionRequest, QuestionResult };
 
 export interface IQuestionBroker {
+  readonly _serviceBrand: undefined;
+
   /**
    * Called by the bridge when KimiCore needs the user to answer a question.
    * Resolves with the in-process `QuestionResult` (null = no handler / fully

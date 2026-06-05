@@ -165,6 +165,8 @@ export class FsTooManyResultsError extends Error {
 // ---------------------------------------------------------------------------
 
 export interface IFsService extends IDisposable {
+  readonly _serviceBrand: undefined;
+
   list(sessionId: string, req: FsListRequest): Promise<FsListResponse>;
   read(sessionId: string, req: FsReadRequest): Promise<FsReadResponse>;
   // Chain 10 (W10.2) — batch endpoints.
@@ -230,6 +232,8 @@ const MACOS_NOISE = new Set(['.DS_Store', '.AppleDouble', '.LSOverride']);
 // ---------------------------------------------------------------------------
 
 export class FsServiceImpl extends Disposable implements IFsService {
+  readonly _serviceBrand: undefined;
+
   /**
    * Per-cwd compiled `.gitignore` matcher cache. Lazily populated on the
    * first list call. Cleared on `dispose()`.

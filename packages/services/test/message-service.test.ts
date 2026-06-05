@@ -53,6 +53,7 @@ function makeFakeBridge(
     rpc: rpc as HarnessRPC,
     ready: vi.fn().mockResolvedValue(undefined),
     dispose: vi.fn(),
+    _serviceBrand: undefined,
   };
 }
 

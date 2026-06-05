@@ -141,6 +141,8 @@ export function toProtocolSession(
 }
 
 export class SessionServiceImpl extends Disposable implements ISessionService {
+  readonly _serviceBrand: undefined;
+
   constructor(@IHarnessBridge private readonly bridge: IHarnessBridge) {
     super();
   }

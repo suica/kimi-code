@@ -99,6 +99,8 @@ export class FsGrepTimeoutError extends Error {
 // ---------------------------------------------------------------------------
 
 export interface IFsSearchService extends IDisposable {
+  readonly _serviceBrand: undefined;
+
   search(
     sessionId: string,
     req: FsSearchRequest,
@@ -130,6 +132,8 @@ export class FsSearchServiceImpl
   extends Disposable
   implements IFsSearchService
 {
+  readonly _serviceBrand: undefined;
+
   /** Cached `.gitignore` matcher per realCwd. Same shape as IFsService. */
   protected gitignoreCache = new Map<string, Ignore>();
 

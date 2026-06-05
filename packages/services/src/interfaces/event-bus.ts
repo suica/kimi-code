@@ -15,6 +15,8 @@ import { createDecorator } from '@moonshot-ai/agent-core';
 import type { Event } from '@moonshot-ai/protocol';
 
 export interface IEventBus {
+  readonly _serviceBrand: undefined;
+
   /**
    * Publish a fully-formed `Event` to all subscribers. Synchronous; the bridge
    * does not await delivery — fan-out is the broker's concern.

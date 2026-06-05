@@ -17,6 +17,8 @@ import { Disposable, createDecorator } from '@moonshot-ai/agent-core';
 import type { DaemonLogger } from '../logger.js';
 
 export interface ILogger {
+  readonly _serviceBrand: undefined;
+
   info(obj: object | string, msg?: string): void;
   warn(obj: object | string, msg?: string): void;
   error(obj: object | string, msg?: string): void;
@@ -35,6 +37,8 @@ export const ILogger = createDecorator<ILogger>('ILogger');
  * that other components still need during teardown.
  */
 export class PinoLogger extends Disposable implements ILogger {
+  readonly _serviceBrand: undefined;
+
   constructor(private readonly logger: DaemonLogger) {
     super();
   }

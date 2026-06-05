@@ -44,6 +44,8 @@ import type { WsConnection } from '../src/ws/connection';
 
 /** No-op logger that satisfies `ILogger` without pulling pino. */
 class TestLogger implements ILoggerT {
+  readonly _serviceBrand: undefined;
+
   info(): void {}
   warn(): void {}
   error(): void {}
@@ -58,6 +60,8 @@ class TestLogger implements ILoggerT {
  * Set-based bookkeeping inlined so the test doesn't depend on the real impl.
  */
 class FakeSessionClients implements ISessionClientsServiceT {
+  readonly _serviceBrand: undefined;
+
   private readonly _bySession = new Map<string, Set<WsConnection>>();
   subscribe(c: WsConnection, sid: string): void {
     let set = this._bySession.get(sid);

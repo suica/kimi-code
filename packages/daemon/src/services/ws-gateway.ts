@@ -50,6 +50,8 @@ import { WsConnection, type AbortHandler, type FsWatchHandler } from '../ws/conn
 export const WS_PATH = '/api/v1/ws';
 
 export interface IWSGateway {
+  readonly _serviceBrand: undefined;
+
   /** Number of currently-attached WS connections. */
   readonly size: number;
   /**
@@ -84,6 +86,8 @@ export interface WSGatewayOptions {
 }
 
 export class WSGateway extends Disposable implements IWSGateway {
+  readonly _serviceBrand: undefined;
+
   private readonly wss: WebSocketServer;
   private readonly upgradeListener: (req: IncomingMessage, sock: Socket, head: Buffer) => void;
   private readonly server: HttpServer;

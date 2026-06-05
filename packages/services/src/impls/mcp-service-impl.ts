@@ -39,6 +39,8 @@ import { IMcpService, McpServerNotFoundError } from '../interfaces/mcp-service';
 import { toProtocolMcpServer } from '../adapter/tool-adapter';
 
 export class McpServiceImpl extends Disposable implements IMcpService {
+  readonly _serviceBrand: undefined;
+
   constructor(@IHarnessBridge private readonly bridge: IHarnessBridge) {
     super();
   }

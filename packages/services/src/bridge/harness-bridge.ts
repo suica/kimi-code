@@ -78,6 +78,8 @@ export interface HarnessBridgeOptions extends KimiCoreOptions {
 export type HarnessRPC = CoreRPC;
 
 export interface IHarnessBridge {
+  readonly _serviceBrand: undefined;
+
   /** The core RPC methods. Service impls call e.g. `bridge.rpc.createSession(...)`. */
   readonly rpc: HarnessRPC;
 
@@ -98,6 +100,8 @@ export interface IHarnessBridge {
 export const IHarnessBridge = createDecorator<IHarnessBridge>('IHarnessBridge');
 
 export class HarnessBridge extends Disposable implements IHarnessBridge {
+  readonly _serviceBrand: undefined;
+
   /**
    * Service-facing RPC handle. This is a `Proxy` over the awaited
    * `RPCMethods<CoreAPI>` so callers don't have to await a promise themselves

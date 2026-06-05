@@ -31,6 +31,8 @@ import { toProtocolTool, type AgentCoreToolInfoLike } from '../adapter/tool-adap
 const MAIN_AGENT_ID = 'main';
 
 export class ToolServiceImpl extends Disposable implements IToolService {
+  readonly _serviceBrand: undefined;
+
   constructor(@IHarnessBridge private readonly bridge: IHarnessBridge) {
     super();
   }

@@ -103,6 +103,8 @@ export interface DaemonApprovalBrokerOptions {
 }
 
 export class DaemonApprovalBroker extends Disposable implements IApprovalBroker {
+  readonly _serviceBrand: undefined;
+
   /** Indexed by daemon-minted `approval_id` (REST path key). */
   private readonly _pending = new Map<string, PendingApproval>();
   /** Reverse lookup for `toolCallId` (legacy stub-interface compatibility). */

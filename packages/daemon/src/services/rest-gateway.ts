@@ -43,6 +43,8 @@ export interface FastifyLike {
 }
 
 export interface IRestGateway {
+  readonly _serviceBrand: undefined;
+
   readonly app: FastifyLike;
   listen(host: string, port: number): Promise<string>;
 }
@@ -51,6 +53,8 @@ export interface IRestGateway {
 export const IRestGateway = createDecorator<IRestGateway>('IRestGateway');
 
 export class FastifyRestGateway extends Disposable implements IRestGateway {
+  readonly _serviceBrand: undefined;
+
   constructor(public readonly app: FastifyLike) {
     super();
   }

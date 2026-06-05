@@ -91,6 +91,8 @@ interface FlowState {
 const TERMINAL_RETENTION_MS = 5 * 60 * 1000;
 
 export class OAuthServiceImpl extends Disposable implements IOAuthService {
+  readonly _serviceBrand: undefined;
+
   private readonly _authFacade: KimiAuthFacade;
   private readonly _flows = new Map<string, FlowState>();
 

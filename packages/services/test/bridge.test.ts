@@ -43,6 +43,8 @@ import {
 // --- Mock broker impls (per-test fresh instances) ----------------------------
 
 class RecordingEventBus implements IEventBus {
+  readonly _serviceBrand: undefined;
+
   readonly events: Event[] = [];
   publish(event: Event): void {
     this.events.push(event);
@@ -50,6 +52,8 @@ class RecordingEventBus implements IEventBus {
 }
 
 class RecordingApprovalBroker implements IApprovalBroker {
+  readonly _serviceBrand: undefined;
+
   readonly received: ApprovalRequest[] = [];
   readonly resolveCalls: Array<{ id: string; response: ApprovalResponse }> = [];
   async request(
@@ -64,6 +68,8 @@ class RecordingApprovalBroker implements IApprovalBroker {
 }
 
 class RecordingQuestionBroker implements IQuestionBroker {
+  readonly _serviceBrand: undefined;
+
   readonly received: QuestionRequest[] = [];
   readonly resolveCalls: Array<{ id: string; response: QuestionResult }> = [];
   readonly dismissCalls: string[] = [];

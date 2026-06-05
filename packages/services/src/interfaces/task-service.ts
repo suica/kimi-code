@@ -31,6 +31,8 @@ export interface TaskListQuery {
 }
 
 export interface ITaskService {
+  readonly _serviceBrand: undefined;
+
   /** Return the (full) list of background tasks for the session. */
   list(sessionId: string, query: TaskListQuery): Promise<readonly BackgroundTask[]>;
 

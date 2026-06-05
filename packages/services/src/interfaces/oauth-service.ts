@@ -33,6 +33,8 @@ import type {
 } from '@moonshot-ai/protocol';
 
 export interface IOAuthService {
+  readonly _serviceBrand: undefined;
+
   /**
    * Kick off a device-code flow for `providerName` (default
    * `'managed:kimi-code'`). Requests the device authorization synchronously

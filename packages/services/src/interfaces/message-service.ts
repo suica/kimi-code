@@ -33,6 +33,8 @@ export interface MessageListQuery extends CursorQuery {
 }
 
 export interface IMessageService {
+  readonly _serviceBrand: undefined;
+
   /**
    * `GET /v1/sessions/{sid}/messages` — paginated message history.
    *

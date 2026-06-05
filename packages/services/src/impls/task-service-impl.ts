@@ -41,6 +41,8 @@ import { isTerminalStatus, toProtocolTask } from '../adapter/task-adapter';
 const MAIN_AGENT_ID = 'main';
 
 export class TaskServiceImpl extends Disposable implements ITaskService {
+  readonly _serviceBrand: undefined;
+
   constructor(@IHarnessBridge private readonly bridge: IHarnessBridge) {
     super();
   }

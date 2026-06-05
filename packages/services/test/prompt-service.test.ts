@@ -77,6 +77,7 @@ function makeBridge(
     rpc: rpc as HarnessRPC,
     ready: vi.fn().mockResolvedValue(undefined),
     dispose: vi.fn(),
+    _serviceBrand: undefined,
   };
   return { bridge, record };
 }
@@ -87,6 +88,7 @@ function makeBus(): { bus: IEventBus; events: Event[] } {
     publish: (e: Event) => {
       events.push(e);
     },
+    _serviceBrand: undefined,
   };
   return { bus, events };
 }
@@ -107,6 +109,7 @@ function makeAuth(opts: { ensureReadyError?: Error } = {}): IAuthSummaryService 
     ensureReady: vi.fn().mockImplementation(async () => {
       if (opts.ensureReadyError) throw opts.ensureReadyError;
     }),
+    _serviceBrand: undefined,
   };
 }
 
@@ -180,6 +183,7 @@ describe('PromptServiceImpl.submit (W7.2)', () => {
       rpc: rpc as HarnessRPC,
       ready: vi.fn().mockResolvedValue(undefined),
       dispose: vi.fn(),
+      _serviceBrand: undefined,
     };
     const { bus } = makeBus();
     const impl = new PromptServiceImpl(bridge, bus, makeAuth());

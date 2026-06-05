@@ -26,6 +26,8 @@ import { Disposable, createDecorator } from '@moonshot-ai/agent-core';
 import type { WsConnection } from '../ws/connection.js';
 
 export interface IConnectionRegistry {
+  readonly _serviceBrand: undefined;
+
   /** Insert a freshly-handshaken connection. */
   add(conn: WsConnection): void;
   /** Remove a closed connection. Idempotent. */
@@ -47,6 +49,8 @@ export interface IConnectionRegistry {
 export const IConnectionRegistry = createDecorator<IConnectionRegistry>('IConnectionRegistry');
 
 export class ConnectionRegistry extends Disposable implements IConnectionRegistry {
+  readonly _serviceBrand: undefined;
+
   private readonly _conns = new Map<string, WsConnection>();
 
   add(c: WsConnection): void {
