@@ -1,5 +1,5 @@
 /**
- * `TaskServiceImpl` (Chain 8 / P1.8, W9.2) unit tests.
+ * `TaskService` (Chain 8 / P1.8, W9.2) unit tests.
  *
  * Hermetic: mocks `IHarnessBridge` with an in-memory `rpc` proxy. Coverage:
  *   - kind mapping (process/agent/question → bash/subagent/tool)
@@ -26,7 +26,7 @@ import {
   SessionNotFoundError,
   TaskAlreadyFinishedError,
   TaskNotFoundError,
-  TaskServiceImpl,
+  TaskService,
   toProtocolTask,
 } from '../src';
 
@@ -150,9 +150,9 @@ describe('toProtocolTask adapter', () => {
 
 // --- Service impl ---------------------------------------------------------
 
-describe('TaskServiceImpl.list', () => {
+describe('TaskService.list', () => {
   it('throws SessionNotFoundError on unknown session', async () => {
-    const svc = new TaskServiceImpl(makeBridge(fresh()));
+    const svc = new TaskService(makeBridge(fresh()));
     await expect(svc.list('unknown', {})).rejects.toBeInstanceOf(SessionNotFoundError);
   });
 
@@ -160,7 +160,7 @@ describe('TaskServiceImpl.list', () => {
     const state = fresh();
     state.sessions.push(session('s1'));
     state.tasksBySession.set('s1', [bashTask('t1', 'running'), bashTask('t2', 'completed', 1_001_000)]);
-    const svc = new TaskServiceImpl(makeBridge(state));
+    const svc = new TaskService(makeBridge(state));
     const out = await svc.list('s1', {});
     expect(out).toHaveLength(2);
     expect(out[0]!.status).toBe('running');
@@ -175,18 +175,18 @@ describe('TaskServiceImpl.list', () => {
       bashTask('t2', 'completed', 1_001_000),
       bashTask('t3', 'killed', 1_002_000), // → 'cancelled'
     ]);
-    const svc = new TaskServiceImpl(makeBridge(state));
+    const svc = new TaskService(makeBridge(state));
     expect((await svc.list('s1', { status: 'running' })).map((t) => t.id)).toEqual(['t1']);
     expect((await svc.list('s1', { status: 'cancelled' })).map((t) => t.id)).toEqual(['t3']);
   });
 });
 
-describe('TaskServiceImpl.get', () => {
+describe('TaskService.get', () => {
   it('throws TaskNotFoundError for unknown id', async () => {
     const state = fresh();
     state.sessions.push(session('s1'));
     state.tasksBySession.set('s1', []);
-    const svc = new TaskServiceImpl(makeBridge(state));
+    const svc = new TaskService(makeBridge(state));
     await expect(svc.get('s1', 'nope')).rejects.toBeInstanceOf(TaskNotFoundError);
   });
 
@@ -194,18 +194,18 @@ describe('TaskServiceImpl.get', () => {
     const state = fresh();
     state.sessions.push(session('s1'));
     state.tasksBySession.set('s1', [bashTask('t1', 'running')]);
-    const svc = new TaskServiceImpl(makeBridge(state));
+    const svc = new TaskService(makeBridge(state));
     const task = await svc.get('s1', 't1');
     expect(task.id).toBe('t1');
   });
 });
 
-describe('TaskServiceImpl.cancel', () => {
+describe('TaskService.cancel', () => {
   it('throws TaskNotFoundError for unknown id', async () => {
     const state = fresh();
     state.sessions.push(session('s1'));
     state.tasksBySession.set('s1', []);
-    const svc = new TaskServiceImpl(makeBridge(state));
+    const svc = new TaskService(makeBridge(state));
     await expect(svc.cancel('s1', 'nope')).rejects.toBeInstanceOf(TaskNotFoundError);
   });
 
@@ -213,7 +213,7 @@ describe('TaskServiceImpl.cancel', () => {
     const state = fresh();
     state.sessions.push(session('s1'));
     state.tasksBySession.set('s1', [bashTask('t1', 'completed', 1_001_000)]);
-    const svc = new TaskServiceImpl(makeBridge(state));
+    const svc = new TaskService(makeBridge(state));
     await expect(svc.cancel('s1', 't1')).rejects.toBeInstanceOf(TaskAlreadyFinishedError);
   });
 
@@ -221,7 +221,7 @@ describe('TaskServiceImpl.cancel', () => {
     const state = fresh();
     state.sessions.push(session('s1'));
     state.tasksBySession.set('s1', [bashTask('t1', 'failed', 1_001_000)]);
-    const svc = new TaskServiceImpl(makeBridge(state));
+    const svc = new TaskService(makeBridge(state));
     await expect(svc.cancel('s1', 't1')).rejects.toBeInstanceOf(TaskAlreadyFinishedError);
   });
 
@@ -229,7 +229,7 @@ describe('TaskServiceImpl.cancel', () => {
     const state = fresh();
     state.sessions.push(session('s1'));
     state.tasksBySession.set('s1', [bashTask('t1', 'killed', 1_001_000)]);
-    const svc = new TaskServiceImpl(makeBridge(state));
+    const svc = new TaskService(makeBridge(state));
     await expect(svc.cancel('s1', 't1')).rejects.toBeInstanceOf(TaskAlreadyFinishedError);
   });
 
@@ -237,7 +237,7 @@ describe('TaskServiceImpl.cancel', () => {
     const state = fresh();
     state.sessions.push(session('s1'));
     state.tasksBySession.set('s1', [bashTask('t1', 'running')]);
-    const svc = new TaskServiceImpl(makeBridge(state));
+    const svc = new TaskService(makeBridge(state));
     const result = await svc.cancel('s1', 't1');
     expect(result).toEqual({ cancelled: true });
     expect(state.stopCalls).toHaveLength(1);

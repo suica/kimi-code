@@ -29,7 +29,7 @@ import { pino } from 'pino';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 
-import { IPromptService, PromptServiceImpl } from '@moonshot-ai/services';
+import { IPromptService, PromptService } from '@moonshot-ai/services';
 
 import { IRestGateway, startDaemon, type RunningDaemon } from '../src';
 
@@ -114,7 +114,7 @@ function injectActivePrompt(
   turnId: number | null,
 ): void {
   const impl = r.services.invokeFunction(
-    (a) => a.get(IPromptService) as PromptServiceImpl,
+    (a) => a.get(IPromptService) as PromptService,
   );
   impl._injectActiveForTest(sid, promptId, turnId);
 }

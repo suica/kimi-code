@@ -30,7 +30,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 
 import type { Event } from '@moonshot-ai/protocol';
-import { IEventBus, IPromptService, PromptServiceImpl } from '@moonshot-ai/services';
+import { IEventBus, IPromptService, PromptService } from '@moonshot-ai/services';
 
 import { IRestGateway, startDaemon, type RunningDaemon } from '../src';
 
@@ -219,9 +219,9 @@ describe('Prompt lifecycle: WS receives events + synthesized prompt.completed (W
     // a real `bridge.rpc.prompt(...)` call because it would require provider
     // credentials + a fully-loaded agent.
     const impl = r.services.invokeFunction(
-      (a) => a.get(IPromptService) as PromptServiceImpl,
+      (a) => a.get(IPromptService) as PromptService,
     );
-    expect(impl).toBeInstanceOf(PromptServiceImpl);
+    expect(impl).toBeInstanceOf(PromptService);
     impl._injectActiveForTest(sid, promptId, null);
 
     // Publish the agent-core event stream directly through the bus.
@@ -292,7 +292,7 @@ describe('Prompt lifecycle: WS receives events + synthesized prompt.completed (W
     const turnId = 7;
 
     const impl = r.services.invokeFunction(
-      (a) => a.get(IPromptService) as PromptServiceImpl,
+      (a) => a.get(IPromptService) as PromptService,
     );
     impl._injectActiveForTest(sid, promptId, null);
 

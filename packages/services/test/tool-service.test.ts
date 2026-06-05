@@ -1,5 +1,5 @@
 /**
- * `ToolServiceImpl` + `McpServiceImpl` (Chain 7 / P1.7, W9.1) unit tests.
+ * `ToolService` + `McpService` (Chain 7 / P1.7, W9.1) unit tests.
  *
  * Hermetic: mocks `IHarnessBridge` with an in-memory `rpc` proxy. Exercises:
  *   - tool source mapping: 'builtin' / 'user'→'skill' / 'mcp' + mcp_server_id parse
@@ -23,8 +23,8 @@ import {
   type IHarnessBridge,
   type HarnessRPC,
   McpServerNotFoundError,
-  McpServiceImpl,
-  ToolServiceImpl,
+  McpService,
+  ToolService,
   toProtocolMcpServer,
   toProtocolTool,
 } from '../src';
@@ -149,9 +149,9 @@ describe('toProtocolMcpServer adapter', () => {
 
 // --- Service impl tests -----------------------------------------------------
 
-describe('ToolServiceImpl.list', () => {
+describe('ToolService.list', () => {
   it('returns [] when no sessions exist (CoreAPI gap)', async () => {
-    const svc = new ToolServiceImpl(makeFakeBridge(freshState()));
+    const svc = new ToolService(makeFakeBridge(freshState()));
     const out = await svc.list();
     expect(out).toEqual([]);
   });
@@ -164,7 +164,7 @@ describe('ToolServiceImpl.list', () => {
       { name: 'Bash', description: 'b', source: 'builtin' },
       { name: 'mcp:lark:search', description: 'l', source: 'mcp' },
     );
-    const svc = new ToolServiceImpl(makeFakeBridge(state));
+    const svc = new ToolService(makeFakeBridge(state));
     const out = await svc.list();
     expect(out).toHaveLength(2);
     expect(out[0]!.source).toBe('builtin');
@@ -179,14 +179,14 @@ describe('ToolServiceImpl.list', () => {
     (bridge.rpc as HarnessRPC).getTools = async () => {
       throw new Error('session not loaded');
     };
-    const svc = new ToolServiceImpl(bridge);
+    const svc = new ToolService(bridge);
     expect(await svc.list()).toEqual([]);
   });
 });
 
-describe('McpServiceImpl.list', () => {
+describe('McpService.list', () => {
   it('returns [] when no sessions exist (registrar not reachable)', async () => {
-    const svc = new McpServiceImpl(makeFakeBridge(freshState()));
+    const svc = new McpService(makeFakeBridge(freshState()));
     expect(await svc.list()).toEqual([]);
   });
 
@@ -199,7 +199,7 @@ describe('McpServiceImpl.list', () => {
       status: 'connected',
       toolCount: 7,
     });
-    const svc = new McpServiceImpl(makeFakeBridge(state));
+    const svc = new McpService(makeFakeBridge(state));
     const out = await svc.list();
     expect(out).toHaveLength(1);
     expect(out[0]!.id).toBe('lark');
@@ -207,9 +207,9 @@ describe('McpServiceImpl.list', () => {
   });
 });
 
-describe('McpServiceImpl.restart', () => {
+describe('McpService.restart', () => {
   it('throws McpServerNotFoundError when no sessions exist', async () => {
-    const svc = new McpServiceImpl(makeFakeBridge(freshState()));
+    const svc = new McpService(makeFakeBridge(freshState()));
     await expect(svc.restart('lark')).rejects.toBeInstanceOf(McpServerNotFoundError);
   });
 
@@ -222,7 +222,7 @@ describe('McpServiceImpl.restart', () => {
       status: 'connected',
       toolCount: 1,
     });
-    const svc = new McpServiceImpl(makeFakeBridge(state));
+    const svc = new McpService(makeFakeBridge(state));
     await expect(svc.restart('unknown')).rejects.toBeInstanceOf(McpServerNotFoundError);
   });
 
@@ -235,7 +235,7 @@ describe('McpServiceImpl.restart', () => {
       status: 'connected',
       toolCount: 1,
     });
-    const svc = new McpServiceImpl(makeFakeBridge(state));
+    const svc = new McpService(makeFakeBridge(state));
     const result = await svc.restart('lark');
     expect(result).toEqual({ restarting: true });
     expect(state.reconnectCalls).toHaveLength(1);

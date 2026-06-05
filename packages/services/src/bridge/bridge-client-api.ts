@@ -25,9 +25,9 @@ import type {
   ToolCallResponse,
 } from '@moonshot-ai/agent-core';
 
-import type { IApprovalBroker } from '../interfaces/approval-broker';
-import type { IEventBus } from '../interfaces/event-bus';
-import type { IQuestionBroker } from '../interfaces/question-broker';
+import type { IApprovalBroker } from '../approval/approval-broker';
+import type { IEventBus } from '../event/event-bus';
+import type { IQuestionBroker } from '../question/question-broker';
 
 export interface BridgeClientAPIDeps {
   readonly eventBus: IEventBus;

@@ -22,6 +22,11 @@
  * registry exists for legacy "side-effect on import" wiring and is exposed
  * only via `./bridge/lifecycle.ts`'s `registerHarnessBridge` helper (NOT
  * re-exported from the package barrel; W3 STATUS.md documents this).
+ *
+ * Per-domain layout (Phase B):
+ *   Classes are now in per-domain folders (session/, message/, etc.) with
+ *   the `-Impl` suffix dropped. The descriptor entries below reference the
+ *   new class names directly.
  */
 
 import {
@@ -31,18 +36,18 @@ import {
 } from '@moonshot-ai/agent-core';
 
 import { HarnessBridge, IHarnessBridge } from './bridge/harness-bridge';
-import { McpServiceImpl } from './impls/mcp-service-impl';
-import { MessageServiceImpl } from './impls/message-service-impl';
-import { PromptServiceImpl } from './impls/prompt-service-impl';
-import { SessionServiceImpl } from './impls/session-service-impl';
-import { TaskServiceImpl } from './impls/task-service-impl';
-import { ToolServiceImpl } from './impls/tool-service-impl';
-import { IMcpService } from './interfaces/mcp-service';
-import { IMessageService } from './interfaces/message-service';
-import { IPromptService } from './interfaces/prompt-service';
-import { ISessionService } from './interfaces/session-service';
-import { ITaskService } from './interfaces/task-service';
-import { IToolService } from './interfaces/tool-service';
+import { McpService } from './mcp/mcp-service';
+import { IMcpService } from './mcp/mcp-service';
+import { MessageService } from './message/message-service';
+import { IMessageService } from './message/message-service';
+import { PromptService } from './prompt/prompt-service';
+import { IPromptService } from './prompt/prompt-service';
+import { SessionService } from './session/session-service';
+import { ISessionService } from './session/session-service';
+import { TaskService } from './task/task-service';
+import { ITaskService } from './task/task-service';
+import { ToolService } from './tool/tool-service';
+import { IToolService } from './tool/tool-service';
 
 export type ServiceModuleEntry = readonly [
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -56,31 +61,31 @@ export function defaultServicesModule(): ReadonlyArray<ServiceModuleEntry> {
   return [
     [IHarnessBridge, new SyncDescriptor(HarnessBridge), InstantiationType.Eager],
     // W6.2 / Chain 2 — `ISessionService`. The descriptor lacks staticArguments
-    // (SessionServiceImpl ctor needs IHarnessBridge). W2 has no ctor-arg DI,
+    // (SessionService ctor needs IHarnessBridge). W2 has no ctor-arg DI,
     // so this descriptor is informational; the daemon's `start.ts` wires the
-    // instance via `ix.createInstance(SessionServiceImpl, a.get(IHarnessBridge))`
+    // instance via `ix.createInstance(SessionService, a.get(IHarnessBridge))`
     // then `services.set(ISessionService, instance)`. The descriptor entry
     // documents that ISessionService is part of the canonical service set.
-    [ISessionService, new SyncDescriptor(SessionServiceImpl), InstantiationType.Eager],
+    [ISessionService, new SyncDescriptor(SessionService), InstantiationType.Eager],
     // W7.1 / Chain 3 — `IMessageService`. Same wiring story as `ISessionService`:
-    // `MessageServiceImpl` ctor takes `IHarnessBridge`; W2 has no ctor-arg DI so
-    // the daemon's `start.ts` calls `ix.createInstance(MessageServiceImpl, a.get(IHarnessBridge))`
+    // `MessageService` ctor takes `IHarnessBridge`; W2 has no ctor-arg DI so
+    // the daemon's `start.ts` calls `ix.createInstance(MessageService, a.get(IHarnessBridge))`
     // and `services.set(IMessageService, instance)`. The descriptor entry is the
     // canonical declaration of the service set.
-    [IMessageService, new SyncDescriptor(MessageServiceImpl), InstantiationType.Eager],
+    [IMessageService, new SyncDescriptor(MessageService), InstantiationType.Eager],
     // W7.2 / Chain 4 — `IPromptService`. Ctor takes `IHarnessBridge` + `IEventBus`
     // (it self-registers as a lifecycle observer on the bus so it can synthesize
     // `prompt.completed` / `prompt.aborted` from `turn.ended`). Same descriptor
     // shape as the others — daemon does manual wiring in start.ts.
-    [IPromptService, new SyncDescriptor(PromptServiceImpl), InstantiationType.Eager],
+    [IPromptService, new SyncDescriptor(PromptService), InstantiationType.Eager],
     // W9.1 / Chain 7 — `IToolService` + `IMcpService`. Both depend only on
     // `IHarnessBridge`; daemon's `start.ts` wires them after `IPromptService`
     // so reverse-dispose closes them before the bridge.
-    [IToolService, new SyncDescriptor(ToolServiceImpl), InstantiationType.Eager],
-    [IMcpService, new SyncDescriptor(McpServiceImpl), InstantiationType.Eager],
+    [IToolService, new SyncDescriptor(ToolService), InstantiationType.Eager],
+    [IMcpService, new SyncDescriptor(McpService), InstantiationType.Eager],
     // W9.2 / Chain 8 — `ITaskService`. Same ctor-arg-via-`createInstance`
     // wiring as IToolService/IMcpService; appended last so reverse-dispose
     // closes it first among the new services.
-    [ITaskService, new SyncDescriptor(TaskServiceImpl), InstantiationType.Eager],
+    [ITaskService, new SyncDescriptor(TaskService), InstantiationType.Eager],
   ] as const;
 }

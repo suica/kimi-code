@@ -6,7 +6,7 @@ import {
   resolveKimiHome,
 } from '@moonshot-ai/agent-core';
 import {
-  AuthSummaryServiceImpl,
+  AuthSummaryService,
   HarnessBridge,
   IApprovalBroker,
   IAuthSummaryService,
@@ -20,14 +20,14 @@ import {
   ISessionService,
   ITaskService,
   IToolService,
-  McpServiceImpl,
-  MessageServiceImpl,
-  OAuthServiceImpl,
-  PromptServiceImpl,
+  McpService,
+  MessageService,
+  OAuthService,
+  PromptService,
   SessionNotFoundError,
-  SessionServiceImpl,
-  TaskServiceImpl,
-  ToolServiceImpl,
+  SessionService,
+  TaskService,
+  ToolService,
   type HarnessBridgeOptions,
 } from '@moonshot-ai/services';
 import { ErrorCode } from '@moonshot-ai/protocol';
@@ -448,7 +448,7 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       // Reverse-dispose then runs ISessionService BEFORE IHarnessBridge —
       // the service's dispose can't accidentally call back into a
       // torn-down bridge.
-      const sessionService = ix.createInstance(SessionServiceImpl);
+      const sessionService = ix.createInstance(SessionService);
       services.set(ISessionService, sessionService);
       a.get(ISessionService);
 
@@ -457,7 +457,7 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       // [..., IMessageService, ISessionService, IHarnessBridge, ...].
       // Both services depend on a live bridge during their dispose; bridge
       // disposes LAST among them.
-      const messageService = ix.createInstance(MessageServiceImpl);
+      const messageService = ix.createInstance(MessageService);
       services.set(IMessageService, messageService);
       a.get(IMessageService);
 
@@ -477,7 +477,7 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
         homeDir: opts.bridgeOptions?.homeDir,
         configPath: opts.bridgeOptions?.configPath,
       });
-      const authSummaryService = ix.createInstance(AuthSummaryServiceImpl, {
+      const authSummaryService = ix.createInstance(AuthSummaryService, {
         homeDir: authHomeDir,
         configPath: authConfigPath,
       });
@@ -489,7 +489,7 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       // gate sees a fully-wired oauth surface; reverse-dispose runs
       // IOAuthService BEFORE IAuthSummaryService so any in-flight device
       // flow gets aborted before the config readers go away.
-      const oauthService = ix.createInstance(OAuthServiceImpl, {
+      const oauthService = ix.createInstance(OAuthService, {
         homeDir: authHomeDir,
         configPath: authConfigPath,
       });
@@ -503,7 +503,7 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       // [..., IMessageService, IPromptService] — reverse dispose runs
       // IPromptService FIRST among the daemon-services, then IMessageService,
       // then ISessionService, then IHarnessBridge.
-      const promptService = ix.createInstance(PromptServiceImpl);
+      const promptService = ix.createInstance(PromptService);
       services.set(IPromptService, promptService);
       a.get(IPromptService);
       // Register the service as a lifecycle observer on the bus. The detach
@@ -528,16 +528,16 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       // IMcpService]. Reverse dispose runs IMcpService FIRST among the new
       // services, then IToolService, then IPromptService — all BEFORE the
       // bridge.
-      const toolService = ix.createInstance(ToolServiceImpl);
+      const toolService = ix.createInstance(ToolService);
       services.set(IToolService, toolService);
       a.get(IToolService);
-      const mcpService = ix.createInstance(McpServiceImpl);
+      const mcpService = ix.createInstance(McpService);
       services.set(IMcpService, mcpService);
       a.get(IMcpService);
 
       // W9.2 / Chain 8 / P2.5 — ITaskService. Same wiring pattern; appended LAST
       // so reverse-dispose closes it first among the W9 additions.
-      const taskService = ix.createInstance(TaskServiceImpl);
+      const taskService = ix.createInstance(TaskService);
       services.set(ITaskService, taskService);
       a.get(ITaskService);
 

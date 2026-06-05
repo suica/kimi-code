@@ -47,9 +47,9 @@ import {
 import { KimiAuthFacade } from '@moonshot-ai/kimi-code-sdk';
 
 import { BridgeClientAPI } from './bridge-client-api';
-import { IApprovalBroker } from '../interfaces/approval-broker';
-import { IEventBus } from '../interfaces/event-bus';
-import { IQuestionBroker } from '../interfaces/question-broker';
+import { IApprovalBroker } from '../approval/approval-broker';
+import { IEventBus } from '../event/event-bus';
+import { IQuestionBroker } from '../question/question-broker';
 
 export interface HarnessBridgeOptions extends KimiCoreOptions {
   /**

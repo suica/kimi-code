@@ -1,5 +1,5 @@
 /**
- * `SessionServiceImpl` (Chain 2 / P1.2) unit tests.
+ * `SessionService` (Chain 2 / P1.2) unit tests.
  *
  * Hermetic: we mock `IHarnessBridge` with an in-memory `rpc` proxy whose
  * methods return controllable promises. No KimiCore, no agent-core RPC pair
@@ -29,7 +29,7 @@ import {
   type IHarnessBridge,
   type HarnessRPC,
   SessionNotFoundError,
-  SessionServiceImpl,
+  SessionService,
   toProtocolSession,
 } from '../src';
 
@@ -128,11 +128,11 @@ function freshState(): FakeBridgeState {
 }
 
 let state: FakeBridgeState;
-let svc: SessionServiceImpl;
+let svc: SessionService;
 
 beforeEach(() => {
   state = freshState();
-  svc = new SessionServiceImpl(makeFakeBridge(state));
+  svc = new SessionService(makeFakeBridge(state));
 });
 
 afterEach(() => {
@@ -220,7 +220,7 @@ describe('toProtocolSession adapter', () => {
   });
 });
 
-describe('SessionServiceImpl.create', () => {
+describe('SessionService.create', () => {
   it('calls bridge.rpc.createSession with workDir = metadata.cwd and returns a protocol Session', async () => {
     const session = await svc.create({
       metadata: { cwd: '/tmp/foo' },
@@ -245,7 +245,7 @@ describe('SessionServiceImpl.create', () => {
   });
 });
 
-describe('SessionServiceImpl.list', () => {
+describe('SessionService.list', () => {
   beforeEach(async () => {
     // Seed 3 sessions in increasing createdAt order.
     await svc.create({ metadata: { cwd: '/tmp/a' } });
@@ -290,7 +290,7 @@ describe('SessionServiceImpl.list', () => {
   });
 });
 
-describe('SessionServiceImpl.get', () => {
+describe('SessionService.get', () => {
   it('returns the matching session', async () => {
     const created = await svc.create({ metadata: { cwd: '/tmp/x' } });
     const found = await svc.get(created.id);
@@ -304,7 +304,7 @@ describe('SessionServiceImpl.get', () => {
   });
 });
 
-describe('SessionServiceImpl.update', () => {
+describe('SessionService.update', () => {
   let created: Session;
 
   beforeEach(async () => {
@@ -349,7 +349,7 @@ describe('SessionServiceImpl.update', () => {
   });
 });
 
-describe('SessionServiceImpl.delete', () => {
+describe('SessionService.delete', () => {
   it('calls bridge.rpc.closeSession and returns { deleted: true }', async () => {
     const created = await svc.create({ metadata: { cwd: '/tmp/d' } });
     const result = await svc.delete(created.id);

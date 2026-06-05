@@ -1,5 +1,5 @@
 /**
- * `MessageServiceImpl` (Chain 3 / P1.3, W7.1) unit tests.
+ * `MessageService` (Chain 3 / P1.3, W7.1) unit tests.
  *
  * Hermetic: a fake `IHarnessBridge` returns canned `SessionSummary[]` from
  * `listSessions` and a canned `AgentContextData.history` from `getContext`.
@@ -29,7 +29,7 @@ import {
   type IHarnessBridge,
   type HarnessRPC,
   MessageNotFoundError,
-  MessageServiceImpl,
+  MessageService,
   SessionNotFoundError,
   deriveMessageId,
   parseMessageId,
@@ -210,8 +210,8 @@ describe('toProtocolMessage content adapter', () => {
   });
 });
 
-describe('MessageServiceImpl', () => {
-  let impl: MessageServiceImpl;
+describe('MessageService', () => {
+  let impl: MessageService;
   let bridge: IHarnessBridge;
 
   beforeEach(() => {
@@ -225,7 +225,7 @@ describe('MessageServiceImpl', () => {
         mkUserMessage('five'),
       ],
     );
-    impl = new MessageServiceImpl(bridge);
+    impl = new MessageService(bridge);
   });
 
   afterEach(() => {

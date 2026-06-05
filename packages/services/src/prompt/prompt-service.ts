@@ -1,5 +1,5 @@
 /**
- * `PromptServiceImpl` (Chain 4 / P1.4, W7.2; abort logic for Chain 4b / W7.3) —
+ * `PromptService` (Chain 4 / P1.4, W7.2; abort logic for Chain 4b / W7.3) —
  * adapter between protocol-shaped REST surface and agent-core's `prompt` /
  * `cancel` RPC.
  *
@@ -61,7 +61,7 @@
  * `IEventBus.publish` (also a daemon-side interface; agent-core not touched).
  */
 
-import { Disposable } from '@moonshot-ai/agent-core';
+import { createDecorator, Disposable } from '@moonshot-ai/agent-core';
 import type {
   Event,
   PromptSubmission,
@@ -70,17 +70,111 @@ import type {
 import { ulid } from 'ulid';
 
 import { IHarnessBridge } from '../bridge/harness-bridge';
-import { IAuthSummaryService } from '../interfaces/auth-summary-service';
-import { IEventBus } from '../interfaces/event-bus';
-import {
-  IPromptService,
-  PromptAlreadyCompletedError,
-  PromptNotFoundError,
-  SessionBusyError,
-  type IPromptLifecycleObserver,
-  type PromptAbortResult,
-} from '../interfaces/prompt-service';
-import { SessionNotFoundError } from '../interfaces/session-service';
+import { IAuthSummaryService } from '../auth-summary/auth-summary-service';
+import { IEventBus } from '../event/event-bus';
+import { SessionNotFoundError } from '../session/session-service';
+
+export interface PromptAbortResult {
+  /** True iff this call performed the cancel (false on idempotent already-completed). */
+  aborted: boolean;
+  /** Per-session seq at the moment the abort was issued (informational). */
+  at_seq?: number;
+}
+
+export interface IPromptService {
+  readonly _serviceBrand: undefined;
+
+  /**
+   * `POST /v1/sessions/{sid}/prompts` — submit a prompt for execution.
+   *
+   * Throws `SessionNotFoundError` (→ 40401) for unknown `sid`.
+   * Throws `SessionBusyError`     (→ 40901) when another prompt is active.
+   */
+  submit(sid: string, body: PromptSubmission): Promise<PromptSubmitResult>;
+
+  /**
+   * `POST /v1/sessions/{sid}/prompts/{pid}:abort` — cancel an in-flight prompt.
+   *
+   * Per REST.md §3.5: aborting an already-completed prompt returns
+   * `PromptAlreadyCompletedError` (→ 40903 with `data.aborted: false`).
+   * Idempotent calls (same id, multiple aborts) collapse to a single cancel
+   * RPC + subsequent calls return 40903.
+   *
+   * Throws `SessionNotFoundError` (→ 40401) for unknown `sid`.
+   * Throws `PromptNotFoundError`  (→ 40402) when `pid` is unknown for `sid`.
+   */
+  abort(sid: string, pid: string): Promise<PromptAbortResult>;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const IPromptService = createDecorator<IPromptService>('promptService');
+
+/**
+ * Optional lifecycle observer surface. The daemon's `IEventBus` impl invokes
+ * `observe(event)` AFTER fan-out to subscribers. The observer may return zero
+ * or more synthetic events that the bus then publishes as if they had come
+ * from the agent. This is how we synthesize `prompt.completed` and
+ * `prompt.aborted` (agent-core's event union has no such types — see W7
+ * prompt §critical discovery point #2).
+ *
+ * Keeping it a separate interface lets the EventBus accept any number of
+ * observers (today just the prompt service; tomorrow potentially a session
+ * usage aggregator etc.) without growing API surface.
+ */
+export interface IPromptLifecycleObserver {
+  /**
+   * Called by the event bus on EVERY published event. Implementations should
+   * be fast + side-effect-light; long-running follow-ups must be queued
+   * elsewhere. Returns an array of derived events (possibly empty) to publish
+   * after the original event's fan-out completes.
+   */
+  observeEvent(event: Event): readonly Event[];
+}
+
+/**
+ * Sentinel — REST → 40901 `session.busy`. Carries the active prompt id so the
+ * route layer can include it in `details`.
+ */
+export class SessionBusyError extends Error {
+  readonly sessionId: string;
+  readonly activePromptId: string;
+  constructor(sessionId: string, activePromptId: string) {
+    super(`session ${sessionId} is busy (prompt ${activePromptId} in flight)`);
+    this.name = 'SessionBusyError';
+    this.sessionId = sessionId;
+    this.activePromptId = activePromptId;
+  }
+}
+
+/**
+ * Sentinel — REST → 40402 `prompt.not_found`.
+ */
+export class PromptNotFoundError extends Error {
+  readonly sessionId: string;
+  readonly promptId: string;
+  constructor(sessionId: string, promptId: string) {
+    super(`prompt ${promptId} does not exist in session ${sessionId}`);
+    this.name = 'PromptNotFoundError';
+    this.sessionId = sessionId;
+    this.promptId = promptId;
+  }
+}
+
+/**
+ * Sentinel — REST → 40903 `prompt.already_completed`. Carries the prompt id
+ * and a flag so the route layer can emit the documented
+ * `data: {aborted: false}` envelope despite the non-zero code.
+ */
+export class PromptAlreadyCompletedError extends Error {
+  readonly sessionId: string;
+  readonly promptId: string;
+  constructor(sessionId: string, promptId: string) {
+    super(`prompt ${promptId} in session ${sessionId} is already completed`);
+    this.name = 'PromptAlreadyCompletedError';
+    this.sessionId = sessionId;
+    this.promptId = promptId;
+  }
+}
 
 const MAIN_AGENT_ID = 'main';
 
@@ -147,7 +241,7 @@ export interface SyntheticPromptAbortedEvent {
   readonly abortedAt: string;
 }
 
-export class PromptServiceImpl
+export class PromptService
   extends Disposable
   implements IPromptService, IPromptLifecycleObserver
 {

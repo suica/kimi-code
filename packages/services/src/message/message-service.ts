@@ -1,10 +1,19 @@
 /**
- * `MessageServiceImpl` — adapter between protocol-shaped REST surface and
- * agent-core's `AgentContextData.history` shape (Chain 3 / P1.3, W7.1).
+ * `IMessageService` — daemon-facing message history interface (Chain 3 / P1.3, W7.1).
  *
- * Wraps `IHarnessBridge.rpc.{listSessions, getContext}` and translates each
- * `ContextMessage` (kosong `Message` extended with `origin` + `isError`) into
- * the protocol-level `Message` discriminated-by-content shape (SCHEMAS §3).
+ * Wraps `IHarnessBridge.rpc.getContext({sessionId, agentId})` and adapts
+ * agent-core's `ContextMessage` history shape (kosong `Message` + origin) to
+ * the protocol's SCHEMAS.md §3 `Message` discriminated-by-content union.
+ *
+ * Endpoint mapping (REST.md §3.4):
+ *   GET  /v1/sessions/{sid}/messages         → list(sid, ListMessagesQuery)
+ *   GET  /v1/sessions/{sid}/messages/{mid}   → get(sid, mid)
+ *
+ * Sentinel errors:
+ *   - `SessionNotFoundError`   → 40401 at the route layer
+ *   - `MessageNotFoundError`   → 40403 at the route layer
+ *
+ * The adapter is documented in the implementation below.
  *
  * **Field mapping** (kosong/agent-core → protocol):
  *
@@ -25,65 +34,23 @@
  *   { type:'video_url', videoUrl }        → { type:'text', text:`[video:${videoUrl.url}]` }
  *                                            (same as audio — no video variant in §3)
  *
- * Tool messages (role === 'tool'): kosong stores the tool output as the
- * `content[]` plus a top-level `toolCallId`. The adapter projects this into
- * the protocol's single `{type:'tool_result', tool_call_id, output, is_error?}`
- * content part, with `output` carrying the flattened text content of the
- * tool message (most tool messages return a single text part, per Loop).
- *
- * Assistant messages with tool calls (role === 'assistant', `toolCalls.length > 0`):
- * the adapter emits the content parts first, then ONE `tool_use` part per
- * `ToolCall` in `toolCalls` — preserving call order.
- *
  * **ID synthesis**: kosong's `Message` has no `id`. We derive a deterministic
  * id from `(sessionId, history_index)`:
  *
  *     id = `msg_<sessionId>_<6-digit-index>`
  *
- * Example: `msg_sess_01HZZZ_000003` for the 4th message in session
- * `sess_01HZZZ`. The 6-digit padding keeps lexicographic sort = numeric sort
- * for up to 1M messages per session. The format is opaque to clients — the
- * only contract is "stable, time-sortable string min(1)".
- *
- * **Timestamp synthesis**: kosong's `Message` has no timestamp. We derive
- * `created_at` from `sessionSummary.createdAt + history_index` (1ms apart per
- * message) so timestamp ordering matches id ordering. Real per-message
- * timestamps are deferred until agent-core surfaces per-message persistence
- * (documented in `packages/protocol/src/message.ts` header + STATUS Decisions).
- *
  * **Pagination**: SCHEMAS §1.3 / REST §3.4 say default 50, max 100 — applied
  * at the route layer. This impl receives a fully-validated query.
- *   - No `before_id` / `after_id`: returns the last `page_size` messages
- *     (created_at desc, equivalent to "history.slice(-page_size).reverse()").
- *   - `before_id`: messages strictly older than the pivot (history-prefix
- *     before the pivot index), most-recent first.
- *   - `after_id`: messages strictly newer than the pivot (history-suffix after
- *     the pivot index), most-recent first.
- *   - `has_more`: true iff the underlying eligible slice is bigger than
- *     `page_size`.
- *
- * **Role filter**: applied AFTER pagination on the visible page. This matches
- * SCHEMAS' "filter doesn't change cursor semantics" implicit contract. A
- * later optimization can fold the filter into the slice once agent-core
- * surfaces server-side message queries.
- *
- * **CoreAPI surface gap — session-existence check**: agent-core does NOT
- * expose `getSession(id)` and `getContext` itself doesn't accept a session id
- * (it expects `WithSessionId` from the proxy wrapper). We existence-check via
- * `listSessions({}) + find(id)` (mirrors `SessionServiceImpl.get`).
- *
- * **Anti-corruption**: imports `@moonshot-ai/agent-core` only for type-only
- * `SessionSummary` / `AgentContextData` / `ContextMessage`. Runtime calls go
- * through `IHarnessBridge.rpc.<method>`.
  */
 
-import { Disposable } from '@moonshot-ai/agent-core';
+import { createDecorator, Disposable } from '@moonshot-ai/agent-core';
 import type {
   AgentContextData,
   ContextMessage,
   SessionSummary,
 } from '@moonshot-ai/agent-core';
 import type {
+  CursorQuery,
   Message,
   MessageContent,
   MessageRole,
@@ -92,12 +59,60 @@ import type {
 } from '@moonshot-ai/protocol';
 
 import { IHarnessBridge } from '../bridge/harness-bridge';
-import {
-  IMessageService,
-  MessageNotFoundError,
-  type MessageListQuery,
-} from '../interfaces/message-service';
-import { SessionNotFoundError } from '../interfaces/session-service';
+import { SessionNotFoundError } from '../session/session-service';
+
+/**
+ * Listing query — `before_id`/`after_id` + `page_size` mutex is enforced
+ * by `cursorQuerySchema`. The service layer adds an optional role filter.
+ */
+export interface MessageListQuery extends CursorQuery {
+  role?: MessageRole;
+}
+
+export interface IMessageService {
+  readonly _serviceBrand: undefined;
+
+  /**
+   * `GET /v1/sessions/{sid}/messages` — paginated message history.
+   *
+   * Default `page_size = 50`, max 100 (REST.md §3.4 / SCHEMAS §1.3).
+   * Defaults are applied at the route layer.
+   *
+   * `before_id` / `after_id` are cursors keyed on message id (ULID, time
+   * sortable). Result order is `created_at desc`; clients displaying in
+   * ascending order should `.reverse()`.
+   *
+   * Throws `SessionNotFoundError` (→ 40401) when `sid` doesn't exist.
+   */
+  list(sid: string, query: MessageListQuery): Promise<PageResponse<Message>>;
+
+  /**
+   * `GET /v1/sessions/{sid}/messages/{mid}` — single message by id.
+   *
+   * Throws `SessionNotFoundError` (→ 40401) when `sid` doesn't exist.
+   * Throws `MessageNotFoundError` (→ 40403) when the session is known but
+   * no message with `mid` lives in its history.
+   */
+  get(sid: string, mid: string): Promise<Message>;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const IMessageService = createDecorator<IMessageService>('messageService');
+
+/**
+ * Sentinel error — daemon's route layer catches and maps to
+ * `code: 40403` (message.not_found).
+ */
+export class MessageNotFoundError extends Error {
+  readonly sessionId: string;
+  readonly messageId: string;
+  constructor(sessionId: string, messageId: string) {
+    super(`message ${messageId} does not exist in session ${sessionId}`);
+    this.name = 'MessageNotFoundError';
+    this.sessionId = sessionId;
+    this.messageId = messageId;
+  }
+}
 
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100;
@@ -116,7 +131,7 @@ export function deriveMessageId(sessionId: string, index: number): string {
 /**
  * Inverse of `deriveMessageId`: parse `msg_<sessionId>_<index>` back into
  * `{sessionId, index}`. Returns `undefined` if the id doesn't match the
- * `MessageServiceImpl` ULID-shape contract.
+ * `MessageService` ULID-shape contract.
  */
 export function parseMessageId(
   messageId: string,
@@ -262,7 +277,7 @@ export function toProtocolMessage(
   };
 }
 
-export class MessageServiceImpl extends Disposable implements IMessageService {
+export class MessageService extends Disposable implements IMessageService {
   readonly _serviceBrand: undefined;
 
   constructor(@IHarnessBridge private readonly bridge: IHarnessBridge) {
