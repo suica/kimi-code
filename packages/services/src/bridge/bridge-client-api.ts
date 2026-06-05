@@ -43,6 +43,11 @@ export class BridgeClientAPI implements SDKAPI {
   }
 
   emitEvent(event: Event): void {
+    const e = event as { type?: string; sessionId?: string; agentId?: string };
+    // eslint-disable-next-line no-console
+    console.error(
+      `[DBG bridge-client-api.emitEvent] type=${e.type} sessionId=${e.sessionId ?? '<missing>'} agentId=${e.agentId ?? '<missing>'}`,
+    );
     this.deps.eventBus.publish(event);
   }
 

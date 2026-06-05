@@ -116,10 +116,11 @@ export class DaemonEventBus extends Disposable implements IEventBus {
   publish(event: Event): void {
     if (this._isDisposed) return;
     const sid = extractSessionId(event);
+    const evType = (event as { type?: string }).type ?? '<no-type>';
     if (!sid) {
       this.logger.warn(
-        { eventType: (event as { type?: string }).type ?? 'unknown' },
-        'event has no session_id; dropping',
+        { eventType: evType, eventKeys: Object.keys(event as object) },
+        '[DBG event-bus.publish] event has no session_id; dropping',
       );
       return;
     }
@@ -140,6 +141,10 @@ export class DaemonEventBus extends Disposable implements IEventBus {
     // capture into an array to avoid mutating-iterator hazards if a send()
     // synchronously triggers a forgetConnection (e.g. socket error → close).
     const targets = Array.from(this.sessionClients.getConnections(sid));
+    this.logger.info(
+      { eventType: evType, sessionId: sid, seq: state.seq, targetCount: targets.length },
+      '[DBG event-bus.publish] fan-out',
+    );
     for (const conn of targets) {
       conn.send(envelope);
     }

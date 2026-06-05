@@ -216,15 +216,27 @@ export class PromptServiceImpl
     // The submit RPC returns synchronously (PromptPayload → void); errors
     // would manifest as later `error` events, not as a rejection here.
     try {
+      // eslint-disable-next-line no-console
+      console.error(
+        `[DBG prompt-service.submit] sid=${sid} promptId=${promptId} agent=${MAIN_AGENT_ID} parts=${input.length} -> bridge.rpc.prompt(...)`,
+      );
       await this.bridge.rpc.prompt({
         sessionId: sid,
         agentId: MAIN_AGENT_ID,
         input,
       });
+      // eslint-disable-next-line no-console
+      console.error(
+        `[DBG prompt-service.submit] sid=${sid} promptId=${promptId} bridge.rpc.prompt(...) resolved`,
+      );
     } catch (err) {
       // Clear our active-prompt state so the next submit succeeds; surface
       // the error to the route layer.
       this._active.delete(sid);
+      // eslint-disable-next-line no-console
+      console.error(
+        `[DBG prompt-service.submit] sid=${sid} promptId=${promptId} bridge.rpc.prompt(...) threw: ${(err as Error)?.message ?? err}`,
+      );
       throw err;
     }
 

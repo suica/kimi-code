@@ -325,6 +325,10 @@ export class WsConnection {
 
   private onSubscribe(msg: SubscribeMessage): void {
     const { session_ids, last_seq_by_session, watch_fs } = msg.payload;
+    this.logger.info(
+      { sessionIds: session_ids, lastSeqBySession: last_seq_by_session, hasWatchFs: !!watch_fs },
+      '[DBG ws.onSubscribe] received subscribe',
+    );
     const accepted: string[] = [];
     const resyncRequired: string[] = [];
 
