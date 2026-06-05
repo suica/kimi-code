@@ -361,3 +361,38 @@ describe('SessionService.delete', () => {
     await expect(svc.delete('does-not-exist')).rejects.toBeInstanceOf(SessionNotFoundError);
   });
 });
+
+describe('SessionService per-domain event listeners (Phase C)', () => {
+  it('onDidCreate fires after bridge.rpc.createSession resolves', async () => {
+    const events: unknown[] = [];
+    svc.onDidCreate((e) => { events.push(e); });
+    const session = await svc.create({ metadata: { cwd: '/tmp/evt' } });
+    expect(events).toHaveLength(1);
+    expect((events[0] as { session: { id: string } }).session.id).toBe(session.id);
+  });
+
+  it('onDidCreate detach stops future events', async () => {
+    const events: unknown[] = [];
+    const detach = svc.onDidCreate((e) => { events.push(e); });
+    detach();
+    await svc.create({ metadata: { cwd: '/tmp/evt2' } });
+    expect(events).toHaveLength(0);
+  });
+
+  it('onDidClose fires after bridge.rpc.closeSession resolves', async () => {
+    const closedIds: string[] = [];
+    svc.onDidClose((e) => { closedIds.push(e.sessionId); });
+    const session = await svc.create({ metadata: { cwd: '/tmp/evt3' } });
+    await svc.delete(session.id);
+    expect(closedIds).toEqual([session.id]);
+  });
+
+  it('onDidClose detach stops future events', async () => {
+    const closedIds: string[] = [];
+    const detach = svc.onDidClose((e) => { closedIds.push(e.sessionId); });
+    detach();
+    const session = await svc.create({ metadata: { cwd: '/tmp/evt4' } });
+    await svc.delete(session.id);
+    expect(closedIds).toHaveLength(0);
+  });
+});

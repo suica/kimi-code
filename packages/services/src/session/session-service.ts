@@ -100,6 +100,23 @@ export interface ISessionService {
    * Returns `{ deleted: true }` envelope shape per REST §3.3.
    */
   delete(id: string): Promise<{ deleted: true }>;
+
+  /**
+   * Subscribe to session-creation events. The handler fires synchronously
+   * after the bridge RPC returns a new `Session`.
+   *
+   * Returns a detach function. Pass it to `Disposable._register({ dispose:
+   * detach })` so the subscription tears down with the owning service.
+   */
+  onDidCreate(handler: (event: { session: Session }) => void): () => void;
+
+  /**
+   * Subscribe to session-close events. The handler fires synchronously after
+   * `bridge.rpc.closeSession` resolves.
+   *
+   * Returns a detach function.
+   */
+  onDidClose(handler: (event: { sessionId: string }) => void): () => void;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
@@ -193,6 +210,11 @@ export function toProtocolSession(
 export class SessionService extends Disposable implements ISessionService {
   readonly _serviceBrand: undefined;
 
+  /** Handlers for session-created events. */
+  private readonly _createHandlers = new Set<(e: { session: Session }) => void>();
+  /** Handlers for session-closed events. */
+  private readonly _closeHandlers = new Set<(e: { sessionId: string }) => void>();
+
   constructor(@IHarnessBridge private readonly bridge: IHarnessBridge) {
     super();
   }
@@ -219,7 +241,10 @@ export class SessionService extends Disposable implements ISessionService {
       }
     }
     const meta = await this.tryGetMeta(summary.id);
-    return toProtocolSession(summary, meta);
+    const session = toProtocolSession(summary, meta);
+    // Fire onDidCreate handlers after bridge RPC resolves.
+    for (const h of this._createHandlers) h({ session });
+    return session;
   }
 
   async list(query: SessionListQuery): Promise<PageResponse<Session>> {
@@ -321,6 +346,8 @@ export class SessionService extends Disposable implements ISessionService {
       throw new SessionNotFoundError(id);
     }
     await this.bridge.rpc.closeSession({ sessionId: id });
+    // Fire onDidClose handlers after bridge RPC resolves.
+    for (const h of this._closeHandlers) h({ sessionId: id });
     return { deleted: true };
   }
 
@@ -336,5 +363,34 @@ export class SessionService extends Disposable implements ISessionService {
     } catch {
       return undefined;
     }
+  }
+
+  // --- Per-domain event listeners -------------------------------------------
+
+  onDidCreate(handler: (event: { session: Session }) => void): () => void {
+    this._createHandlers.add(handler);
+    let detached = false;
+    return () => {
+      if (detached) return;
+      detached = true;
+      this._createHandlers.delete(handler);
+    };
+  }
+
+  onDidClose(handler: (event: { sessionId: string }) => void): () => void {
+    this._closeHandlers.add(handler);
+    let detached = false;
+    return () => {
+      if (detached) return;
+      detached = true;
+      this._closeHandlers.delete(handler);
+    };
+  }
+
+  override dispose(): void {
+    if (this._isDisposed) return;
+    this._createHandlers.clear();
+    this._closeHandlers.clear();
+    super.dispose();
   }
 }
