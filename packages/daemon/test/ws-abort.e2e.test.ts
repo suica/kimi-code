@@ -2,7 +2,7 @@
  * WS abort + REST/WS abort symmetry e2e (W7.3 / Chain 4b / P1.4b).
  *
  * **Bootstrap strategy**: spawn the real daemon, register an active prompt
- * via `PromptServiceImpl._injectActiveForTest` (avoids running a real
+ * via `PromptService._injectActiveForTest` (avoids running a real
  * agent-core prompt), then exercise:
  *   1. WS `abort` control message → server publishes `prompt.aborted`
  *      synthetic event + sends ack with `aborted: true`.

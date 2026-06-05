@@ -11,9 +11,9 @@
  *      streams events synchronously from inside; they reach WS subscribers
  *      via the bus.
  *
- *   2. **Lifecycle observation (W7.2)**: implements `IPromptLifecycleObserver`
- *      so the daemon's event bus invokes `observeEvent(e)` on every published
- *      event. We use this to:
+ *   2. **Lifecycle observation (W7.2 / Phase C)**: subscribes to the event
+ *      bus via `IEventBus.subscribe(handler)` in its constructor. We use this
+ *      to:
  *      - capture `turn.started` → record `promptId ↔ turnId` mapping (so
  *        later abort can pass the correct numeric `turnId` to
  *        `bridge.rpc.cancel({turnId})`).
@@ -22,6 +22,9 @@
  *        `prompt.aborted` (reason='cancelled') event. The bus then broadcasts
  *        these. agent-core's event union has no prompt-level types — see W7
  *        §critical discovery point #2.
+ *      Typed listeners `onPromptCompleted(handler)` / `onPromptAborted(handler)`
+ *      are also exposed so callers can observe the typed synthetic events
+ *      without filtering the raw bus stream.
  *
  *   3. **Abort (W7.3)**: existence-check the prompt id, dispatch
  *      `bridge.rpc.cancel({sessionId, agentId:'main', turnId?})`. Idempotent:
@@ -104,32 +107,30 @@ export interface IPromptService {
    * Throws `PromptNotFoundError`  (→ 40402) when `pid` is unknown for `sid`.
    */
   abort(sid: string, pid: string): Promise<PromptAbortResult>;
+
+  /**
+   * Subscribe to `prompt.completed` synthetic events. The handler is called
+   * synchronously when a top-level `turn.ended` (reason='completed'|'failed')
+   * is synthesised into a prompt-lifecycle event, BEFORE `bus.publish(synth)`.
+   *
+   * Returns a detach function. Pass it to `Disposable._register({ dispose:
+   * detach })` so the subscription tears down with the owning service.
+   */
+  onPromptCompleted(handler: (e: SyntheticPromptCompletedEvent) => void): () => void;
+
+  /**
+   * Subscribe to `prompt.aborted` synthetic events. The handler is called
+   * synchronously when a top-level `turn.ended` (reason='cancelled') or an
+   * abort RPC synthesises a prompt-lifecycle event, BEFORE `bus.publish(synth)`.
+   *
+   * Returns a detach function. Pass it to `Disposable._register({ dispose:
+   * detach })` so the subscription tears down with the owning service.
+   */
+  onPromptAborted(handler: (e: SyntheticPromptAbortedEvent) => void): () => void;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const IPromptService = createDecorator<IPromptService>('promptService');
-
-/**
- * Optional lifecycle observer surface. The daemon's `IEventBus` impl invokes
- * `observe(event)` AFTER fan-out to subscribers. The observer may return zero
- * or more synthetic events that the bus then publishes as if they had come
- * from the agent. This is how we synthesize `prompt.completed` and
- * `prompt.aborted` (agent-core's event union has no such types — see W7
- * prompt §critical discovery point #2).
- *
- * Keeping it a separate interface lets the EventBus accept any number of
- * observers (today just the prompt service; tomorrow potentially a session
- * usage aggregator etc.) without growing API surface.
- */
-export interface IPromptLifecycleObserver {
-  /**
-   * Called by the event bus on EVERY published event. Implementations should
-   * be fast + side-effect-light; long-running follow-ups must be queued
-   * elsewhere. Returns an array of derived events (possibly empty) to publish
-   * after the original event's fan-out completes.
-   */
-  observeEvent(event: Event): readonly Event[];
-}
 
 /**
  * Sentinel — REST → 40901 `session.busy`. Carries the active prompt id so the
@@ -243,12 +244,17 @@ export interface SyntheticPromptAbortedEvent {
 
 export class PromptService
   extends Disposable
-  implements IPromptService, IPromptLifecycleObserver
+  implements IPromptService
 {
   readonly _serviceBrand: undefined;
 
   /** Active prompt per session. Cleared on completion / abort emission. */
   private readonly _active = new Map<string, PromptState>();
+
+  /** Typed handlers for `prompt.completed` synthetic events. */
+  private readonly _completedHandlers = new Set<(e: SyntheticPromptCompletedEvent) => void>();
+  /** Typed handlers for `prompt.aborted` synthetic events. */
+  private readonly _abortedHandlers = new Set<(e: SyntheticPromptAbortedEvent) => void>();
 
   constructor(
     @IHarnessBridge private readonly bridge: IHarnessBridge,
@@ -256,6 +262,13 @@ export class PromptService
     @IAuthSummaryService private readonly auth: IAuthSummaryService,
   ) {
     super();
+    // Phase C: self-subscribe to the bus for lifecycle synthesis. The detach
+    // handle travels through Disposable so it tears down when PromptService
+    // disposes (which happens BEFORE the bus disposes per start.ts wiring
+    // order). Re-entrance is safe: synthesised `prompt.*` events don't match
+    // the `turn.*` predicates below.
+    const detach = this.eventBus.subscribe(this._handleBusEvent.bind(this));
+    this._register({ dispose: detach });
   }
 
   // --- IPromptService --------------------------------------------------------
@@ -348,7 +361,7 @@ export class PromptService
     if (state.completed || state.aborted) {
       throw new PromptAlreadyCompletedError(sid, pid);
     }
-    // Mark aborted optimistically — observeEvent will not re-synthesize.
+    // Mark aborted optimistically — _handleBusEvent will not re-synthesize.
     state.aborted = true;
     try {
       const cancelArgs: { sessionId: string; agentId: string; turnId?: number } = {
@@ -364,7 +377,7 @@ export class PromptService
       throw err;
     }
     // Synthesize the prompt.aborted event immediately. agent-core may also
-    // emit a turn.ended(cancelled) later; observeEvent suppresses a second
+    // emit a turn.ended(cancelled) later; _handleBusEvent suppresses a second
     // synthesis since `state.aborted === true`.
     const ev: SyntheticPromptAbortedEvent = {
       type: 'prompt.aborted',
@@ -373,17 +386,41 @@ export class PromptService
       promptId: pid,
       abortedAt: new Date().toISOString(),
     };
+    // Fire typed handlers BEFORE publishing to the bus.
+    for (const h of this._abortedHandlers) h(ev);
     this.eventBus.publish(ev as unknown as Event);
     return { aborted: true };
   }
 
-  // --- IPromptLifecycleObserver --------------------------------------------
+  // --- IPromptService typed event listeners ----------------------------------
 
-  observeEvent(event: Event): readonly Event[] {
+  onPromptCompleted(handler: (e: SyntheticPromptCompletedEvent) => void): () => void {
+    this._completedHandlers.add(handler);
+    let detached = false;
+    return () => {
+      if (detached) return;
+      detached = true;
+      this._completedHandlers.delete(handler);
+    };
+  }
+
+  onPromptAborted(handler: (e: SyntheticPromptAbortedEvent) => void): () => void {
+    this._abortedHandlers.add(handler);
+    let detached = false;
+    return () => {
+      if (detached) return;
+      detached = true;
+      this._abortedHandlers.delete(handler);
+    };
+  }
+
+  // --- Phase C: private bus event handler (replaces IPromptLifecycleObserver) --
+
+  private _handleBusEvent(event: Event): void {
     const sid = (event as { sessionId?: string }).sessionId;
-    if (sid === undefined || sid === '') return [];
+    if (sid === undefined || sid === '') return;
     const state = this._active.get(sid);
-    if (state === undefined) return [];
+    if (state === undefined) return;
 
     if (isTurnStarted(event)) {
       // Capture the FIRST turn.started after submit as the "top-level" turn.
@@ -392,19 +429,19 @@ export class PromptService
       if (state.turnId === null) {
         state.turnId = event.turnId;
       }
-      return [];
+      return;
     }
 
     if (isTurnEnded(event)) {
       // Only fire on the top-level turn end. Nested turn.ended events fly
       // through without prompt-level synthesis.
-      if (state.turnId === null || event.turnId !== state.turnId) return [];
+      if (state.turnId === null || event.turnId !== state.turnId) return;
 
       // If we already synthesized via abort RPC, don't double-emit. Mark
       // completed to prevent stale lookups, but emit nothing.
       if (state.aborted) {
         this._active.delete(sid);
-        return [];
+        return;
       }
 
       const reason = event.reason;
@@ -421,7 +458,10 @@ export class PromptService
           abortedAt: new Date().toISOString(),
         };
         this._active.delete(sid);
-        return [synth as unknown as Event];
+        // Fire typed handlers BEFORE publishing to the bus.
+        for (const h of this._abortedHandlers) h(synth);
+        this.eventBus.publish(synth as unknown as Event);
+        return;
       }
 
       state.completed = true;
@@ -434,9 +474,10 @@ export class PromptService
         reason: reason === 'failed' ? 'failed' : 'completed',
       };
       this._active.delete(sid);
-      return [synth as unknown as Event];
+      // Fire typed handlers BEFORE publishing to the bus.
+      for (const h of this._completedHandlers) h(synth);
+      this.eventBus.publish(synth as unknown as Event);
     }
-    return [];
   }
 
   /**
@@ -475,6 +516,8 @@ export class PromptService
   override dispose(): void {
     if (this._isDisposed) return;
     this._active.clear();
+    this._completedHandlers.clear();
+    this._abortedHandlers.clear();
     super.dispose();
   }
 }

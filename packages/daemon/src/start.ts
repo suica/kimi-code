@@ -496,22 +496,19 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       services.set(IOAuthService, oauthService);
       a.get(IOAuthService);
 
-      // W7.2 / Chain 4 / P2.5 — IPromptService. Ctor takes IHarnessBridge + IEventBus
-      // (the impl uses the bus both to publish synthetic prompt.completed /
-      // prompt.aborted events AND to register itself as a lifecycle observer
-      // so it sees turn.started/turn.ended). Construction order:
+      // W7.2 / Chain 4 / P2.5 — IPromptService. Ctor takes IHarnessBridge + IEventBus.
+      // Phase C: PromptService self-subscribes to the bus in its constructor
+      // (via IEventBus.subscribe) for lifecycle synthesis, so no manual wiring
+      // is needed here. Construction order:
       // [..., IMessageService, IPromptService] — reverse dispose runs
-      // IPromptService FIRST among the daemon-services, then IMessageService,
-      // then ISessionService, then IHarnessBridge.
+      // IPromptService FIRST among the daemon-services (detaching its bus
+      // subscription), then IMessageService, then ISessionService, then
+      // IHarnessBridge. The bus disposes AFTER PromptService (IEventBus is
+      // constructed before IPromptService in start.ts), so the detach happens
+      // before the bus tears down — correct order.
       const promptService = ix.createInstance(PromptService);
       services.set(IPromptService, promptService);
       a.get(IPromptService);
-      // Register the service as a lifecycle observer on the bus. The detach
-      // function is intentionally not stored — the observer is unregistered
-      // when the bus itself disposes (which happens LATER in the dispose
-      // chain than IPromptService, so observers automatically stop being
-      // invoked once the bus tears down).
-      (eventBus as DaemonEventBus).addObserver(promptService);
 
       // W7.3 — wire the WS abort handler. Both REST and WS abort go through
       // `IPromptService.abort`; the WS connection needs an `AbortHandler`

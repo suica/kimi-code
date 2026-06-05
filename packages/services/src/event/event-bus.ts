@@ -22,6 +22,19 @@ export interface IEventBus {
    * does not await delivery — fan-out is the broker's concern.
    */
   publish(event: Event): void;
+
+  /**
+   * Subscribe to all published events. The handler is called synchronously
+   * AFTER WS fan-out on each `publish(event)` call.
+   *
+   * Returns a detach function. Pass it to `Disposable._register({ dispose:
+   * detach })` so the subscription is torn down when the owner disposes.
+   *
+   * This replaces the old `addObserver(IPromptLifecycleObserver)` surface
+   * (Phase C retirement) with a general pub-sub API that does not require a
+   * separate observer interface.
+   */
+  subscribe(handler: (event: Event) => void): () => void;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare

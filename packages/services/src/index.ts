@@ -6,7 +6,7 @@
  * Per-domain layout (Phase B):
  *   session/session-service.ts       — ISessionService + SessionService + toProtocolSession
  *   message/message-service.ts       — IMessageService + MessageService + toProtocolMessage
- *   prompt/prompt-service.ts         — IPromptService + PromptService + IPromptLifecycleObserver
+ *   prompt/prompt-service.ts         — IPromptService + PromptService + SyntheticPrompt* events
  *   tool/tool-service.ts             — IToolService + ToolService + toProtocolTool
  *   mcp/mcp-service.ts               — IMcpService + McpService + toProtocolMcpServer
  *   task/task-service.ts             — ITaskService + TaskService + toProtocolTask
@@ -102,7 +102,6 @@ export {
   PromptService,
 } from './prompt/prompt-service';
 export type {
-  IPromptLifecycleObserver,
   PromptAbortResult,
   SyntheticPromptAbortedEvent,
   SyntheticPromptCompletedEvent,

@@ -1,5 +1,5 @@
 /**
- * `DaemonEventBus` (W5.2 / P0.16, extended W7.2 with lifecycle observers) —
+ * `DaemonEventBus` (W5.2 / P0.16, extended W7.2 with pub-sub API) —
  * WS-broadcasting event bus.
  *
  * Replaces the W4 stub (queue + `_drainForTest`) entirely. `publish(event)`
@@ -11,12 +11,13 @@
  *      enforced in W5.3 at 1000; W5.2 keeps the buffer unbounded as a
  *      transitional step).
  *   4. Fans out to every WS connection subscribed via `ISessionClientsService`.
- *   5. **W7.2**: invokes any attached `IPromptLifecycleObserver`s synchronously
- *      after fan-out. Each may return zero or more derived events which the
- *      bus then publishes recursively. This is the mechanism that synthesizes
- *      `prompt.completed` / `prompt.aborted` from `turn.ended` (agent-core's
- *      event union has no prompt-lifecycle types; see W7 §critical discovery
- *      point #2).
+ *   5. **Phase C**: invokes any `subscribe(handler)` callbacks synchronously
+ *      after fan-out. Handlers may call `this.publish(...)` to synthesize
+ *      derived events (re-entrance terminates because synthesized events don't
+ *      match the synthesis predicates in PromptService's private handler). This
+ *      is the mechanism that synthesizes `prompt.completed` / `prompt.aborted`
+ *      from `turn.ended` (agent-core's event union has no prompt-lifecycle
+ *      types; see W7 §critical discovery point #2).
  *
  * Events without a `sessionId` (none are expected today — every agent-core
  * Event extends `AgentEvent & { agentId, sessionId }`) are dropped with a
@@ -37,7 +38,7 @@
 
 import { Disposable } from '@moonshot-ai/agent-core';
 import type { Event } from '@moonshot-ai/protocol';
-import { IEventBus, type IPromptLifecycleObserver } from '@moonshot-ai/services';
+import { IEventBus } from '@moonshot-ai/services';
 
 import type { ILogger } from './logger.js';
 import type { ISessionClientsService } from './session-clients.js';
@@ -86,7 +87,7 @@ export class DaemonEventBus extends Disposable implements IEventBus {
 
   private readonly _sessions = new Map<string, SessionState>();
   private readonly _maxBufferSize: number;
-  private readonly _observers = new Set<IPromptLifecycleObserver>();
+  private readonly _subscribers = new Set<(e: Event) => void>();
 
   constructor(
     private readonly logger: ILogger,
@@ -98,20 +99,22 @@ export class DaemonEventBus extends Disposable implements IEventBus {
   }
 
   /**
-   * W7.2 — attach a lifecycle observer. The observer's `observeEvent(event)`
-   * is called synchronously AFTER fan-out to subscribers; any derived events
-   * it returns are recursively published.
+   * Phase C — subscribe to all published events. The handler is called
+   * synchronously AFTER WS fan-out; it may call `this.publish(...)` to
+   * synthesize derived events (re-entrance terminates naturally because
+   * synthesized `prompt.*` events don't match the `turn.*` predicates).
    *
-   * Returns an idempotent detach function. Observers should NOT depend on
-   * attach order (today there's only one observer, the prompt service).
+   * Returns an idempotent detach function; pass it to
+   * `Disposable._register({ dispose: detach })` so it tears down with the
+   * owning service.
    */
-  addObserver(observer: IPromptLifecycleObserver): () => void {
-    this._observers.add(observer);
+  subscribe(handler: (event: Event) => void): () => void {
+    this._subscribers.add(handler);
     let detached = false;
     return () => {
       if (detached) return;
       detached = true;
-      this._observers.delete(observer);
+      this._subscribers.delete(handler);
     };
   }
 
@@ -151,24 +154,20 @@ export class DaemonEventBus extends Disposable implements IEventBus {
       conn.send(envelope);
     }
 
-    // W7.2 — run lifecycle observers AFTER fan-out so subscribers see the
-    // original event first, then any synthesized follow-ups. Each observer
-    // returns zero or more derived events; we publish each recursively. Errors
-    // in one observer don't block the others (logged and swallowed).
-    if (this._observers.size > 0) {
-      for (const observer of Array.from(this._observers)) {
-        let derived: readonly Event[];
+    // Phase C — call pub-sub subscribers AFTER fan-out. Each handler may call
+    // `this.publish(...)` to synthesize derived events. Re-entrance terminates
+    // naturally: synthesized `prompt.*` events don't match the `turn.*`
+    // predicates in PromptService's handler, so no infinite loop. Errors in
+    // one handler don't block the others (logged and swallowed).
+    if (this._subscribers.size > 0) {
+      for (const handler of Array.from(this._subscribers)) {
         try {
-          derived = observer.observeEvent(event);
+          handler(event);
         } catch (err) {
           this.logger.warn(
             { err: String(err) },
-            'prompt-lifecycle observer threw; ignoring',
+            'event-bus subscriber threw; ignoring',
           );
-          continue;
-        }
-        for (const ev of derived) {
-          this.publish(ev);
         }
       }
     }
@@ -240,7 +239,7 @@ export class DaemonEventBus extends Disposable implements IEventBus {
 
   override dispose(): void {
     if (this._isDisposed) return;
-    this._observers.clear();
+    this._subscribers.clear();
     this._sessions.clear();
     super.dispose();
   }

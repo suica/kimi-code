@@ -3,7 +3,8 @@
  *
  * Hermetic: a fake `IHarnessBridge` returns canned session list + records
  * the `prompt` / `cancel` payloads. A stub `IEventBus` collects published
- * events into an array we can inspect.
+ * events into an array we can inspect and drives synthesis via
+ * `bus.publish(turn.*)` → PromptService's private subscriber.
  *
  * Coverage:
  *   - submit(sid, body) returns {prompt_id, user_message_id}
@@ -11,13 +12,11 @@
  *   - submit translates protocol content → kosong content (text + image_url)
  *   - submit on unknown sid → SessionNotFoundError
  *   - submit on a session with an active completed/aborted prompt succeeds
- *   - observeEvent on `turn.started` captures turnId
- *   - observeEvent on `turn.ended` (top-level, completed) synthesizes
- *     prompt.completed
- *   - observeEvent on `turn.ended` with reason=cancelled synthesizes
- *     prompt.aborted
- *   - observeEvent ignores non-top-level (nested) turn.ended events
- *   - observeEvent on events for an unknown session is a no-op
+ *   - bus.publish of `turn.started` captures turnId (via PromptService subscriber)
+ *   - bus.publish of `turn.ended` (top-level, completed) synthesizes prompt.completed
+ *   - bus.publish of `turn.ended` with reason=cancelled synthesizes prompt.aborted
+ *   - bus.publish of nested turn.ended ignored (non-top-level)
+ *   - bus.publish on events for an unknown session is a no-op
  *   - abort() rejects PromptNotFoundError when no active prompt
  *   - abort() returns {aborted: true} + publishes prompt.aborted
  *   - second abort() → PromptAlreadyCompletedError (40903)
@@ -82,15 +81,27 @@ function makeBridge(
   return { bridge, record };
 }
 
-function makeBus(): { bus: IEventBus; events: Event[] } {
+function makeBus(): { bus: IEventBus; events: Event[]; triggerSubscribers: (e: Event) => void } {
   const events: Event[] = [];
+  const subscribers = new Set<(e: Event) => void>();
   const bus: IEventBus = {
     publish: (e: Event) => {
       events.push(e);
+      // Drive any subscribers (mirrors DaemonEventBus publish → subscriber call).
+      for (const h of Array.from(subscribers)) h(e);
+    },
+    subscribe: (handler: (e: Event) => void) => {
+      subscribers.add(handler);
+      return () => { subscribers.delete(handler); };
     },
     _serviceBrand: undefined,
   };
-  return { bus, events };
+  // Helper to push an event into the bus WITHOUT recording it in `events`
+  // (i.e. simulate agent-core emitting a raw event that the bus fans out).
+  function triggerSubscribers(e: Event): void {
+    for (const h of Array.from(subscribers)) h(e);
+  }
+  return { bus, events, triggerSubscribers };
 }
 
 /**
@@ -195,13 +206,13 @@ describe('PromptService.submit (W7.2)', () => {
   });
 });
 
-describe('PromptService.observeEvent (lifecycle synthesis)', () => {
+describe('PromptService lifecycle synthesis (via IEventBus.subscribe)', () => {
   it('captures turnId on the first turn.started after submit', async () => {
     const { bridge } = makeBridge();
-    const { bus } = makeBus();
+    const { bus, triggerSubscribers } = makeBus();
     const impl = new PromptService(bridge, bus, makeAuth());
     await impl.submit(SID, { content: [{ type: 'text', text: 'hi' }] });
-    impl.observeEvent({
+    triggerSubscribers({
       type: 'turn.started',
       turnId: 42,
       origin: { kind: 'user' },
@@ -213,17 +224,17 @@ describe('PromptService.observeEvent (lifecycle synthesis)', () => {
 
   it('ignores subsequent turn.started events (treated as nested turns)', async () => {
     const { bridge } = makeBridge();
-    const { bus } = makeBus();
+    const { bus, triggerSubscribers } = makeBus();
     const impl = new PromptService(bridge, bus, makeAuth());
     await impl.submit(SID, { content: [{ type: 'text', text: 'hi' }] });
-    impl.observeEvent({
+    triggerSubscribers({
       type: 'turn.started',
       turnId: 42,
       origin: { kind: 'user' },
       sessionId: SID,
       agentId: 'main',
     } as unknown as Event);
-    impl.observeEvent({
+    triggerSubscribers({
       type: 'turn.started',
       turnId: 99,
       origin: { kind: 'user' },
@@ -235,25 +246,28 @@ describe('PromptService.observeEvent (lifecycle synthesis)', () => {
 
   it('synthesizes prompt.completed on top-level turn.ended (reason=completed)', async () => {
     const { bridge } = makeBridge();
-    const { bus, events } = makeBus();
+    const { bus, events, triggerSubscribers } = makeBus();
     const impl = new PromptService(bridge, bus, makeAuth());
     const submit = await impl.submit(SID, { content: [{ type: 'text', text: 'hi' }] });
-    impl.observeEvent({
+    triggerSubscribers({
       type: 'turn.started',
       turnId: 7,
       origin: { kind: 'user' },
       sessionId: SID,
       agentId: 'main',
     } as unknown as Event);
-    const derived = impl.observeEvent({
+    // Clear submit-related events; we want to inspect the synthesis result.
+    events.length = 0;
+    triggerSubscribers({
       type: 'turn.ended',
       turnId: 7,
       reason: 'completed',
       sessionId: SID,
       agentId: 'main',
     } as unknown as Event);
-    expect(derived).toHaveLength(1);
-    const synth = derived[0] as unknown as {
+    // The bus.publish was called with the synth event.
+    expect(events).toHaveLength(1);
+    const synth = events[0] as unknown as {
       type: string;
       promptId: string;
       reason: string;
@@ -261,71 +275,102 @@ describe('PromptService.observeEvent (lifecycle synthesis)', () => {
     expect(synth.type).toBe('prompt.completed');
     expect(synth.promptId).toBe(submit.prompt_id);
     expect(synth.reason).toBe('completed');
-    // The bus.publish wasn't called from observeEvent itself — the bus is the
-    // caller and is responsible for republishing the derived events.
-    expect(events).toHaveLength(0);
     // Active state cleared.
     expect(impl._activeForTest(SID)).toBeUndefined();
   });
 
+  it('fires onPromptCompleted handler before bus.publish', async () => {
+    const { bridge } = makeBridge();
+    const { bus, events, triggerSubscribers } = makeBus();
+    const impl = new PromptService(bridge, bus, makeAuth());
+    const submit = await impl.submit(SID, { content: [{ type: 'text', text: 'hi' }] });
+    triggerSubscribers({
+      type: 'turn.started',
+      turnId: 7,
+      origin: { kind: 'user' },
+      sessionId: SID,
+      agentId: 'main',
+    } as unknown as Event);
+    const handlerArgs: unknown[] = [];
+    const handlerCalledBeforePublish: boolean[] = [];
+    impl.onPromptCompleted((e) => {
+      handlerArgs.push(e);
+      // At handler call time, bus.publish hasn't been called for this synth yet.
+      handlerCalledBeforePublish.push(events.filter(ev => (ev as unknown as { type?: string }).type === 'prompt.completed').length === 0);
+    });
+    events.length = 0;
+    triggerSubscribers({
+      type: 'turn.ended',
+      turnId: 7,
+      reason: 'completed',
+      sessionId: SID,
+      agentId: 'main',
+    } as unknown as Event);
+    expect(handlerArgs).toHaveLength(1);
+    expect((handlerArgs[0] as { promptId: string }).promptId).toBe(submit.prompt_id);
+    expect(handlerCalledBeforePublish[0]).toBe(true);
+  });
+
   it('synthesizes prompt.aborted on top-level turn.ended (reason=cancelled)', async () => {
     const { bridge } = makeBridge();
-    const { bus } = makeBus();
+    const { bus, events, triggerSubscribers } = makeBus();
     const impl = new PromptService(bridge, bus, makeAuth());
     await impl.submit(SID, { content: [{ type: 'text', text: 'hi' }] });
-    impl.observeEvent({
+    triggerSubscribers({
       type: 'turn.started',
       turnId: 8,
       origin: { kind: 'user' },
       sessionId: SID,
       agentId: 'main',
     } as unknown as Event);
-    const derived = impl.observeEvent({
+    events.length = 0;
+    triggerSubscribers({
       type: 'turn.ended',
       turnId: 8,
       reason: 'cancelled',
       sessionId: SID,
       agentId: 'main',
     } as unknown as Event);
-    expect(derived).toHaveLength(1);
-    expect((derived[0] as unknown as { type: string }).type).toBe('prompt.aborted');
+    expect(events).toHaveLength(1);
+    expect((events[0] as unknown as { type: string }).type).toBe('prompt.aborted');
   });
 
   it('ignores nested turn.ended (different turnId) so prompt stays active', async () => {
     const { bridge } = makeBridge();
-    const { bus } = makeBus();
+    const { bus, events, triggerSubscribers } = makeBus();
     const impl = new PromptService(bridge, bus, makeAuth());
     await impl.submit(SID, { content: [{ type: 'text', text: 'hi' }] });
-    impl.observeEvent({
+    triggerSubscribers({
       type: 'turn.started',
       turnId: 1,
       origin: { kind: 'user' },
       sessionId: SID,
       agentId: 'main',
     } as unknown as Event);
-    const derived = impl.observeEvent({
+    events.length = 0;
+    triggerSubscribers({
       type: 'turn.ended',
       turnId: 99,
       reason: 'completed',
       sessionId: SID,
       agentId: 'main',
     } as unknown as Event);
-    expect(derived).toEqual([]);
+    expect(events).toEqual([]);
     expect(impl._activeForTest(SID)?.completed).toBe(false);
   });
 
   it('is a no-op for events on a session with no active prompt', async () => {
     const { bridge } = makeBridge();
-    const { bus } = makeBus();
+    const { bus, events, triggerSubscribers } = makeBus();
     const impl = new PromptService(bridge, bus, makeAuth());
-    const derived = impl.observeEvent({
+    triggerSubscribers({
       type: 'turn.ended',
       turnId: 1,
       reason: 'completed',
       sessionId: SID,
       agentId: 'main',
     } as unknown as Event);
-    expect(derived).toEqual([]);
+    expect(events).toEqual([]);
   });
 });
 
@@ -341,18 +386,19 @@ describe('PromptService.abort (W7.3)', () => {
 
   it('returns {aborted: true} and publishes prompt.aborted', async () => {
     const { bridge, record } = makeBridge();
-    const { bus, events } = makeBus();
+    const { bus, events, triggerSubscribers } = makeBus();
     const impl = new PromptService(bridge, bus, makeAuth());
     const submit = await impl.submit(SID, {
       content: [{ type: 'text', text: 'hi' }],
     });
-    impl.observeEvent({
+    triggerSubscribers({
       type: 'turn.started',
       turnId: 5,
       origin: { kind: 'user' },
       sessionId: SID,
       agentId: 'main',
     } as unknown as Event);
+    events.length = 0;
     const result = await impl.abort(SID, submit.prompt_id);
     expect(result.aborted).toBe(true);
     // bridge.rpc.cancel called with the captured turnId.

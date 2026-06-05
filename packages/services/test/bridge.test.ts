@@ -49,6 +49,9 @@ class RecordingEventBus implements IEventBus {
   publish(event: Event): void {
     this.events.push(event);
   }
+  subscribe(_handler: (e: Event) => void): () => void {
+    return () => { /* no-op for tests that don't need bus pub-sub */ };
+  }
 }
 
 class RecordingApprovalBroker implements IApprovalBroker {
