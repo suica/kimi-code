@@ -71,7 +71,7 @@ export interface IWSGateway {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const IWSGateway = createDecorator<IWSGateway>('IWSGateway');
+export const IWSGateway = createDecorator<IWSGateway>('wsGateway');
 
 export interface WSGatewayOptions {
   /**

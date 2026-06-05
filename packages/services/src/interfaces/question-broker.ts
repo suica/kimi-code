@@ -52,4 +52,4 @@ export interface IQuestionBroker {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const IQuestionBroker = createDecorator<IQuestionBroker>('IQuestionBroker');
+export const IQuestionBroker = createDecorator<IQuestionBroker>('questionBroker');

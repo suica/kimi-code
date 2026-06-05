@@ -82,7 +82,7 @@ export interface ISessionService {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const ISessionService = createDecorator<ISessionService>('ISessionService');
+export const ISessionService = createDecorator<ISessionService>('sessionService');
 
 /**
  * Sentinel error class — daemon's route layer catches this and maps to

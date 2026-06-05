@@ -45,7 +45,7 @@ export interface IMcpService {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const IMcpService = createDecorator<IMcpService>('IMcpService');
+export const IMcpService = createDecorator<IMcpService>('mcpService');
 
 /**
  * Sentinel — daemon's route layer catches this and maps to envelope `code:

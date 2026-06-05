@@ -44,7 +44,7 @@ export interface ISessionClientsService {
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const ISessionClientsService = createDecorator<ISessionClientsService>(
-  'ISessionClientsService',
+  'sessionClientsService',
 );
 
 export class SessionClientsService extends Disposable implements ISessionClientsService {

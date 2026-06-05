@@ -45,4 +45,4 @@ export interface IApprovalBroker {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const IApprovalBroker = createDecorator<IApprovalBroker>('IApprovalBroker');
+export const IApprovalBroker = createDecorator<IApprovalBroker>('approvalBroker');

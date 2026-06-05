@@ -6,9 +6,9 @@
  * step emits an event, `HarnessBridge`'s `BridgeClientAPI.emitEvent(event)`
  * forwards it to `IEventBus.publish(event)`. Concrete impls land in W5/Chain N.
  *
- * Decorator name `'IEventBus'` is the diagnostic string surfaced in
+ * Decorator name `'eventBus'` is the diagnostic string surfaced in
  * `CyclicDependencyError.path` and `'No service registered for identifier ...'`
- * messages. Keep it stable across phases.
+ * messages.
  */
 
 import { createDecorator } from '@moonshot-ai/agent-core';
@@ -25,4 +25,4 @@ export interface IEventBus {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const IEventBus = createDecorator<IEventBus>('IEventBus');
+export const IEventBus = createDecorator<IEventBus>('eventBus');

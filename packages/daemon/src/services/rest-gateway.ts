@@ -50,7 +50,7 @@ export interface IRestGateway {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const IRestGateway = createDecorator<IRestGateway>('IRestGateway');
+export const IRestGateway = createDecorator<IRestGateway>('restGateway');
 
 export class FastifyRestGateway extends Disposable implements IRestGateway {
   readonly _serviceBrand: undefined;

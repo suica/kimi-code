@@ -190,9 +190,9 @@ describe('@moonshot-ai/services · interfaces (W3.1)', () => {
   it('looking up an unregistered broker throws with the decorator diagnostic name', () => {
     const ix = new InstantiationService(new ServiceCollection());
     try {
-      expect(() => ix.invokeFunction((a) => a.get(IEventBus))).toThrow(/IEventBus/);
-      expect(() => ix.invokeFunction((a) => a.get(IApprovalBroker))).toThrow(/IApprovalBroker/);
-      expect(() => ix.invokeFunction((a) => a.get(IQuestionBroker))).toThrow(/IQuestionBroker/);
+      expect(() => ix.invokeFunction((a) => a.get(IEventBus))).toThrow(/eventBus/);
+      expect(() => ix.invokeFunction((a) => a.get(IApprovalBroker))).toThrow(/approvalBroker/);
+      expect(() => ix.invokeFunction((a) => a.get(IQuestionBroker))).toThrow(/questionBroker/);
     } finally {
       ix.dispose();
     }

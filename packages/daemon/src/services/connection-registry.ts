@@ -46,7 +46,7 @@ export interface IConnectionRegistry {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const IConnectionRegistry = createDecorator<IConnectionRegistry>('IConnectionRegistry');
+export const IConnectionRegistry = createDecorator<IConnectionRegistry>('connectionRegistry');
 
 export class ConnectionRegistry extends Disposable implements IConnectionRegistry {
   readonly _serviceBrand: undefined;

@@ -43,7 +43,7 @@ export interface IAuthSummaryService {
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const IAuthSummaryService = createDecorator<IAuthSummaryService>(
-  'IAuthSummaryService',
+  'authSummaryService',
 );
 
 /**

@@ -67,7 +67,7 @@ export interface IPromptService {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const IPromptService = createDecorator<IPromptService>('IPromptService');
+export const IPromptService = createDecorator<IPromptService>('promptService');
 
 /**
  * Optional lifecycle observer surface. The daemon's `IEventBus` impl invokes

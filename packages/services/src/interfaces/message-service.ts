@@ -60,7 +60,7 @@ export interface IMessageService {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const IMessageService = createDecorator<IMessageService>('IMessageService');
+export const IMessageService = createDecorator<IMessageService>('messageService');
 
 /**
  * Sentinel error — daemon's route layer catches and maps to

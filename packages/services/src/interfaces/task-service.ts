@@ -52,7 +52,7 @@ export interface ITaskService {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const ITaskService = createDecorator<ITaskService>('ITaskService');
+export const ITaskService = createDecorator<ITaskService>('taskService');
 
 /**
  * Sentinel — daemon route maps to `code: 40406 task.not_found`.

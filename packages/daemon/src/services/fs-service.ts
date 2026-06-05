@@ -209,7 +209,7 @@ export interface FsDownloadResolved {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const IFsService = createDecorator<IFsService>('IFsService');
+export const IFsService = createDecorator<IFsService>('fsService');
 
 // ---------------------------------------------------------------------------
 // Constants

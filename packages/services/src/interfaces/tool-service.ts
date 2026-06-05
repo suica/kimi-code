@@ -33,4 +33,4 @@ export interface IToolService {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const IToolService = createDecorator<IToolService>('IToolService');
+export const IToolService = createDecorator<IToolService>('toolService');

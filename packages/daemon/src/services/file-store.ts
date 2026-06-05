@@ -151,7 +151,7 @@ export interface IFileStore {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const IFileStore = createDecorator<IFileStore>('IFileStore');
+export const IFileStore = createDecorator<IFileStore>('fileStore');
 
 /* -------------------------------------------------------------------------
  * Implementation

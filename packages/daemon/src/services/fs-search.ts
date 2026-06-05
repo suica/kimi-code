@@ -110,7 +110,7 @@ export interface IFsSearchService extends IDisposable {
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const IFsSearchService = createDecorator<IFsSearchService>(
-  'IFsSearchService',
+  'fsSearchService',
 );
 
 // ---------------------------------------------------------------------------

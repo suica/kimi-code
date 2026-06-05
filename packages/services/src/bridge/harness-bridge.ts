@@ -97,7 +97,7 @@ export interface IHarnessBridge {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const IHarnessBridge = createDecorator<IHarnessBridge>('IHarnessBridge');
+export const IHarnessBridge = createDecorator<IHarnessBridge>('harnessBridge');
 
 export class HarnessBridge extends Disposable implements IHarnessBridge {
   readonly _serviceBrand: undefined;

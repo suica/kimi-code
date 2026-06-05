@@ -244,7 +244,7 @@ export interface IFsWatcher {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const IFsWatcher = createDecorator<IFsWatcher>('IFsWatcher');
+export const IFsWatcher = createDecorator<IFsWatcher>('fsWatcher');
 
 /* -------------------------------------------------------------------------
  * Connection-side delivery sink (structural)

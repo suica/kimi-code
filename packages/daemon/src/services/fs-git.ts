@@ -83,7 +83,7 @@ export interface IFsGitService extends IDisposable {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const IFsGitService = createDecorator<IFsGitService>('IFsGitService');
+export const IFsGitService = createDecorator<IFsGitService>('fsGitService');
 
 // ---------------------------------------------------------------------------
 // FsGitServiceImpl

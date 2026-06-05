@@ -28,7 +28,7 @@ export interface ILogger {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const ILogger = createDecorator<ILogger>('ILogger');
+export const ILogger = createDecorator<ILogger>('logger');
 
 /**
  * Adapter that satisfies `ILogger` by delegating to a `DaemonLogger` (pino).

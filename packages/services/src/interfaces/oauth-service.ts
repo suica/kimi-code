@@ -66,4 +66,4 @@ export interface IOAuthService {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const IOAuthService = createDecorator<IOAuthService>('IOAuthService');
+export const IOAuthService = createDecorator<IOAuthService>('oauthService');
