@@ -6,6 +6,8 @@ import {
   createRPC,
   Disposable,
   KimiCore,
+  registerSingleton,
+  SyncDescriptor,
   type CoreAPI,
   type CoreRPC,
   type OAuthTokenProviderResolver,
@@ -228,3 +230,19 @@ export class CoreProcessService extends Disposable implements ICoreProcessServic
     });
   }
 }
+
+// Self-register under the global singleton registry. Ctor signature is
+// `(options, @IEnvironmentService, @IEventService, @IApprovalService,
+//  @IQuestionService)` — the leading `options` slot is a pure data bag so we
+// register with `[{}]` as a sane default. Daemon-side `start.ts` (Phase 4)
+// will override this descriptor via `services.set(ICoreProcessService, new
+// SyncDescriptor(CoreProcessService, [opts.coreProcessOptions ?? {}], false))`
+// when it has access to the real options bag. The duplicate-registration
+// throw was intentionally removed from `registerSingleton` (plan §158) so
+// later registrations win — both at registry level and at
+// `ServiceCollection` level. `supportsDelayedInstantiation = false` preserves
+// current reverse-dispose semantics (plan §540).
+registerSingleton(
+  ICoreProcessService,
+  new SyncDescriptor(CoreProcessService, [{} as CoreProcessServiceOptions], false),
+);

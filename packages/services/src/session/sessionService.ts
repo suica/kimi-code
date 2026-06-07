@@ -2,7 +2,12 @@
  * `SessionService` — implementation of `ISessionService`.
  */
 
-import { Disposable, Emitter } from '@moonshot-ai/agent-core';
+import {
+  Disposable,
+  Emitter,
+  registerSingleton,
+  SyncDescriptor,
+} from '@moonshot-ai/agent-core';
 import type { JsonObject, SessionMeta, SessionSummary } from '@moonshot-ai/agent-core';
 import {
   emptySessionUsage,
@@ -215,3 +220,10 @@ export class SessionService extends Disposable implements ISessionService {
     super.dispose();
   }
 }
+
+// Self-register under the global singleton registry. Daemon-side bootstrap
+// projects this through `defaultServicesModule()` /
+// `getSingletonServiceDescriptors()`. All ctor deps are `@I…`-injected, so
+// `staticArguments` is `[]`. `supportsDelayedInstantiation = false` preserves
+// current reverse-dispose semantics (plan §540).
+registerSingleton(ISessionService, new SyncDescriptor(SessionService, [], false));

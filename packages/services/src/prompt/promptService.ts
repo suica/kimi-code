@@ -2,7 +2,12 @@
  * `PromptService` — implementation of `IPromptService`.
  */
 
-import { Disposable, Emitter } from '@moonshot-ai/agent-core';
+import {
+  Disposable,
+  Emitter,
+  registerSingleton,
+  SyncDescriptor,
+} from '@moonshot-ai/agent-core';
 import type {
   Event,
   PromptSubmission,
@@ -346,3 +351,9 @@ export class PromptService
     super.dispose();
   }
 }
+
+// Self-register under the global singleton registry. All ctor deps are
+// `@I…`-injected (@ICoreProcessService / @IEventService / @IAuthSummaryService);
+// `staticArguments = []`. `supportsDelayedInstantiation = false` preserves
+// current reverse-dispose semantics (plan §540).
+registerSingleton(IPromptService, new SyncDescriptor(PromptService, [], false));

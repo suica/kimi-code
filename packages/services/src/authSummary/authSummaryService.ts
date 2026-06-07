@@ -2,7 +2,7 @@
  * `AuthSummaryService` — implementation of `IAuthSummaryService`.
  */
 
-import { Disposable } from '@moonshot-ai/agent-core';
+import { Disposable, registerSingleton, SyncDescriptor } from '@moonshot-ai/agent-core';
 import type { KimiConfig } from '@moonshot-ai/agent-core';
 import { KimiAuthFacade } from '@moonshot-ai/kimi-code-sdk';
 import type { AuthSummary } from '@moonshot-ai/protocol';
@@ -141,3 +141,9 @@ function nonEmpty(value: string | undefined): string | null {
   const trimmed = value.trim();
   return trimmed.length === 0 ? null : trimmed;
 }
+
+// Self-register under the global singleton registry. All ctor deps are
+// `@I…`-injected (@IEnvironmentService / @ICoreProcessService);
+// `staticArguments = []`. `supportsDelayedInstantiation = false` preserves
+// current reverse-dispose semantics (plan §540).
+registerSingleton(IAuthSummaryService, new SyncDescriptor(AuthSummaryService, [], false));
