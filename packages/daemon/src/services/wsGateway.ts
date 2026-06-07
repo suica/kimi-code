@@ -6,10 +6,10 @@ import type { IncomingMessage, Server as HttpServer } from 'node:http';
 import type { Socket } from 'node:net';
 
 import { Disposable } from '@moonshot-ai/agent-core';
+import { IEventReplayService } from '@moonshot-ai/services';
 import { WebSocketServer, type WebSocket } from 'ws';
 
 import { IConnectionRegistry } from './connection-registry.js';
-import type { EventService } from './eventService.js';
 import { ILogger } from './logger.js';
 import { IRestGateway } from './rest-gateway.js';
 import { ISessionClientsService } from './session-clients.js';
@@ -28,18 +28,13 @@ export class WSGateway extends Disposable implements IWSGateway {
 
   constructor(
     // VSCode-style ctor ordering — static-first, services-last with
-    // `@I*` decorators. `eventService` is kept as a non-decorated concrete
-    // `EventService` static dep because the consumer (`WsConnection`) needs
-    // the daemon-specific `BufferReplaySource` shape (`getBufferedSince`,
-    // `currentSeq`, `addObserver`) which the `IEventService` interface from
-    // `@moonshot-ai/services` does NOT expose. Promoting `EventService` to
-    // its own identifier is a deliberate followup.
-    // `options` must follow `eventService` (TS forbids a required param
-    // after an optional one); start.ts passes `opts.wsGatewayOptions ?? {}`
-    // explicitly, so we drop the inline default — the caller always supplies
-    // a concrete object.
-    private readonly eventService: EventService,
+    // `@I*` decorators. `options` follows the static prefix; the four
+    // injected services trail. `@IEventReplayService` is the daemon-local
+    // replay contract (split from `IEventService` for this exact reason:
+    // letting WSGateway take a typed dep instead of the concrete
+    // `EventService` class).
     private readonly options: WSGatewayOptions,
+    @IEventReplayService private readonly eventService: IEventReplayService,
     @IRestGateway private readonly restGateway: IRestGateway,
     @IConnectionRegistry private readonly registry: IConnectionRegistry,
     @ISessionClientsService private readonly sessionClients: ISessionClientsService,

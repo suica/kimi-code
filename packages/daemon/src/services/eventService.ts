@@ -38,7 +38,7 @@
 
 import { Disposable } from '@moonshot-ai/agent-core';
 import type { Event } from '@moonshot-ai/protocol';
-import { IEventService } from '@moonshot-ai/services';
+import { IEventReplayService, IEventService } from '@moonshot-ai/services';
 
 import type { ILogger } from './logger.js';
 import type { ISessionClientsService } from './session-clients.js';
@@ -47,6 +47,8 @@ import { buildEventEnvelope, type EventEnvelope } from '../ws/protocol.js';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const _typeAnchor: typeof IEventService = IEventService; // keep `implements` retained
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _replayAnchor: typeof IEventReplayService = IEventReplayService;
 
 interface BufferEntry {
   seq: number;
@@ -82,7 +84,10 @@ export interface EventServiceOptions {
 /** Default ring buffer cap (WS.md §3.1, §6). */
 export const DEFAULT_MAX_BUFFER_SIZE = 1000;
 
-export class EventService extends Disposable implements IEventService {
+export class EventService
+  extends Disposable
+  implements IEventService, IEventReplayService
+{
   readonly _serviceBrand: undefined;
 
   private readonly _sessions = new Map<string, SessionState>();

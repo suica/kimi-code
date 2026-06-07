@@ -50,7 +50,8 @@ export {
 // --- per-domain exports ---------------------------------------------------
 
 // event service
-export { IEventService } from './event/event';
+export { IEventService, IEventReplayService } from './event/event';
+export type { EventReplayEnvelope } from './event/event';
 
 // approval service + adapter
 export { IApprovalService } from './approval/approval';

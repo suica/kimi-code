@@ -11,6 +11,7 @@ import {
   IApprovalService,
   IAuthSummaryService,
   IEnvironmentService,
+  IEventReplayService,
   IEventService,
   ICoreProcessService,
   IMcpService,
@@ -416,6 +417,14 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       // Touch the event bus BEFORE constructing brokers so brokers can hold a
       // reference for broadcast (W8.1 / Chain 5).
       const eventBus = a.get(IEventService) as EventService;
+      // Alias the SAME singleton under the daemon-local `IEventReplayService`
+      // contract (split from `IEventService` in Phase 2). `WSGateway` and
+      // (later) `WsConnection` use this typed accessor instead of importing
+      // the concrete `EventService` class. No new instance is constructed;
+      // the alias is recorded BEFORE WSGateway is built so its
+      // `@IEventReplayService` ctor decoration resolves to the live bus.
+      services.set(IEventReplayService, eventBus);
+      a.get(IEventReplayService);
       services.set(IApprovalService, new ApprovalService(log, eventBus));
       services.set(IQuestionService, new QuestionService(log, eventBus));
 
@@ -431,12 +440,13 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       // to emit to.
       //
       // P2.3 migration: WSGateway ctor reordered to VSCode-style
-      // (eventBus, options, @IRestGateway, @IConnectionRegistry,
-      //  @ISessionClientsService, @ILogger). createInstance now only
-      // supplies the two static prefix args; the 4 @I services auto-inject.
+      // (options, @IEventReplayService, @IRestGateway, @IConnectionRegistry,
+      //  @ISessionClientsService, @ILogger). `IEventReplayService` is the
+      // daemon-local replay surface aliased to the same `EventService`
+      // singleton seeded above. createInstance now only supplies the static
+      // options prefix; the 5 `@I` services auto-inject.
       const wsGateway = ix.createInstance(
         WSGateway,
-        eventBus,
         opts.wsGatewayOptions ?? {},
       );
       services.set(IWSGateway, wsGateway);
