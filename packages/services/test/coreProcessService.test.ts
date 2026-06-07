@@ -23,6 +23,7 @@ import {
   InstantiationService,
   ServiceCollection,
   SyncDescriptor,
+  Emitter,
   type ApprovalRequest,
   type ApprovalResponse,
   type Event,
@@ -47,11 +48,11 @@ class RecordingEventService implements IEventService {
   readonly _serviceBrand: undefined;
 
   readonly events: Event[] = [];
+  private readonly _emitter = new Emitter<Event>();
+  readonly onDidPublish = this._emitter.event;
   publish(event: Event): void {
     this.events.push(event);
-  }
-  subscribe(_handler: (e: Event) => void): () => void {
-    return () => { /* no-op for tests that don't need pub-sub */ };
+    this._emitter.fire(event);
   }
 }
 

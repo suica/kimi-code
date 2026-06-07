@@ -84,12 +84,16 @@ export class PromptService
   ) {
     super();
     // Phase C: self-subscribe to the event stream for lifecycle synthesis.
-    // The detach handle travels through Disposable so it tears down when
-    // PromptService disposes (which happens BEFORE the event service disposes
-    // per start.ts wiring order). Re-entrance is safe: synthesised `prompt.*`
-    // events don't match the `turn.*` predicates below.
-    const detach = this.eventService.subscribe(this._handleBusEvent.bind(this));
-    this._register({ dispose: detach });
+    // `onDidPublish` is the VSCode-style accessor — calling it registers
+    // `_handleBusEvent` and returns an `IDisposable` that detaches when
+    // disposed. We register it through `this._register(...)` so the
+    // listener tears down when PromptService disposes (which happens BEFORE
+    // the event service disposes per start.ts wiring order). Re-entrance
+    // is safe: synthesised `prompt.*` events don't match the `turn.*`
+    // predicates below.
+    this._register(
+      this.eventService.onDidPublish(this._handleBusEvent.bind(this)),
+    );
   }
 
   // --- IPromptService --------------------------------------------------------

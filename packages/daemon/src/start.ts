@@ -507,8 +507,9 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
 
       // W7.2 / Chain 4 / P2.5 — IPromptService. Ctor takes ICoreProcessService + IEventService.
       // Phase C: PromptService self-subscribes to the bus in its constructor
-      // (via IEventService.subscribe) for lifecycle synthesis, so no manual wiring
-      // is needed here. Construction order:
+      // (via IEventService.onDidPublish — VSCode-style accessor returning an
+      // IDisposable) for lifecycle synthesis, so no manual wiring is needed
+      // here. Construction order:
       // [..., IMessageService, IPromptService] — reverse dispose runs
       // IPromptService FIRST among the daemon-services (detaching its bus
       // subscription), then IMessageService, then ISessionService, then

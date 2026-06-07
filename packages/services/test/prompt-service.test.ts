@@ -24,6 +24,8 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { Emitter } from '@moonshot-ai/agent-core';
+
 import type {
   CoreRPC,
   Event,
@@ -83,23 +85,20 @@ function makeBridge(
 
 function makeBus(): { bus: IEventService; events: Event[]; triggerSubscribers: (e: Event) => void } {
   const events: Event[] = [];
-  const subscribers = new Set<(e: Event) => void>();
+  const emitter = new Emitter<Event>();
   const bus: IEventService = {
     publish: (e: Event) => {
       events.push(e);
-      // Drive any subscribers (mirrors EventService publish → subscriber call).
-      for (const h of Array.from(subscribers)) h(e);
+      // Drive any subscribers (mirrors EventService publish → onDidPublish fire).
+      emitter.fire(e);
     },
-    subscribe: (handler: (e: Event) => void) => {
-      subscribers.add(handler);
-      return () => { subscribers.delete(handler); };
-    },
+    onDidPublish: emitter.event,
     _serviceBrand: undefined,
   };
   // Helper to push an event into the bus WITHOUT recording it in `events`
   // (i.e. simulate agent-core emitting a raw event that the bus fans out).
   function triggerSubscribers(e: Event): void {
-    for (const h of Array.from(subscribers)) h(e);
+    emitter.fire(e);
   }
   return { bus, events, triggerSubscribers };
 }
@@ -206,7 +205,7 @@ describe('PromptService.submit (W7.2)', () => {
   });
 });
 
-describe('PromptService lifecycle synthesis (via IEventService.subscribe)', () => {
+describe('PromptService lifecycle synthesis (via IEventService.onDidPublish)', () => {
   it('captures turnId on the first turn.started after submit', async () => {
     const { bridge } = makeBridge();
     const { bus, triggerSubscribers } = makeBus();

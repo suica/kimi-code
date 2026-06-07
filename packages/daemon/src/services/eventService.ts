@@ -11,13 +11,14 @@
  *      enforced in W5.3 at 1000; W5.2 keeps the buffer unbounded as a
  *      transitional step).
  *   4. Fans out to every WS connection subscribed via `ISessionClientsService`.
- *   5. **Phase C**: invokes any `subscribe(handler)` callbacks synchronously
- *      after fan-out. Handlers may call `this.publish(...)` to synthesize
- *      derived events (re-entrance terminates because synthesized events don't
- *      match the synthesis predicates in PromptService's private handler). This
- *      is the mechanism that synthesizes `prompt.completed` / `prompt.aborted`
- *      from `turn.ended` (agent-core's event union has no prompt-lifecycle
- *      types; see W7 §critical discovery point #2).
+ *   5. **Phase C**: fires `onDidPublish` (agent-core `Emitter<Event>`)
+ *      synchronously AFTER WS fan-out. Listeners may call `this.publish(...)`
+ *      to synthesize derived events (re-entrance terminates because synthesized
+ *      events don't match the synthesis predicates in PromptService's private
+ *      handler). This is the mechanism that synthesizes `prompt.completed` /
+ *      `prompt.aborted` from `turn.ended` (agent-core's event union has no
+ *      prompt-lifecycle types; see W7 §critical discovery point #2). Listener
+ *      exceptions route to `onUnexpectedError` inside `Emitter.fire()`.
  *
  * Events without a `sessionId` (none are expected today — every agent-core
  * Event extends `AgentEvent & { agentId, sessionId }`) are dropped with a
@@ -36,7 +37,7 @@
  * re-export of agent-core, NOT from the SDK package directly.
  */
 
-import { Disposable } from '@moonshot-ai/agent-core';
+import { Disposable, Emitter } from '@moonshot-ai/agent-core';
 import type { Event } from '@moonshot-ai/protocol';
 import { IEventReplayService, IEventService } from '@moonshot-ai/services';
 
@@ -92,7 +93,23 @@ export class EventService
 
   private readonly _sessions = new Map<string, SessionState>();
   private readonly _maxBufferSize: number;
-  private readonly _subscribers = new Set<(e: Event) => void>();
+  /**
+   * VSCode-style Emitter. Listener exceptions route to `onUnexpectedError`
+   * inside `Emitter.fire()` — we do NOT wrap individual handlers in
+   * try/catch here. Owned via `_register` so it disposes when the service
+   * is torn down.
+   */
+  private readonly _onDidPublish = this._register(new Emitter<Event>());
+  /**
+   * Public accessor — replaces the prior `subscribe(handler)` method.
+   * Consumers stash the returned `IDisposable` via
+   * `Disposable._register(svc.onDidPublish(handler))`. Type is inferred
+   * from `Emitter<Event>['event']` — equivalent to `Event<Event>` from
+   * agent-core's `base/common/event` module (not re-exported at the
+   * agent-core barrel because the symbol `Event` collides with the
+   * protocol Event union).
+   */
+  readonly onDidPublish = this._onDidPublish.event;
 
   constructor(
     private readonly logger: ILogger,
@@ -104,24 +121,12 @@ export class EventService
   }
 
   /**
-   * Phase C — subscribe to all published events. The handler is called
-   * synchronously AFTER WS fan-out; it may call `this.publish(...)` to
-   * synthesize derived events (re-entrance terminates naturally because
-   * synthesized `prompt.*` events don't match the `turn.*` predicates).
-   *
-   * Returns an idempotent detach function; pass it to
-   * `Disposable._register({ dispose: detach })` so it tears down with the
-   * owning service.
+   * Phase C — listener fan-out is via `onDidPublish: Event<Event>`. Listener
+   * exceptions route to `onUnexpectedError` inside `Emitter.fire()`. Handlers
+   * may call `this.publish(...)` to synthesize derived events; re-entrance
+   * terminates naturally because synthesized `prompt.*` events don't match
+   * the `turn.*` predicates in PromptService's handler.
    */
-  subscribe(handler: (event: Event) => void): () => void {
-    this._subscribers.add(handler);
-    let detached = false;
-    return () => {
-      if (detached) return;
-      detached = true;
-      this._subscribers.delete(handler);
-    };
-  }
 
   publish(event: Event): void {
     if (this._isDisposed) return;
@@ -159,23 +164,13 @@ export class EventService
       conn.send(envelope);
     }
 
-    // Phase C — call pub-sub subscribers AFTER fan-out. Each handler may call
-    // `this.publish(...)` to synthesize derived events. Re-entrance terminates
-    // naturally: synthesized `prompt.*` events don't match the `turn.*`
-    // predicates in PromptService's handler, so no infinite loop. Errors in
-    // one handler don't block the others (logged and swallowed).
-    if (this._subscribers.size > 0) {
-      for (const handler of Array.from(this._subscribers)) {
-        try {
-          handler(event);
-        } catch (err) {
-          this.logger.warn(
-            { err: String(err) },
-            'eventService subscriber threw; ignoring',
-          );
-        }
-      }
-    }
+    // Phase C — fire the Emitter AFTER fan-out. Each handler may call
+    // `this.publish(...)` to synthesize derived events. Re-entrance
+    // terminates naturally: synthesized `prompt.*` events don't match the
+    // `turn.*` predicates in PromptService's handler, so no infinite loop.
+    // Listener exceptions route through `onUnexpectedError` inside
+    // `Emitter.fire()` (no per-handler try/catch needed).
+    this._onDidPublish.fire(event);
   }
 
   /**
@@ -244,7 +239,9 @@ export class EventService
 
   override dispose(): void {
     if (this._isDisposed) return;
-    this._subscribers.clear();
+    // `_onDidPublish` is registered via `this._register(...)`, so
+    // `super.dispose()` flushes its listeners. We only clear our own
+    // per-session bookkeeping here.
     this._sessions.clear();
     super.dispose();
   }

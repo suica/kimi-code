@@ -12,8 +12,9 @@
  *      via the event service.
  *
  *   2. **Lifecycle observation (W7.2 / Phase C)**: subscribes to the event
- *      service via `IEventService.subscribe(handler)` in its constructor. We
- *      use this to:
+ *      service via `IEventService.onDidPublish(handler)` (VSCode-style
+ *      accessor returning an `IDisposable`) in its constructor. We use this
+ *      to:
  *      - capture `turn.started` → record `promptId ↔ turnId` mapping (so
  *        later abort can pass the correct numeric `turnId` to
  *        `core.rpc.cancel({turnId})`).

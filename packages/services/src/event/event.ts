@@ -27,25 +27,41 @@
  */
 
 import { createDecorator } from '@moonshot-ai/agent-core';
-import type { Event } from '@moonshot-ai/protocol';
+import type { Event } from '@moonshot-ai/agent-core/base/common/event';
+import type { Event as ProtocolEvent } from '@moonshot-ai/protocol';
 
+/**
+ * Naming convention inside this file:
+ *
+ * - `Event` (from `@moonshot-ai/agent-core/base/common/event`) — the generic
+ *   VSCode-style emitter accessor type. `Event<T>` is the listener-tuple
+ *   type used to declare `readonly onDidXxx: Event<T>`.
+ * - `ProtocolEvent` (alias of `@moonshot-ai/protocol`'s `Event`) — the
+ *   wire-level event union published through the bus. Aliased here because
+ *   the top-level `Event` symbol must refer to the emitter type so the
+ *   accessor declarations read naturally (`Event<ProtocolEvent>` not
+ *   `import('…/base/common/event').Event<Event>`).
+ */
 export interface IEventService {
   readonly _serviceBrand: undefined;
+
+  /**
+   * VSCode-style accessor — subscribe with a listener; returns an
+   * `IDisposable` whose `dispose()` detaches. Handlers fire synchronously
+   * AFTER WS fan-out on each `publish(event)` call.
+   *
+   * Replaces the prior `subscribe(handler): () => void` API: callers now
+   * stash the returned `IDisposable` via
+   * `Disposable._register(svc.onDidPublish(handler))` so the subscription
+   * tears down with the owner.
+   */
+  readonly onDidPublish: Event<ProtocolEvent>;
 
   /**
    * Publish a fully-formed `Event` to all subscribers. Synchronous; the
    * adapter does not await delivery — fan-out is the service's concern.
    */
-  publish(event: Event): void;
-
-  /**
-   * Subscribe to all published events. The handler is called synchronously
-   * AFTER WS fan-out on each `publish(event)` call.
-   *
-   * Returns a detach function. Pass it to `Disposable._register({ dispose:
-   * detach })` so the subscription is torn down when the owner disposes.
-   */
-  subscribe(handler: (event: Event) => void): () => void;
+  publish(event: ProtocolEvent): void;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
@@ -83,7 +99,7 @@ export interface EventReplayEnvelope {
   seq: number;
   session_id: string;
   timestamp: string;
-  payload: Event;
+  payload: ProtocolEvent;
 }
 
 export interface IEventReplayService {
