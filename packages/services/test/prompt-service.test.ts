@@ -278,7 +278,7 @@ describe('PromptService lifecycle synthesis (via IEventService.onDidPublish)', (
     expect(impl._activeForTest(SID)).toBeUndefined();
   });
 
-  it('fires onPromptCompleted handler before bus.publish', async () => {
+  it('fires onDidComplete listener before bus.publish', async () => {
     const { bridge } = makeBridge();
     const { bus, events, triggerSubscribers } = makeBus();
     const impl = new PromptService(bridge, bus, makeAuth());
@@ -292,7 +292,7 @@ describe('PromptService lifecycle synthesis (via IEventService.onDidPublish)', (
     } as unknown as Event);
     const handlerArgs: unknown[] = [];
     const handlerCalledBeforePublish: boolean[] = [];
-    impl.onPromptCompleted((e) => {
+    impl.onDidComplete((e) => {
       handlerArgs.push(e);
       // At handler call time, bus.publish hasn't been called for this synth yet.
       handlerCalledBeforePublish.push(events.filter(ev => (ev as unknown as { type?: string }).type === 'prompt.completed').length === 0);

@@ -23,9 +23,9 @@
  *        `prompt.aborted` (reason='cancelled') event. The event service then
  *        broadcasts these. agent-core's event union has no prompt-level
  *        types — see W7 §critical discovery point #2.
- *      Typed listeners `onPromptCompleted(handler)` / `onPromptAborted(handler)`
- *      are also exposed so callers can observe the typed synthetic events
- *      without filtering the raw event stream.
+ *      VSCode-style accessors `onDidComplete: Event<...>` /
+ *      `onDidAbort: Event<...>` are also exposed so callers can observe the
+ *      typed synthetic events without filtering the raw event stream.
  *
  *   3. **Abort (W7.3)**: existence-check the prompt id, dispatch
  *      `core.rpc.cancel({sessionId, agentId:'main', turnId?})`. Idempotent:
@@ -66,8 +66,8 @@
  */
 
 import { createDecorator, Disposable } from '@moonshot-ai/agent-core';
+import type { Event } from '@moonshot-ai/agent-core/base/common/event';
 import type {
-  Event,
   PromptSubmission,
   PromptSubmitResult,
 } from '@moonshot-ai/protocol';
@@ -110,24 +110,23 @@ export interface IPromptService {
   abort(sid: string, pid: string): Promise<PromptAbortResult>;
 
   /**
-   * Subscribe to `prompt.completed` synthetic events. The handler is called
-   * synchronously when a top-level `turn.ended` (reason='completed'|'failed')
-   * is synthesised into a prompt-lifecycle event, BEFORE `bus.publish(synth)`.
+   * VSCode-style accessor for `prompt.completed` synthetic events. The
+   * listener fires synchronously when a top-level `turn.ended`
+   * (reason='completed'|'failed') is synthesised into a prompt-lifecycle
+   * event, BEFORE `bus.publish(synth)`.
    *
-   * Returns a detach function. Pass it to `Disposable._register({ dispose:
-   * detach })` so the subscription tears down with the owning service.
+   * Returns an `IDisposable`. Owners stash it via
+   * `Disposable._register(svc.onDidComplete(handler))`.
    */
-  onPromptCompleted(handler: (e: SyntheticPromptCompletedEvent) => void): () => void;
+  readonly onDidComplete: Event<SyntheticPromptCompletedEvent>;
 
   /**
-   * Subscribe to `prompt.aborted` synthetic events. The handler is called
-   * synchronously when a top-level `turn.ended` (reason='cancelled') or an
-   * abort RPC synthesises a prompt-lifecycle event, BEFORE `bus.publish(synth)`.
-   *
-   * Returns a detach function. Pass it to `Disposable._register({ dispose:
-   * detach })` so the subscription tears down with the owning service.
+   * VSCode-style accessor for `prompt.aborted` synthetic events. Same
+   * `IDisposable` contract as `onDidComplete`. The listener fires when a
+   * top-level `turn.ended` (reason='cancelled') or an abort RPC synthesises
+   * a prompt-lifecycle event, BEFORE `bus.publish(synth)`.
    */
-  onPromptAborted(handler: (e: SyntheticPromptAbortedEvent) => void): () => void;
+  readonly onDidAbort: Event<SyntheticPromptAbortedEvent>;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare

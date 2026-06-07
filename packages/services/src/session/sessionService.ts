@@ -2,7 +2,7 @@
  * `SessionService` — implementation of `ISessionService`.
  */
 
-import { Disposable } from '@moonshot-ai/agent-core';
+import { Disposable, Emitter } from '@moonshot-ai/agent-core';
 import type { JsonObject, SessionMeta, SessionSummary } from '@moonshot-ai/agent-core';
 import {
   emptySessionUsage,
@@ -37,10 +37,19 @@ function asJsonObject(value: Record<string, unknown>): JsonObject {
 export class SessionService extends Disposable implements ISessionService {
   readonly _serviceBrand: undefined;
 
-  /** Handlers for session-created events. */
-  private readonly _createHandlers = new Set<(e: { session: Session }) => void>();
-  /** Handlers for session-closed events. */
-  private readonly _closeHandlers = new Set<(e: { sessionId: string }) => void>();
+  /**
+   * VSCode-style Emitter for session-creation events. Listener exceptions
+   * route to `onUnexpectedError` inside `Emitter.fire()`. Owned via
+   * `_register(...)` so it disposes when the service is torn down.
+   */
+  private readonly _onDidCreate = this._register(new Emitter<{ session: Session }>());
+  readonly onDidCreate = this._onDidCreate.event;
+  /**
+   * VSCode-style Emitter for session-close events. Same ownership +
+   * exception-routing semantics as `_onDidCreate`.
+   */
+  private readonly _onDidClose = this._register(new Emitter<{ sessionId: string }>());
+  readonly onDidClose = this._onDidClose.event;
 
   constructor(@ICoreProcessService private readonly core: ICoreProcessService) {
     super();
@@ -69,8 +78,8 @@ export class SessionService extends Disposable implements ISessionService {
     }
     const meta = await this.tryGetMeta(summary.id);
     const session = toProtocolSession(summary, meta);
-    // Fire onDidCreate handlers after the core RPC resolves.
-    for (const h of this._createHandlers) h({ session });
+    // Fire onDidCreate listeners after the core RPC resolves.
+    this._onDidCreate.fire({ session });
     return session;
   }
 
@@ -173,8 +182,8 @@ export class SessionService extends Disposable implements ISessionService {
       throw new SessionNotFoundError(id);
     }
     await this.core.rpc.closeSession({ sessionId: id });
-    // Fire onDidClose handlers after the core RPC resolves.
-    for (const h of this._closeHandlers) h({ sessionId: id });
+    // Fire onDidClose listeners after the core RPC resolves.
+    this._onDidClose.fire({ sessionId: id });
     return { deleted: true };
   }
 
@@ -192,32 +201,17 @@ export class SessionService extends Disposable implements ISessionService {
     }
   }
 
-  // --- Per-domain event listeners -------------------------------------------
-
-  onDidCreate(handler: (event: { session: Session }) => void): () => void {
-    this._createHandlers.add(handler);
-    let detached = false;
-    return () => {
-      if (detached) return;
-      detached = true;
-      this._createHandlers.delete(handler);
-    };
-  }
-
-  onDidClose(handler: (event: { sessionId: string }) => void): () => void {
-    this._closeHandlers.add(handler);
-    let detached = false;
-    return () => {
-      if (detached) return;
-      detached = true;
-      this._closeHandlers.delete(handler);
-    };
-  }
+  // --- Per-domain event accessors -------------------------------------------
+  //
+  // `onDidCreate` / `onDidClose` are declared above as
+  // `Emitter<T>.event` getters; consumers subscribe via
+  // `svc.onDidCreate(handler)` (returns IDisposable) and own the
+  // detach lifetime through `Disposable._register(...)`.
 
   override dispose(): void {
     if (this._isDisposed) return;
-    this._createHandlers.clear();
-    this._closeHandlers.clear();
+    // `_onDidCreate` and `_onDidClose` are registered via `this._register(...)`,
+    // so `super.dispose()` flushes their listeners.
     super.dispose();
   }
 }

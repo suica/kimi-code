@@ -2,7 +2,7 @@
  * `PromptService` — implementation of `IPromptService`.
  */
 
-import { Disposable } from '@moonshot-ai/agent-core';
+import { Disposable, Emitter } from '@moonshot-ai/agent-core';
 import type {
   Event,
   PromptSubmission,
@@ -72,10 +72,23 @@ export class PromptService
   /** Active prompt per session. Cleared on completion / abort emission. */
   private readonly _active = new Map<string, PromptState>();
 
-  /** Typed handlers for `prompt.completed` synthetic events. */
-  private readonly _completedHandlers = new Set<(e: SyntheticPromptCompletedEvent) => void>();
-  /** Typed handlers for `prompt.aborted` synthetic events. */
-  private readonly _abortedHandlers = new Set<(e: SyntheticPromptAbortedEvent) => void>();
+  /**
+   * VSCode-style Emitter for `prompt.completed` synthetic events. Listener
+   * exceptions route to `onUnexpectedError` inside `Emitter.fire()`. Owned
+   * via `_register(...)` so it disposes when PromptService is torn down.
+   */
+  private readonly _onDidComplete = this._register(
+    new Emitter<SyntheticPromptCompletedEvent>(),
+  );
+  readonly onDidComplete = this._onDidComplete.event;
+  /**
+   * VSCode-style Emitter for `prompt.aborted` synthetic events. Same
+   * ownership + exception-routing semantics as `_onDidComplete`.
+   */
+  private readonly _onDidAbort = this._register(
+    new Emitter<SyntheticPromptAbortedEvent>(),
+  );
+  readonly onDidAbort = this._onDidAbort.event;
 
   constructor(
     @ICoreProcessService private readonly core: ICoreProcessService,
@@ -211,33 +224,20 @@ export class PromptService
       promptId: pid,
       abortedAt: new Date().toISOString(),
     };
-    // Fire typed handlers BEFORE publishing the event.
-    for (const h of this._abortedHandlers) h(ev);
+    // Fire typed listeners BEFORE publishing the synth event. Plan §2 step 7:
+    // "PromptService must still trigger the typed event THEN call publish()
+    // for the synthetic event" — order preserved.
+    this._onDidAbort.fire(ev);
     this.eventService.publish(ev as unknown as Event);
     return { aborted: true };
   }
 
-  // --- IPromptService typed event listeners ----------------------------------
-
-  onPromptCompleted(handler: (e: SyntheticPromptCompletedEvent) => void): () => void {
-    this._completedHandlers.add(handler);
-    let detached = false;
-    return () => {
-      if (detached) return;
-      detached = true;
-      this._completedHandlers.delete(handler);
-    };
-  }
-
-  onPromptAborted(handler: (e: SyntheticPromptAbortedEvent) => void): () => void {
-    this._abortedHandlers.add(handler);
-    let detached = false;
-    return () => {
-      if (detached) return;
-      detached = true;
-      this._abortedHandlers.delete(handler);
-    };
-  }
+  // --- IPromptService typed event accessors ---------------------------------
+  //
+  // `onDidComplete` / `onDidAbort` are declared above as `Emitter<T>.event`
+  // getters; consumers subscribe via `svc.onDidComplete(handler)` (returns
+  // IDisposable) and own the detach lifetime through
+  // `Disposable._register(...)`.
 
   // --- Phase C: private event handler (replaces IPromptLifecycleObserver) --
 
@@ -283,8 +283,8 @@ export class PromptService
           abortedAt: new Date().toISOString(),
         };
         this._active.delete(sid);
-        // Fire typed handlers BEFORE publishing the event.
-        for (const h of this._abortedHandlers) h(synth);
+        // Fire typed listeners BEFORE publishing the synth event (plan §2 step 7).
+        this._onDidAbort.fire(synth);
         this.eventService.publish(synth as unknown as Event);
         return;
       }
@@ -299,8 +299,8 @@ export class PromptService
         reason: reason === 'failed' ? 'failed' : 'completed',
       };
       this._active.delete(sid);
-      // Fire typed handlers BEFORE publishing the event.
-      for (const h of this._completedHandlers) h(synth);
+      // Fire typed listeners BEFORE publishing the synth event (plan §2 step 7).
+      this._onDidComplete.fire(synth);
       this.eventService.publish(synth as unknown as Event);
     }
   }
@@ -341,8 +341,8 @@ export class PromptService
   override dispose(): void {
     if (this._isDisposed) return;
     this._active.clear();
-    this._completedHandlers.clear();
-    this._abortedHandlers.clear();
+    // `_onDidComplete` and `_onDidAbort` are registered via `this._register(...)`,
+    // so `super.dispose()` flushes their listeners.
     super.dispose();
   }
 }

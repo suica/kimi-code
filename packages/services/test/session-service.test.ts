@@ -373,8 +373,8 @@ describe('SessionService per-domain event listeners (Phase C)', () => {
 
   it('onDidCreate detach stops future events', async () => {
     const events: unknown[] = [];
-    const detach = svc.onDidCreate((e) => { events.push(e); });
-    detach();
+    const sub = svc.onDidCreate((e) => { events.push(e); });
+    sub.dispose();
     await svc.create({ metadata: { cwd: '/tmp/evt2' } });
     expect(events).toHaveLength(0);
   });
@@ -389,8 +389,8 @@ describe('SessionService per-domain event listeners (Phase C)', () => {
 
   it('onDidClose detach stops future events', async () => {
     const closedIds: string[] = [];
-    const detach = svc.onDidClose((e) => { closedIds.push(e.sessionId); });
-    detach();
+    const sub = svc.onDidClose((e) => { closedIds.push(e.sessionId); });
+    sub.dispose();
     const session = await svc.create({ metadata: { cwd: '/tmp/evt4' } });
     await svc.delete(session.id);
     expect(closedIds).toHaveLength(0);

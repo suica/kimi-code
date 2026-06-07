@@ -37,6 +37,7 @@
  */
 
 import { createDecorator, Disposable } from '@moonshot-ai/agent-core';
+import type { Event } from '@moonshot-ai/agent-core/base/common/event';
 import type { JsonObject, SessionMeta, SessionSummary } from '@moonshot-ai/agent-core';
 import {
   emptySessionUsage,
@@ -102,21 +103,21 @@ export interface ISessionService {
   delete(id: string): Promise<{ deleted: true }>;
 
   /**
-   * Subscribe to session-creation events. The handler fires synchronously
-   * after the bridge RPC returns a new `Session`.
+   * VSCode-style accessor for session-creation events. The listener fires
+   * synchronously after the bridge RPC returns a new `Session`.
    *
-   * Returns a detach function. Pass it to `Disposable._register({ dispose:
-   * detach })` so the subscription tears down with the owning service.
+   * Subscribing returns an `IDisposable`. Owners stash it via
+   * `Disposable._register(svc.onDidCreate(handler))` so it tears down
+   * with the owning service.
    */
-  onDidCreate(handler: (event: { session: Session }) => void): () => void;
+  readonly onDidCreate: Event<{ session: Session }>;
 
   /**
-   * Subscribe to session-close events. The handler fires synchronously after
-   * `bridge.rpc.closeSession` resolves.
-   *
-   * Returns a detach function.
+   * VSCode-style accessor for session-close events. The listener fires
+   * synchronously after `bridge.rpc.closeSession` resolves. Same
+   * `IDisposable` contract as `onDidCreate`.
    */
-  onDidClose(handler: (event: { sessionId: string }) => void): () => void;
+  readonly onDidClose: Event<{ sessionId: string }>;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
