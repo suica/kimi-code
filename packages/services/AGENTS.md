@@ -89,6 +89,50 @@ no new suffixes get reintroduced.
 | `oauth/` | `oauth.ts` | `oauthService.ts` | `IOAuthService` |
 | `authSummary/` | `authSummary.ts` | `authSummaryService.ts` | `IAuthSummaryService` |
 
-Adding a new service: create the folder + contracts + impl pair, add the
-entry to `defaultServicesModule()` in `module.ts`, add a `services.set(...)`
-in daemon's `start.ts`, re-export from `index.ts`.
+Adding a new service: create the folder + contracts + impl pair, add a
+bottom-of-file `registerSingleton(IXxx, new SyncDescriptor(XxxService,
+[...], false))` in the impl, add the corresponding side-effect import to
+`module.ts`, re-export from `index.ts`. The daemon's `start.ts` consumes
+`defaultServicesModule()` for descriptor-only services; only override the
+registry entry (via `services.set(I, prebuiltInstance)` or `services.set(I,
+new SyncDescriptor(C, [runtimeArgs], false))`) when the service needs an
+external handle or runtime static args that the registry can't supply.
+
+## Service registration (normative)
+
+`@moonshot-ai/services` uses the registry-based wiring pattern modelled on
+`vscode/src/vs/platform/extensions/common/extensions.ts`.
+
+1. **Each `<X>Service.ts` impl file self-registers** at the bottom:
+
+   ```ts
+   import { registerSingleton, SyncDescriptor } from '@moonshot-ai/agent-core';
+   // …class body…
+   registerSingleton(IXxxService, new SyncDescriptor(XxxService, [], false));
+   ```
+
+   - Pass `[]` for `staticArguments` when every ctor parameter is
+     `@I…`-decorated. Pass `[optionsBag]` when the ctor takes a leading
+     data-bag prefix (e.g. `CoreProcessService`'s `options`).
+   - Keep `supportsDelayedInstantiation = false` unless a follow-up phase
+     has audited the service's dispose ordering for lazy construction
+     (plan §540).
+
+2. **`defaultServicesModule()` is a thin projection** of
+   `getSingletonServiceDescriptors()`. It does NOT maintain a separate
+   list — `module.ts`'s only responsibility is the side-effect import
+   list that populates the registry plus the
+   `InstantiationType.Delayed | Eager` projection.
+
+3. **Daemon-side `services.set(...)` may override** the registry-derived
+   entry for services that need runtime static args (e.g.
+   `services.set(ICoreProcessService, new SyncDescriptor(CoreProcessService,
+   [opts.coreProcessOptions ?? {}], false))` in `start.ts`) or for
+   prebuilt instances carrying external closures (`PinoLogger`,
+   `FastifyRestGateway`). The duplicate-registration throw was removed
+   from `registerSingleton` (plan §158); the later registration wins at
+   every layer.
+
+The legacy "hand-built array in `module.ts`" pattern that lived here
+through Phase 2 is gone. Do NOT reintroduce it — extending the array in
+`module.ts` no longer has any effect on what the daemon resolves.
