@@ -10,9 +10,8 @@
  *
  * Per-domain layout:
  *   coreProcess/coreProcess.ts          — ICoreProcessService + CoreProcessServiceOptions
- *   coreProcess/coreProcessService.ts   — CoreProcessService
+ *   coreProcess/coreProcessService.ts   — CoreProcessService (self-registers via registerSingleton)
  *   coreProcess/coreProcessClient.ts    — BridgeClientAPI (SDK-side of the RPC pair)
- *   coreProcess/lifecycle.ts            — registerCoreProcessService (legacy registry helper)
  *   event/event.ts                      — IEventService
  *   approval/approval.ts                — IApprovalService + protocol adapter
  *   question/question.ts                — IQuestionService + protocol adapter
@@ -150,7 +149,9 @@ export {
 export type { TaskListQuery } from './task/task';
 export { TaskService } from './task/taskService';
 
-// NOTE: `registerCoreProcessService` (./coreProcess/lifecycle.ts) is
-// intentionally not re-exported. `defaultServicesModule()` is the canonical
-// wiring path; the registry-style helper exists only for legacy
-// side-effect-on-import contexts.
+// NOTE: every `<X>Service.ts` impl file self-registers via
+// `registerSingleton(IXxx, new SyncDescriptor(...))` at file bottom (plan
+// §535). `defaultServicesModule()` is a thin projection of that global
+// registry. Daemon-side `services.set(...)` may override individual
+// descriptors at the `ServiceCollection` stage when runtime static args
+// (e.g. `CoreProcessServiceOptions`) or external handles are needed.
