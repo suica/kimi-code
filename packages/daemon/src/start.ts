@@ -4,6 +4,7 @@ import {
   SyncDescriptor,
   resolveConfigPath,
   resolveKimiHome,
+  setUnexpectedErrorHandler,
 } from '@moonshot-ai/agent-core';
 import {
   AuthSummaryService,
@@ -388,6 +389,26 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
 
       // Build broker stubs against the resolved ILogger and register them.
       const log = a.get(ILogger);
+
+      // Plan §4.5: wire `setUnexpectedErrorHandler` HERE — AFTER the
+      // container has resolved `ILogger`, NOT at module load time. Doing it
+      // at module load risks a startup-time listener exception NPE'ing on
+      // an unresolved logger (the handler closure would capture an
+      // undefined `log`). Routing unexpected errors to the daemon logger
+      // means Emitter listener exceptions (which `Emitter.fire()` forwards
+      // to `onUnexpectedError`) surface as structured `[unexpected]` log
+      // lines instead of being silently dropped.
+      //
+      // Argument order matches the daemon's `ILogger.error(obj, msg)`
+      // signature (= pino's `error({...}, '[unexpected]')` form) — the
+      // structured payload comes FIRST so pino attaches it to the line, and
+      // the `[unexpected]` tag is the human-readable message.
+      setUnexpectedErrorHandler((err) => {
+        log.error(
+          err instanceof Error ? { msg: err.message, stack: err.stack } : { err },
+          '[unexpected]',
+        );
+      });
 
       // W5.1 / P2.1: register IConnectionRegistry BEFORE event bus / brokers so the
       // reverse-dispose chain tears down WS connections (via IWSGateway, which
