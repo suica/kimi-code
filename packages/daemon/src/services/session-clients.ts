@@ -4,7 +4,7 @@
  *
  * `IConnectionRegistry` indexes connections by `connId` (1→1 by socket).
  * `ISessionClientsService` indexes them by `sessionId` (1→N by subscription)
- * so `DaemonEventBus.publish(event)` can fan out to all live subscribers in
+ * so `EventService.publish(event)` can fan out to all live subscribers in
  * O(1) lookup + O(k) send (k = subscribers of that session).
  *
  * Why a separate service (not a method on the registry): the registry
@@ -13,7 +13,7 @@
  * mutations skip touching the connection map.
  *
  * Construction order: registered AFTER `IConnectionRegistry` and BEFORE
- * `IEventBus` (the event bus consumes this service). Disposes (in reverse)
+ * `IEventService` (the event service consumes this service). Disposes (in reverse)
  * BEFORE the connection registry — no special teardown needed because the
  * connection registry has its own `closeAll()` path.
  *

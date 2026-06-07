@@ -17,7 +17,7 @@
  *      handler (`IPromptService.abort`). After a REST abort, a WS abort
  *      with the SAME prompt id returns idempotent success. And vice versa.
  *
- * The synthesized `prompt.aborted` event flows through IEventBus → WS
+ * The synthesized `prompt.aborted` event flows through IEventService → WS
  * broadcast so subscribers see it.
  */
 
@@ -61,7 +61,7 @@ async function bootDaemon(): Promise<RunningDaemon> {
     port: 0,
     lockPath,
     logger: pino({ level: 'silent' }),
-    bridgeOptions: { homeDir: bridgeHome },
+    coreProcessOptions: { homeDir: bridgeHome },
     wsGatewayOptions: { pingIntervalMs: 5_000, pongTimeoutMs: 5_000 },
   });
   return daemon;

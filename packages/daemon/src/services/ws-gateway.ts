@@ -9,15 +9,15 @@
  *
  * **Construction order** (relative to W4 services):
  *   ILogger → IRestGateway → IConnectionRegistry → ISessionClientsService
- *     → IEventBus → IApprovalBroker → IQuestionBroker
+ *     → IEventService → IApprovalService → IQuestionService
  *     → IWSGateway   ← here, constructed LATE
- *     → IHarnessBridge
+ *     → ICoreProcessService
  *
  * Why late: dispose runs in REVERSE construction order. So `WSGateway.dispose()`
  * runs EARLY at shutdown, closing all WS connections via the registry BEFORE
- * EventBus / brokers tear down. If we constructed WSGateway earlier, broker
- * `.dispose()` could try to emit on a still-attached socket whose owner is
- * already gone.
+ * EventService / peer services tear down. If we constructed WSGateway earlier,
+ * a peer service's `.dispose()` could try to emit on a still-attached socket
+ * whose owner is already gone.
  *
  * Why `noServer` mode (not `port:`): Fastify already owns the HTTP server.
  * We share it — every WS handshake passes through Fastify's listener, gets
@@ -40,7 +40,6 @@ import { Disposable, createDecorator } from '@moonshot-ai/agent-core';
 import { WebSocketServer, type WebSocket } from 'ws';
 
 import { IConnectionRegistry } from './connection-registry.js';
-import type { DaemonEventBus } from './event-bus.js';
 import { ILogger } from './logger.js';
 import { IRestGateway } from './rest-gateway.js';
 import { ISessionClientsService } from './session-clients.js';

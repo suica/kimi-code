@@ -16,7 +16,7 @@
  *      no replay events arrive on the first frames (only the normal ack +
  *      empty `resync_required`).
  *
- * `maxBufferSize` is reachable via direct `DaemonEventBus` access from
+ * `maxBufferSize` is reachable via direct `EventService` access from
  * within the test (no need to override globally). To keep test runtime sane
  * the resync flow uses a SMALLER buffer cap injected via direct EventBus
  * construction — not via daemon options (no production knob needed). For
@@ -33,14 +33,14 @@ import { pino } from 'pino';
 import { WebSocket } from 'ws';
 
 import type { Event } from '@moonshot-ai/protocol';
-import { IEventBus } from '@moonshot-ai/services';
+import { IEventService } from '@moonshot-ai/services';
 
 import {
   ISessionClientsService,
   startDaemon,
   type RunningDaemon,
 } from '../src';
-import { DaemonEventBus } from '../src/services/event-bus';
+import { EventService } from '../src/services/eventService';
 
 let tmpDir: string;
 let lockPath: string;
@@ -71,7 +71,7 @@ async function spawn(): Promise<RunningDaemon> {
     port: 0,
     lockPath,
     logger: pino({ level: 'silent' }),
-    bridgeOptions: { homeDir: bridgeHome },
+    coreProcessOptions: { homeDir: bridgeHome },
     wsGatewayOptions: { pingIntervalMs: 5_000, pongTimeoutMs: 5_000 },
   });
   running.push(r);
@@ -181,7 +181,7 @@ describe('WS ring buffer + resync_required (W5.3)', () => {
       ),
     );
 
-    const bus = r.services.invokeFunction((acc) => acc.get(IEventBus));
+    const bus = r.services.invokeFunction((acc) => acc.get(IEventService));
     for (let i = 1; i <= 5; i++) {
       bus.publish({ type: `evt.${i}`, sessionId: 'sid_test' } as unknown as Event);
     }
@@ -239,7 +239,7 @@ describe('WS ring buffer + resync_required (W5.3)', () => {
 
     // Force the buffer to overflow. With the spec-faithful 1000-cap, we
     // publish 1005 events. After that, oldestSeq is 6 (events 1..5 evicted).
-    const bus = r.services.invokeFunction((acc) => acc.get(IEventBus)) as DaemonEventBus;
+    const bus = r.services.invokeFunction((acc) => acc.get(IEventService)) as EventService;
     for (let i = 1; i <= 1005; i++) {
       bus.publish({ type: 'evt', sessionId: 'sid_test' } as unknown as Event);
     }
@@ -281,7 +281,7 @@ describe('WS ring buffer + resync_required (W5.3)', () => {
 
   it('caught-up client (last_seq == current_seq) gets no replay, just empty ack', async () => {
     const r = await spawn();
-    const bus = r.services.invokeFunction((acc) => acc.get(IEventBus));
+    const bus = r.services.invokeFunction((acc) => acc.get(IEventService));
     bus.publish({ type: 'evt.a', sessionId: 'sid_test' } as unknown as Event);
     bus.publish({ type: 'evt.b', sessionId: 'sid_test' } as unknown as Event);
     bus.publish({ type: 'evt.c', sessionId: 'sid_test' } as unknown as Event);
@@ -319,7 +319,7 @@ describe('WS ring buffer + resync_required (W5.3)', () => {
 
   it('ring buffer evicts oldest event when capacity is exceeded', async () => {
     const r = await spawn();
-    const bus = r.services.invokeFunction((acc) => acc.get(IEventBus)) as DaemonEventBus;
+    const bus = r.services.invokeFunction((acc) => acc.get(IEventService)) as EventService;
     // Publish 1002 — buffer should retain seq 3..1002, oldestSeq=3.
     for (let i = 1; i <= 1002; i++) {
       bus.publish({ type: 'evt', sessionId: 'sid_evict' } as unknown as Event);

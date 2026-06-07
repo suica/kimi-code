@@ -6,7 +6,7 @@
  * `isoDateTimeSchema`. All `path` fields are POSIX-style relative paths
  * anchored at `session.metadata.cwd` (REST.md §3.9 line 451).
  *
- * **Daemon-OWN** (not bridged via HarnessBridge): `IFsService` is implemented
+ * **Daemon-OWN** (not bridged via ICoreProcessService): `IFsService` is implemented
  * in `packages/daemon/src/services/fs-service.ts` against Node `fs.promises`
  * with explicit path-safety guards (REST.md §4.4). Agent-core has no `fs`
  * surface — this is the first daemon-self service in the W3+ DI graph.

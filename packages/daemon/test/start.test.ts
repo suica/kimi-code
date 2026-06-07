@@ -6,8 +6,8 @@
  * and vanishes on close, and that a second startDaemon raises DaemonLockedError.
  *
  * The DI graph end-to-end is exercised implicitly: every startDaemon call
- * constructs ILogger, IRestGateway, IEventBus, IApprovalBroker,
- * IQuestionBroker, and IHarnessBridge in order. Failure modes there (missing
+ * constructs ILogger, IRestGateway, IEventService, IApprovalService,
+ * IQuestionService, and ICoreProcessService in order. Failure modes there (missing
  * service, wrong ctor args) would surface as a startDaemon reject.
  */
 
@@ -21,12 +21,12 @@ import { pino } from 'pino';
 
 import {
   DaemonLockedError,
-  IApprovalBroker,
+  IApprovalService,
   IConnectionRegistry,
-  IEventBus,
-  IHarnessBridge,
+  IEventService,
+  ICoreProcessService,
   ILogger,
-  IQuestionBroker,
+  IQuestionService,
   IRestGateway,
   ISessionClientsService,
   IWSGateway,
@@ -70,7 +70,7 @@ async function spawn(): Promise<RunningDaemon> {
     port: 0,
     lockPath,
     logger: silentLogger(),
-    bridgeOptions: { homeDir: bridgeHome },
+    coreProcessOptions: { homeDir: bridgeHome },
   });
   running.push(r);
   return r;
@@ -114,22 +114,22 @@ describe('startDaemon — DI container wiring', () => {
       expect(a.get(IRestGateway)).toBeDefined();
       expect(a.get(IConnectionRegistry)).toBeDefined();
       expect(a.get(ISessionClientsService)).toBeDefined();
-      expect(a.get(IEventBus)).toBeDefined();
-      expect(a.get(IApprovalBroker)).toBeDefined();
-      expect(a.get(IQuestionBroker)).toBeDefined();
+      expect(a.get(IEventService)).toBeDefined();
+      expect(a.get(IApprovalService)).toBeDefined();
+      expect(a.get(IQuestionService)).toBeDefined();
       expect(a.get(IWSGateway)).toBeDefined();
-      const bridge = a.get(IHarnessBridge);
+      const bridge = a.get(ICoreProcessService);
       expect(bridge).toBeDefined();
       expect(typeof bridge.rpc).toBe('object');
       expect(typeof bridge.dispose).toBe('function');
     });
   });
 
-  it('HarnessBridge.rpc rejects after the daemon is closed (dispose cascade)', async () => {
+  it('CoreProcessService.rpc rejects after the daemon is closed (dispose cascade)', async () => {
     const r = await spawn();
     // Grab a bridge reference BEFORE close — after close the container is disposed
-    // and a.get(IHarnessBridge) would throw on the dead InstantiationService.
-    const bridge = r.services.invokeFunction((a) => a.get(IHarnessBridge));
+    // and a.get(ICoreProcessService) would throw on the dead InstantiationService.
+    const bridge = r.services.invokeFunction((a) => a.get(ICoreProcessService));
     await r.close();
     await expect(bridge.rpc.getCoreInfo({})).rejects.toThrow(/disposed/);
   });

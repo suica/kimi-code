@@ -1,15 +1,15 @@
 /**
  * `IMcpService` — daemon-facing MCP server surface (Chain 7 / P1.7, W9.1).
  *
- * Wraps `IHarnessBridge.rpc.{listMcpServers, reconnectMcpServer}` and adapts
+ * Wraps `ICoreProcessService.rpc.{listMcpServers, reconnectMcpServer}` and adapts
  * the agent-core `McpServerInfo` shape into SCHEMAS §8 `McpServer`. The
  * adapter helper (`toProtocolMcpServer`) is co-located here (moved from the
  * tool-portion of `adapter/tool-adapter.ts` in Phase B consolidation).
  *
  * **CoreAPI surface used**:
- *   - `bridge.rpc.listMcpServers({}) => readonly McpServerInfo[]`
+ *   - `core.rpc.listMcpServers({}) => readonly McpServerInfo[]`
  *     (packages/agent-core/src/rpc/core-api.ts:344).
- *   - `bridge.rpc.reconnectMcpServer({name})` (line 346).
+ *   - `core.rpc.reconnectMcpServer({name})` (line 346).
  *
  * **Server identity**: REST.md §3.8 uses `{mcp_server_id}` in the path;
  * agent-core surfaces only `name`. We treat name-as-id at the wire boundary
@@ -40,8 +40,6 @@ import type {
   McpServerStatus,
   McpServerTransport,
 } from '@moonshot-ai/protocol';
-
-import { IHarnessBridge } from '../bridge/harness-bridge';
 
 // ---------------------------------------------------------------------------
 // Adapter helpers (MCP side of former adapter/tool-adapter.ts)

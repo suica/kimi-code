@@ -14,7 +14,7 @@
  *
  * We don't drive a REAL prompt through agent-core in this test because:
  *   - prompt execution requires provider credentials + network IO.
- *   - the architecture under test is the daemon's event-bus synthesis +
+ *   - the architecture under test is the daemon's event-service synthesis +
  *     fan-out path, not the model's behavior.
  *   - the services-layer unit tests at
  *     `packages/services/test/prompt-service.test.ts` exercise the protocol
@@ -30,7 +30,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 
 import type { Event } from '@moonshot-ai/protocol';
-import { IEventBus, IPromptService, PromptService } from '@moonshot-ai/services';
+import { IEventService, IPromptService, PromptService } from '@moonshot-ai/services';
 
 import { IRestGateway, startDaemon, type RunningDaemon } from '../src';
 
@@ -62,7 +62,7 @@ async function bootDaemon(): Promise<RunningDaemon> {
     port: 0,
     lockPath,
     logger: pino({ level: 'silent' }),
-    bridgeOptions: { homeDir: bridgeHome },
+    coreProcessOptions: { homeDir: bridgeHome },
     wsGatewayOptions: { pingIntervalMs: 5_000, pongTimeoutMs: 5_000 },
   });
   return daemon;
@@ -225,7 +225,7 @@ describe('Prompt lifecycle: WS receives events + synthesized prompt.completed (W
     impl._injectActiveForTest(sid, promptId, null);
 
     // Publish the agent-core event stream directly through the bus.
-    const eventBus = r.services.invokeFunction((a) => a.get(IEventBus));
+    const eventBus = r.services.invokeFunction((a) => a.get(IEventService));
     eventBus.publish({
       type: 'turn.started',
       turnId,
@@ -296,7 +296,7 @@ describe('Prompt lifecycle: WS receives events + synthesized prompt.completed (W
     );
     impl._injectActiveForTest(sid, promptId, null);
 
-    const eventBus = r.services.invokeFunction((a) => a.get(IEventBus));
+    const eventBus = r.services.invokeFunction((a) => a.get(IEventService));
     eventBus.publish({
       type: 'turn.started',
       turnId,

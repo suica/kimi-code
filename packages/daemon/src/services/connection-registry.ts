@@ -5,16 +5,16 @@
  *
  *   1. Lookup by `connId` (W5+ broadcast paths and operator commands).
  *   2. Bulk close on shutdown (`closeAll(reason)`) — invoked by
- *      `WSGateway.dispose()` so connections are torn down BEFORE EventBus /
- *      brokers, ensuring no broker emits into a closed socket.
+ *      `WSGateway.dispose()` so connections are torn down BEFORE EventService /
+ *      peer services, ensuring no service emits into a closed socket.
  *   3. Size accounting (test assertions + observability).
  *
  * Construction-order positioning: registered AFTER `IRestGateway` and BEFORE
- * `ISessionClientsService` / `IEventBus`. Under the reverse-construction
+ * `ISessionClientsService` / `IEventService`. Under the reverse-construction
  * dispose chain this means the registry tears down LATER than the gateway
  * (which closes all sockets via the registry first), but EARLIER than the
- * brokers/logger. Concretely: `WSGateway.dispose() → registry.closeAll()` then
- * registry.dispose() is a no-op (registry already empty).
+ * peer services / logger. Concretely: `WSGateway.dispose() → registry.closeAll()`
+ * then registry.dispose() is a no-op (registry already empty).
  *
  * `dispose()` is defensive: if WSGateway didn't run for any reason (failed
  * mid-boot) we still close any straggler connections so the daemon process

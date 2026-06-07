@@ -1,7 +1,7 @@
 /**
  * `IMessageService` — daemon-facing message history interface (Chain 3 / P1.3, W7.1).
  *
- * Wraps `IHarnessBridge.rpc.getContext({sessionId, agentId})` and adapts
+ * Wraps `ICoreProcessService.rpc.getContext({sessionId, agentId})` and adapts
  * agent-core's `ContextMessage` history shape (kosong `Message` + origin) to
  * the protocol's SCHEMAS.md §3 `Message` discriminated-by-content union.
  *
@@ -58,7 +58,6 @@ import type {
   ToolUseContent,
 } from '@moonshot-ai/protocol';
 
-import { IHarnessBridge } from '../bridge/harness-bridge';
 import { SessionNotFoundError } from '../session/session';
 
 /**

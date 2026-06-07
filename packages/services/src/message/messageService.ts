@@ -12,7 +12,7 @@ import type {
   PageResponse,
 } from '@moonshot-ai/protocol';
 
-import { IHarnessBridge } from '../bridge/harness-bridge';
+import { ICoreProcessService } from '../coreProcess/coreProcess';
 import { SessionNotFoundError } from '../session/session';
 import {
   IMessageService,
@@ -31,7 +31,7 @@ const MAIN_AGENT_ID = 'main';
 export class MessageService extends Disposable implements IMessageService {
   readonly _serviceBrand: undefined;
 
-  constructor(@IHarnessBridge private readonly bridge: IHarnessBridge) {
+  constructor(@ICoreProcessService private readonly core: ICoreProcessService) {
     super();
   }
 
@@ -93,7 +93,7 @@ export class MessageService extends Disposable implements IMessageService {
    * base). Throws `SessionNotFoundError` (→ 40401) on miss.
    */
   private async _requireSession(sid: string): Promise<SessionSummary> {
-    const all = await this.bridge.rpc.listSessions({});
+    const all = await this.core.rpc.listSessions({});
     const summary = all.find((s) => s.id === sid);
     if (summary === undefined) {
       throw new SessionNotFoundError(sid);
@@ -109,7 +109,7 @@ export class MessageService extends Disposable implements IMessageService {
    */
   private async _getContext(sid: string): Promise<AgentContextData> {
     try {
-      return await this.bridge.rpc.getContext({ sessionId: sid, agentId: MAIN_AGENT_ID });
+      return await this.core.rpc.getContext({ sessionId: sid, agentId: MAIN_AGENT_ID });
     } catch (err) {
       throw new SessionNotFoundError(sid);
     }

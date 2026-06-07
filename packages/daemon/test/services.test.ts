@@ -1,17 +1,17 @@
 /**
- * Service stubs (W4.4 / P0.14, extended in W5.2 / P0.16) — broker + event-bus
- * unit tests.
+ * Service stubs (W4.4 / P0.14, extended in W5.2 / P0.16) — peer service +
+ * event-service unit tests.
  *
  * Hermetic: we wire a real `InstantiationService` with stub `ILogger` impl,
  * exercise `request` / `resolve` / `dismiss` / `dispose` directly, and a
- * stub `ISessionClientsService` (no real sockets) for `DaemonEventBus`.
+ * stub `ISessionClientsService` (no real sockets) for `EventService`.
  *
  * Timing: we override `timeoutMs` to a small value (50ms) so a real timer
  * fires within the test rather than waiting 60s. `vi.useFakeTimers` would
  * also work but is heavier and forces every consumer's Promise into manual
  * flushing.
  *
- * **Migration note** (W5.2): the W4 `DaemonEventBus._drainForTest` tests are
+ * **Migration note** (W5.2): the W4 `EventService._drainForTest` tests are
  * gone — the bus no longer holds a queue at all. The new tests assert
  * per-session seq monotonicity, ring-buffer state, and that `publish()` fans
  * out to the right subscriber set via a fake `ISessionClientsService`.
@@ -27,15 +27,15 @@ import {
 } from '@moonshot-ai/agent-core';
 import type { Event } from '@moonshot-ai/protocol';
 import {
-  IApprovalBroker,
-  IEventBus,
-  IQuestionBroker,
+  IApprovalService,
+  IEventService,
+  IQuestionService,
 } from '@moonshot-ai/services';
 
-import { DaemonApprovalBroker } from '../src/services/approval-broker';
-import { DaemonEventBus } from '../src/services/event-bus';
+import { ApprovalService } from '../src/services/approvalService';
+import { EventService } from '../src/services/eventService';
 import { ILogger, type ILogger as ILoggerT } from '../src/services/logger';
-import { DaemonQuestionBroker } from '../src/services/question-broker';
+import { QuestionService } from '../src/services/questionService';
 import {
   ISessionClientsService,
   type ISessionClientsService as ISessionClientsServiceT,
@@ -110,7 +110,7 @@ afterEach(() => {
   ix.dispose();
 });
 
-describe('DaemonEventBus (W5.2 — WS broadcaster)', () => {
+describe('EventService (W5.2 — WS broadcaster)', () => {
   it('publishes event with seq=1, broadcasts to subscribers, advances seq monotonically per session', () => {
     const clients = new FakeSessionClients();
     const c1 = fakeConn('conn_a');
@@ -118,7 +118,7 @@ describe('DaemonEventBus (W5.2 — WS broadcaster)', () => {
     clients.subscribe(c1, 'sid_test');
     clients.subscribe(c2, 'sid_test');
 
-    const bus = new DaemonEventBus(testLogger, clients);
+    const bus = new EventService(testLogger, clients);
     bus.publish({ type: 'fake.x', sessionId: 'sid_test' } as unknown as Event);
     bus.publish({ type: 'fake.y', sessionId: 'sid_test' } as unknown as Event);
 
@@ -141,7 +141,7 @@ describe('DaemonEventBus (W5.2 — WS broadcaster)', () => {
     clients.subscribe(cA, 'sid_a');
     clients.subscribe(cB, 'sid_b');
 
-    const bus = new DaemonEventBus(testLogger, clients);
+    const bus = new EventService(testLogger, clients);
     bus.publish({ type: 'e1', sessionId: 'sid_a' } as unknown as Event);
     bus.publish({ type: 'e1', sessionId: 'sid_b' } as unknown as Event);
     bus.publish({ type: 'e2', sessionId: 'sid_a' } as unknown as Event);
@@ -162,7 +162,7 @@ describe('DaemonEventBus (W5.2 — WS broadcaster)', () => {
     clients.subscribe(onA, 'sid_a');
     clients.subscribe(onOther, 'sid_other');
 
-    const bus = new DaemonEventBus(testLogger, clients);
+    const bus = new EventService(testLogger, clients);
     bus.publish({ type: 'evt', sessionId: 'sid_a' } as unknown as Event);
     expect(onA.sent.length).toBe(1);
     expect(onOther.sent.length).toBe(0);
@@ -175,7 +175,7 @@ describe('DaemonEventBus (W5.2 — WS broadcaster)', () => {
     clients.subscribe(c, 'sid_x');
     const warnSpy = vi.spyOn(testLogger, 'warn');
 
-    const bus = new DaemonEventBus(testLogger, clients);
+    const bus = new EventService(testLogger, clients);
     bus.publish({ type: 'no_sid' } as unknown as Event);
 
     expect(c.sent.length).toBe(0);
@@ -187,7 +187,7 @@ describe('DaemonEventBus (W5.2 — WS broadcaster)', () => {
     const clients = new FakeSessionClients();
     const c = fakeConn();
     clients.subscribe(c, 'sid_x');
-    const bus = new DaemonEventBus(testLogger, clients);
+    const bus = new EventService(testLogger, clients);
     bus.dispose();
     bus.publish({ type: 'late', sessionId: 'sid_x' } as unknown as Event);
     expect(c.sent.length).toBe(0);
@@ -197,7 +197,7 @@ describe('DaemonEventBus (W5.2 — WS broadcaster)', () => {
     const clients = new FakeSessionClients();
     const c = fakeConn();
     clients.subscribe(c, 'sid_test');
-    const bus = new DaemonEventBus(testLogger, clients);
+    const bus = new EventService(testLogger, clients);
     for (let i = 0; i < 5; i++) {
       bus.publish({ type: `e${i}`, sessionId: 'sid_test' } as unknown as Event);
     }
@@ -209,7 +209,7 @@ describe('DaemonEventBus (W5.2 — WS broadcaster)', () => {
   });
 
   it('getBufferedSince returns empty + currentSeq=0 for a never-seen session', () => {
-    const bus = new DaemonEventBus(testLogger, new FakeSessionClients());
+    const bus = new EventService(testLogger, new FakeSessionClients());
     const replay = bus.getBufferedSince('sid_new', 5);
     expect(replay.events).toEqual([]);
     expect(replay.resyncRequired).toBe(false);
@@ -218,18 +218,18 @@ describe('DaemonEventBus (W5.2 — WS broadcaster)', () => {
   });
 });
 
-describe('DaemonApprovalBroker (W8.1 / Chain 5 — broadcasts + resolve-by-approval_id)', () => {
+describe('ApprovalService (W8.1 / Chain 5 — broadcasts + resolve-by-approval_id)', () => {
   function makeBrokerWithBus(opts?: { timeoutMs?: number }): {
-    broker: DaemonApprovalBroker;
-    bus: DaemonEventBus;
+    broker: ApprovalService;
+    bus: EventService;
     clients: FakeSessionClients;
     conn: ReturnType<typeof fakeConn>;
   } {
     const clients = new FakeSessionClients();
     const conn = fakeConn('conn_subscriber');
     clients.subscribe(conn, 'sess_1');
-    const bus = new DaemonEventBus(testLogger, clients);
-    const broker = new DaemonApprovalBroker(testLogger, bus, opts);
+    const bus = new EventService(testLogger, clients);
+    const broker = new ApprovalService(testLogger, bus, opts);
     return { broker, bus, clients, conn };
   }
 
@@ -331,18 +331,18 @@ describe('DaemonApprovalBroker (W8.1 / Chain 5 — broadcasts + resolve-by-appro
   });
 });
 
-describe('DaemonQuestionBroker (W8.2 / Chain 6 — broadcasts + dismiss)', () => {
+describe('QuestionService (W8.2 / Chain 6 — broadcasts + dismiss)', () => {
   function makeQuestionBroker(opts?: { timeoutMs?: number }): {
-    broker: DaemonQuestionBroker;
-    bus: DaemonEventBus;
+    broker: QuestionService;
+    bus: EventService;
     clients: FakeSessionClients;
     conn: ReturnType<typeof fakeConn>;
   } {
     const clients = new FakeSessionClients();
     const conn = fakeConn('conn_q_subscriber');
     clients.subscribe(conn, 's');
-    const bus = new DaemonEventBus(testLogger, clients);
-    const broker = new DaemonQuestionBroker(testLogger, bus, opts);
+    const bus = new EventService(testLogger, clients);
+    const broker = new QuestionService(testLogger, bus, opts);
     return { broker, bus, clients, conn };
   }
 
@@ -456,24 +456,24 @@ describe('DaemonQuestionBroker (W8.2 / Chain 6 — broadcasts + dismiss)', () =>
 describe('DI graph — broker resolution through the container', () => {
   it('resolves broker decorators against the same instances registered in the collection', () => {
     const clients = new FakeSessionClients();
-    const eventBus = new DaemonEventBus(testLogger, clients);
-    const approval = new DaemonApprovalBroker(testLogger, eventBus);
-    const question = new DaemonQuestionBroker(testLogger, eventBus);
+    const eventBus = new EventService(testLogger, clients);
+    const approval = new ApprovalService(testLogger, eventBus);
+    const question = new QuestionService(testLogger, eventBus);
 
-    // We don't need a HarnessBridge for this — just check the wiring symmetry.
+    // We don't need a CoreProcessService for this — just check the wiring symmetry.
     const collection = new ServiceCollection(
       [ILogger, testLogger],
       [ISessionClientsService, clients],
-      [IEventBus, eventBus],
-      [IApprovalBroker, approval],
-      [IQuestionBroker, question],
+      [IEventService, eventBus],
+      [IApprovalService, approval],
+      [IQuestionService, question],
     );
     const localIx = new InstantiationService(collection);
     localIx.invokeFunction((a) => {
       expect(a.get(ISessionClientsService)).toBe(clients);
-      expect(a.get(IEventBus)).toBe(eventBus);
-      expect(a.get(IApprovalBroker)).toBe(approval);
-      expect(a.get(IQuestionBroker)).toBe(question);
+      expect(a.get(IEventService)).toBe(eventBus);
+      expect(a.get(IApprovalService)).toBe(approval);
+      expect(a.get(IQuestionService)).toBe(question);
       expect(a.get(ILogger)).toBe(testLogger);
     });
     localIx.dispose();

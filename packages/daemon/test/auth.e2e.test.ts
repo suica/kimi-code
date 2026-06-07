@@ -14,7 +14,7 @@
  *
  * **Bootstrap**: each test seeds `<bridgeHome>/config.toml` BEFORE calling
  * `startDaemon` so KimiCore loads it on construction. The `homeDir` we pass
- * via `bridgeOptions.homeDir` is also what `AuthSummaryServiceImpl` uses to
+ * via `coreProcessOptions.homeDir` is also what `AuthSummaryServiceImpl` uses to
  * locate the credential dir — keeping the file paths in lockstep with prod.
  *
  * **Anti-corruption**: tests only use the public REST surface + `RunningDaemon`
@@ -61,7 +61,7 @@ async function bootDaemon(): Promise<RunningDaemon> {
     port: 0,
     lockPath,
     logger: pino({ level: 'silent' }),
-    bridgeOptions: { homeDir: bridgeHome },
+    coreProcessOptions: { homeDir: bridgeHome },
   });
   return daemon;
 }

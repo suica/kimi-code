@@ -7,27 +7,27 @@
  *
  *   1. **Submit**: validate session existence + busy-check, mint a ULID
  *      `prompt_id`, derive the `user_message_id` (so the response matches
- *      SCHEMAS §5), and fire-and-forget `bridge.rpc.prompt(...)`. agent-core
+ *      SCHEMAS §5), and fire-and-forget `core.rpc.prompt(...)`. agent-core
  *      streams events synchronously from inside; they reach WS subscribers
- *      via the bus.
+ *      via the event service.
  *
  *   2. **Lifecycle observation (W7.2 / Phase C)**: subscribes to the event
- *      bus via `IEventBus.subscribe(handler)` in its constructor. We use this
- *      to:
+ *      service via `IEventService.subscribe(handler)` in its constructor. We
+ *      use this to:
  *      - capture `turn.started` → record `promptId ↔ turnId` mapping (so
  *        later abort can pass the correct numeric `turnId` to
- *        `bridge.rpc.cancel({turnId})`).
+ *        `core.rpc.cancel({turnId})`).
  *      - capture `turn.ended` for the prompt's top-level turn → SYNTHESIZE a
  *        `prompt.completed` (reason='completed' or 'failed') or
- *        `prompt.aborted` (reason='cancelled') event. The bus then broadcasts
- *        these. agent-core's event union has no prompt-level types — see W7
- *        §critical discovery point #2.
+ *        `prompt.aborted` (reason='cancelled') event. The event service then
+ *        broadcasts these. agent-core's event union has no prompt-level
+ *        types — see W7 §critical discovery point #2.
  *      Typed listeners `onPromptCompleted(handler)` / `onPromptAborted(handler)`
  *      are also exposed so callers can observe the typed synthetic events
- *      without filtering the raw bus stream.
+ *      without filtering the raw event stream.
  *
  *   3. **Abort (W7.3)**: existence-check the prompt id, dispatch
- *      `bridge.rpc.cancel({sessionId, agentId:'main', turnId?})`. Idempotent:
+ *      `core.rpc.cancel({sessionId, agentId:'main', turnId?})`. Idempotent:
  *      subsequent aborts on a completed/aborted prompt return
  *      `PromptAlreadyCompletedError` (→ envelope code 40903 with
  *      `data: {aborted: false}` per REST.md §3.5).
@@ -60,8 +60,8 @@
  *
  * **Anti-corruption**: imports `@moonshot-ai/agent-core` only for type-only
  * `Event` / `TurnStartedEvent` etc. Runtime calls go through
- * `IHarnessBridge.rpc.<method>`. Lifecycle synthesis emits events through
- * `IEventBus.publish` (also a daemon-side interface; agent-core not touched).
+ * `ICoreProcessService.rpc.<method>`. Lifecycle synthesis emits events through
+ * `IEventService.publish` (also a daemon-side interface; agent-core not touched).
  */
 
 import { createDecorator, Disposable } from '@moonshot-ai/agent-core';
@@ -72,9 +72,9 @@ import type {
 } from '@moonshot-ai/protocol';
 import { ulid } from 'ulid';
 
-import { IHarnessBridge } from '../bridge/harness-bridge';
-import { IAuthSummaryService } from '../auth-summary/auth-summary';
-import { IEventBus } from '../event/event-bus';
+import { ICoreProcessService } from '../coreProcess/coreProcess';
+import { IAuthSummaryService } from '../authSummary/authSummary';
+import { IEventService } from '../event/event';
 import { SessionNotFoundError } from '../session/session';
 
 export interface PromptAbortResult {
@@ -180,7 +180,7 @@ export class PromptAlreadyCompletedError extends Error {
 /**
  * `prompt.completed` synthetic event shape. Matches the agent-core `Event`
  * type contract (`AgentEvent & { agentId, sessionId }`) so it flows through
- * the existing `IEventBus` path. The `type` string is namespaced under
+ * the existing `IEventService` path. The `type` string is namespaced under
  * `prompt.*` (not part of agent-core's union — see service header).
  */
 export interface SyntheticPromptCompletedEvent {

@@ -1,8 +1,8 @@
 /**
  * `PromptService` (Chain 4 / P1.4, W7.2) unit tests.
  *
- * Hermetic: a fake `IHarnessBridge` returns canned session list + records
- * the `prompt` / `cancel` payloads. A stub `IEventBus` collects published
+ * Hermetic: a fake `ICoreProcessService` returns canned session list + records
+ * the `prompt` / `cancel` payloads. A stub `IEventService` collects published
  * events into an array we can inspect and drives synthesis via
  * `bus.publish(turn.*)` → PromptService's private subscriber.
  *
@@ -25,15 +25,15 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
+  CoreRPC,
   Event,
   SessionSummary,
 } from '@moonshot-ai/agent-core';
 
 import {
   type IAuthSummaryService,
-  type IEventBus,
-  type IHarnessBridge,
-  type HarnessRPC,
+  type IEventService,
+  type ICoreProcessService,
   PromptAlreadyCompletedError,
   PromptNotFoundError,
   PromptService,
@@ -61,9 +61,9 @@ interface RpcRecord {
 
 function makeBridge(
   sessions: SessionSummary[] = [mkSummary()],
-): { bridge: IHarnessBridge; record: RpcRecord } {
+): { bridge: ICoreProcessService; record: RpcRecord } {
   const record: RpcRecord = { promptCalls: [], cancelCalls: [] };
-  const rpc: Partial<HarnessRPC> = {
+  const rpc: Partial<CoreRPC> = {
     listSessions: vi.fn().mockImplementation(async () => sessions),
     prompt: vi.fn().mockImplementation(async (payload) => {
       record.promptCalls.push(payload);
@@ -72,8 +72,8 @@ function makeBridge(
       record.cancelCalls.push(payload);
     }),
   };
-  const bridge: IHarnessBridge = {
-    rpc: rpc as HarnessRPC,
+  const bridge: ICoreProcessService = {
+    rpc: rpc as CoreRPC,
     ready: vi.fn().mockResolvedValue(undefined),
     dispose: vi.fn(),
     _serviceBrand: undefined,
@@ -81,13 +81,13 @@ function makeBridge(
   return { bridge, record };
 }
 
-function makeBus(): { bus: IEventBus; events: Event[]; triggerSubscribers: (e: Event) => void } {
+function makeBus(): { bus: IEventService; events: Event[]; triggerSubscribers: (e: Event) => void } {
   const events: Event[] = [];
   const subscribers = new Set<(e: Event) => void>();
-  const bus: IEventBus = {
+  const bus: IEventService = {
     publish: (e: Event) => {
       events.push(e);
-      // Drive any subscribers (mirrors DaemonEventBus publish → subscriber call).
+      // Drive any subscribers (mirrors EventService publish → subscriber call).
       for (const h of Array.from(subscribers)) h(e);
     },
     subscribe: (handler: (e: Event) => void) => {
@@ -185,13 +185,13 @@ describe('PromptService.submit (W7.2)', () => {
       .fn<(...args: unknown[]) => Promise<void>>()
       .mockRejectedValueOnce(new Error('boom'))
       .mockResolvedValue(undefined);
-    const rpc: Partial<HarnessRPC> = {
+    const rpc: Partial<CoreRPC> = {
       listSessions: vi.fn().mockResolvedValue(sessions),
       prompt: promptMock,
       cancel: vi.fn().mockImplementation(async () => undefined),
     };
-    const bridge: IHarnessBridge = {
-      rpc: rpc as HarnessRPC,
+    const bridge: ICoreProcessService = {
+      rpc: rpc as CoreRPC,
       ready: vi.fn().mockResolvedValue(undefined),
       dispose: vi.fn(),
       _serviceBrand: undefined,
@@ -206,7 +206,7 @@ describe('PromptService.submit (W7.2)', () => {
   });
 });
 
-describe('PromptService lifecycle synthesis (via IEventBus.subscribe)', () => {
+describe('PromptService lifecycle synthesis (via IEventService.subscribe)', () => {
   it('captures turnId on the first turn.started after submit', async () => {
     const { bridge } = makeBridge();
     const { bus, triggerSubscribers } = makeBus();

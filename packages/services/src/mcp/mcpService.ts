@@ -5,7 +5,7 @@
 import { Disposable } from '@moonshot-ai/agent-core';
 import type { McpServer } from '@moonshot-ai/protocol';
 
-import { IHarnessBridge } from '../bridge/harness-bridge';
+import { ICoreProcessService } from '../coreProcess/coreProcess';
 import {
   IMcpService,
   McpServerNotFoundError,
@@ -15,7 +15,7 @@ import {
 export class McpService extends Disposable implements IMcpService {
   readonly _serviceBrand: undefined;
 
-  constructor(@IHarnessBridge private readonly bridge: IHarnessBridge) {
+  constructor(@ICoreProcessService private readonly core: ICoreProcessService) {
     super();
   }
 
@@ -26,7 +26,7 @@ export class McpService extends Disposable implements IMcpService {
     // RPC plumbing isn't reachable until a session is open).
     const sessionId = await this._anyKnownSessionId();
     if (sessionId === undefined) return [];
-    const raw = await this.bridge.rpc.listMcpServers({ sessionId });
+    const raw = await this.core.rpc.listMcpServers({ sessionId });
     return raw.map(toProtocolMcpServer);
   }
 
@@ -40,11 +40,11 @@ export class McpService extends Disposable implements IMcpService {
     // call will reject for unknown names; we pre-check so the route can
     // emit a deterministic 40408 envelope without depending on agent-core
     // error message shape.
-    const known = await this.bridge.rpc.listMcpServers({ sessionId });
+    const known = await this.core.rpc.listMcpServers({ sessionId });
     if (!known.some((s) => s.name === serverId)) {
       throw new McpServerNotFoundError(serverId);
     }
-    await this.bridge.rpc.reconnectMcpServer({ sessionId, name: serverId });
+    await this.core.rpc.reconnectMcpServer({ sessionId, name: serverId });
     return { restarting: true };
   }
 
@@ -53,7 +53,7 @@ export class McpService extends Disposable implements IMcpService {
    * most recently created session id, or `undefined` when no sessions exist.
    */
   private async _anyKnownSessionId(): Promise<string | undefined> {
-    const all = await this.bridge.rpc.listSessions({});
+    const all = await this.core.rpc.listSessions({});
     if (all.length === 0) return undefined;
     // Sort by createdAt desc — newest sessions are the most likely to have
     // an active MCP RPC binding.

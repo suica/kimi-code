@@ -2,7 +2,7 @@
  * Question end-to-end tests (W8.2 / Chain 6 / P1.6).
  *
  * Covers the reverse-RPC path: agent-core → BridgeClientAPI.requestQuestion →
- * IQuestionBroker.request → WS `event.question.requested` → REST
+ * IQuestionService.request → WS `event.question.requested` → REST
  * `POST /api/v1/sessions/{sid}/questions/{qid}` (or `:dismiss`) → Promise
  * resolves with `Record<string, string | true>` (or `null` for dismiss).
  *
@@ -19,16 +19,16 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 
 import {
-  IQuestionBroker,
+  IQuestionService,
   type QuestionRequest,
   type QuestionResult,
 } from '@moonshot-ai/services';
 
 import { IRestGateway, startDaemon, type RunningDaemon } from '../src';
 import {
-  DaemonQuestionBroker,
+  QuestionService,
   QuestionExpiredError,
-} from '../src/services/question-broker';
+} from '../src/services/questionService';
 
 let tmpDir: string;
 let lockPath: string;
@@ -58,7 +58,7 @@ async function bootDaemon(): Promise<RunningDaemon> {
     port: 0,
     lockPath,
     logger: pino({ level: 'silent' }),
-    bridgeOptions: { homeDir: bridgeHome },
+    coreProcessOptions: { homeDir: bridgeHome },
     wsGatewayOptions: { pingIntervalMs: 5_000, pongTimeoutMs: 5_000 },
   });
   return daemon;
@@ -162,7 +162,7 @@ describe('Question reverse-RPC: WS broadcast → REST resolve → Promise settle
     const { ws, received } = await openSubscriber(r, sid);
 
     const broker = r.services.invokeFunction(
-      (a) => a.get(IQuestionBroker) as DaemonQuestionBroker,
+      (a) => a.get(IQuestionService) as QuestionService,
     );
 
     const inProcReq: QuestionRequest = {
@@ -293,7 +293,7 @@ describe('Question reverse-RPC: WS broadcast → REST resolve → Promise settle
       const sid = await createSession(r);
 
       const broker = r.services.invokeFunction(
-        (a) => a.get(IQuestionBroker) as DaemonQuestionBroker,
+        (a) => a.get(IQuestionService) as QuestionService,
       );
       const pending = broker.request({
         sessionId: sid,
@@ -332,7 +332,7 @@ describe('Question reverse-RPC: WS broadcast → REST resolve → Promise settle
     const { ws, received } = await openSubscriber(r, sid);
 
     const broker = r.services.invokeFunction(
-      (a) => a.get(IQuestionBroker) as DaemonQuestionBroker,
+      (a) => a.get(IQuestionService) as QuestionService,
     );
     const pending = broker.request({
       sessionId: sid,
@@ -405,7 +405,7 @@ describe('Question reverse-RPC: WS broadcast → REST resolve → Promise settle
     const sid = await createSession(r);
 
     const broker = r.services.invokeFunction(
-      (a) => a.get(IQuestionBroker) as DaemonQuestionBroker,
+      (a) => a.get(IQuestionService) as QuestionService,
     );
     const pending = broker.request({
       sessionId: sid,
@@ -447,7 +447,7 @@ describe('Question reverse-RPC: WS broadcast → REST resolve → Promise settle
     const sid = await createSession(r);
 
     const broker = r.services.invokeFunction(
-      (a) => a.get(IQuestionBroker) as DaemonQuestionBroker,
+      (a) => a.get(IQuestionService) as QuestionService,
     );
     const _pending = broker.request({
       sessionId: sid,
@@ -484,7 +484,7 @@ describe('Question reverse-RPC: WS broadcast → REST resolve → Promise settle
     const { ws, received } = await openSubscriber(r, sid);
 
     const broker = r.services.invokeFunction(
-      (a) => a.get(IQuestionBroker) as DaemonQuestionBroker,
+      (a) => a.get(IQuestionService) as QuestionService,
     );
     (broker as unknown as { _timeoutMs: number })._timeoutMs = 40;
 

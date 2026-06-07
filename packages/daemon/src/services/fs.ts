@@ -3,7 +3,7 @@
  *
  * **Daemon-OWN** distinction: every prior `IXxxService` (`ISessionService`,
  * `IMessageService`, `IPromptService`, `IToolService`, `IMcpService`,
- * `ITaskService`) wraps an `IHarnessBridge` call. `IFsService` does not —
+ * `ITaskService`) wraps an `ICoreProcessService` call. `IFsService` does not —
  * agent-core has no `fs.list` / `fs.read` surface, and the wire path
  * directly addresses `session.metadata.cwd`. We therefore implement
  * against Node `fs.promises` directly and live in the daemon package

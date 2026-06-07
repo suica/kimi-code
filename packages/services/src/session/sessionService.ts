@@ -12,7 +12,7 @@ import {
   type SessionUpdate,
 } from '@moonshot-ai/protocol';
 
-import { IHarnessBridge } from '../bridge/harness-bridge';
+import { ICoreProcessService } from '../coreProcess/coreProcess';
 import {
   ISessionService,
   SessionNotFoundError,
@@ -42,7 +42,7 @@ export class SessionService extends Disposable implements ISessionService {
   /** Handlers for session-closed events. */
   private readonly _closeHandlers = new Set<(e: { sessionId: string }) => void>();
 
-  constructor(@IHarnessBridge private readonly bridge: IHarnessBridge) {
+  constructor(@ICoreProcessService private readonly core: ICoreProcessService) {
     super();
   }
 
@@ -50,7 +50,7 @@ export class SessionService extends Disposable implements ISessionService {
     // SessionCreate.metadata.cwd is REQUIRED by Zod; agent-core's createSession
     // also calls `requiredWorkDir(...)` which throws if missing.
     const metadataForCore = asJsonObject(input.metadata as Record<string, unknown>);
-    const summary = await this.bridge.rpc.createSession({
+    const summary = await this.core.rpc.createSession({
       workDir: input.metadata.cwd,
       metadata: metadataForCore,
       ...(input.agent_config?.model !== undefined ? { model: input.agent_config.model } : {}),
@@ -61,7 +61,7 @@ export class SessionService extends Disposable implements ISessionService {
     // post-create get reflects it.
     if (input.title !== undefined) {
       try {
-        await this.bridge.rpc.renameSession({ sessionId: summary.id, title: input.title });
+        await this.core.rpc.renameSession({ sessionId: summary.id, title: input.title });
       } catch {
         // If rename fails (e.g. session closed/race), continue with the
         // default — the response shape is unchanged.
@@ -69,13 +69,13 @@ export class SessionService extends Disposable implements ISessionService {
     }
     const meta = await this.tryGetMeta(summary.id);
     const session = toProtocolSession(summary, meta);
-    // Fire onDidCreate handlers after bridge RPC resolves.
+    // Fire onDidCreate handlers after the core RPC resolves.
     for (const h of this._createHandlers) h({ session });
     return session;
   }
 
   async list(query: SessionListQuery): Promise<PageResponse<Session>> {
-    const all = await this.bridge.rpc.listSessions({});
+    const all = await this.core.rpc.listSessions({});
     // Sort by createdAt desc per REST §1.6 "最近 N 条（按 created_at desc）".
     const sorted = [...all].sort((a, b) => b.createdAt - a.createdAt);
 
@@ -121,7 +121,7 @@ export class SessionService extends Disposable implements ISessionService {
   }
 
   async get(id: string): Promise<Session> {
-    const all = await this.bridge.rpc.listSessions({});
+    const all = await this.core.rpc.listSessions({});
     const summary = all.find((s) => s.id === id);
     if (summary === undefined) {
       throw new SessionNotFoundError(id);
@@ -132,7 +132,7 @@ export class SessionService extends Disposable implements ISessionService {
 
   async update(id: string, input: SessionUpdate): Promise<Session> {
     // Existence check first — gives a deterministic 40401 if the id is wrong.
-    const all = await this.bridge.rpc.listSessions({});
+    const all = await this.core.rpc.listSessions({});
     const summary = all.find((s) => s.id === id);
     if (summary === undefined) {
       throw new SessionNotFoundError(id);
@@ -140,7 +140,7 @@ export class SessionService extends Disposable implements ISessionService {
 
     // 1) title goes through renameSession.
     if (input.title !== undefined) {
-      await this.bridge.rpc.renameSession({ sessionId: id, title: input.title });
+      await this.core.rpc.renameSession({ sessionId: id, title: input.title });
     }
 
     // 2) metadata patches go through updateSessionMetadata. agent-core's
@@ -148,7 +148,7 @@ export class SessionService extends Disposable implements ISessionService {
     //    `metadata` (catchall) into `custom` so it round-trips on the next get.
     const metadataPatch = input.metadata;
     if (metadataPatch !== undefined && Object.keys(metadataPatch).length > 0) {
-      await this.bridge.rpc.updateSessionMetadata({
+      await this.core.rpc.updateSessionMetadata({
         sessionId: id,
         metadata: { custom: metadataPatch as Record<string, unknown> },
       });
@@ -159,7 +159,7 @@ export class SessionService extends Disposable implements ISessionService {
     //    in this chain. W7+ wires this. Documented in W6 STATUS.
 
     // Re-fetch to return the post-update Session.
-    const allAfter = await this.bridge.rpc.listSessions({});
+    const allAfter = await this.core.rpc.listSessions({});
     const summaryAfter = allAfter.find((s) => s.id === id) ?? summary;
     const meta = await this.tryGetMeta(id);
     return toProtocolSession(summaryAfter, meta);
@@ -167,13 +167,13 @@ export class SessionService extends Disposable implements ISessionService {
 
   async delete(id: string): Promise<{ deleted: true }> {
     // Existence check — deterministic 40401 even on close.
-    const all = await this.bridge.rpc.listSessions({});
+    const all = await this.core.rpc.listSessions({});
     const summary = all.find((s) => s.id === id);
     if (summary === undefined) {
       throw new SessionNotFoundError(id);
     }
-    await this.bridge.rpc.closeSession({ sessionId: id });
-    // Fire onDidClose handlers after bridge RPC resolves.
+    await this.core.rpc.closeSession({ sessionId: id });
+    // Fire onDidClose handlers after the core RPC resolves.
     for (const h of this._closeHandlers) h({ sessionId: id });
     return { deleted: true };
   }
@@ -185,7 +185,7 @@ export class SessionService extends Disposable implements ISessionService {
    */
   private async tryGetMeta(id: string): Promise<SessionMeta | undefined> {
     try {
-      const meta = await this.bridge.rpc.getSessionMetadata({ sessionId: id });
+      const meta = await this.core.rpc.getSessionMetadata({ sessionId: id });
       return meta;
     } catch {
       return undefined;

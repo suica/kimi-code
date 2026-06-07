@@ -1,14 +1,15 @@
 /**
  * `defaultServicesModule()` — DI entries shipped by `@moonshot-ai/services`.
- * W3 ships ONLY the `HarnessBridge` registration; positive `IXxxService`
- * entries (ISessionService etc.) get appended per-Chain in Phase 1.
+ * Includes the `CoreProcessService` plus every positive `IXxxService` for
+ * which the impl ships in this package.
  *
  * Callers spread the array into a `ServiceCollection` ctor:
  *
  *   const entries = defaultServicesModule();
  *   const collection = new ServiceCollection(
  *     ...entries.map(([id, descriptor]) => [id, descriptor] as const),
- *     // ...broker impls...
+ *     // ...peer-service impls (IEventService / IApprovalService /
+ *     //    IQuestionService — those live in @moonshot-ai/daemon)
  *   );
  *
  * Each entry is `[ServiceIdentifier, SyncDescriptor, InstantiationType]` —
@@ -20,13 +21,12 @@
  * daemon's bootstrap, which builds the `ServiceCollection` once. We do NOT
  * use the global `registerSingleton` registry as the canonical path — the
  * registry exists for legacy "side-effect on import" wiring and is exposed
- * only via `./bridge/lifecycle.ts`'s `registerHarnessBridge` helper (NOT
- * re-exported from the package barrel; W3 STATUS.md documents this).
+ * only via `./coreProcess/lifecycle.ts`'s `registerCoreProcessService` helper
+ * (NOT re-exported from the package barrel).
  *
- * Per-domain layout (Phase B):
- *   Classes are now in per-domain folders (session/, message/, etc.) with
- *   the `-Impl` suffix dropped. The descriptor entries below reference the
- *   new class names directly.
+ * Per-domain layout: see `packages/services/AGENTS.md`. Classes live in
+ * per-domain folders (`session/`, `message/`, …) with one `<domain>.ts`
+ * contracts file and one `<domain>Service.ts` impl file each.
  */
 
 import {
@@ -35,8 +35,8 @@ import {
   type ServiceIdentifier,
 } from '@moonshot-ai/agent-core';
 
-import { HarnessBridge } from './bridge/harnessBridge';
-import { IHarnessBridge } from './bridge/harness-bridge';
+import { CoreProcessService } from './coreProcess/coreProcessService';
+import { ICoreProcessService } from './coreProcess/coreProcess';
 import { McpService } from './mcp/mcpService';
 import { IMcpService } from './mcp/mcp';
 import { MessageService } from './message/messageService';
@@ -60,33 +60,30 @@ export type ServiceModuleEntry = readonly [
 
 export function defaultServicesModule(): ReadonlyArray<ServiceModuleEntry> {
   return [
-    [IHarnessBridge, new SyncDescriptor(HarnessBridge), InstantiationType.Eager],
-    // W6.2 / Chain 2 — `ISessionService`. The descriptor lacks staticArguments
-    // (SessionService ctor needs IHarnessBridge). W2 has no ctor-arg DI,
-    // so this descriptor is informational; the daemon's `start.ts` wires the
-    // instance via `ix.createInstance(SessionService, a.get(IHarnessBridge))`
-    // then `services.set(ISessionService, instance)`. The descriptor entry
+    [ICoreProcessService, new SyncDescriptor(CoreProcessService), InstantiationType.Eager],
+    // Chain 2 — `ISessionService`. @ICoreProcessService auto-injects; the
+    // daemon's `start.ts` calls `ix.createInstance(SessionService)` then
+    // `services.set(ISessionService, instance)`. The descriptor entry
     // documents that ISessionService is part of the canonical service set.
     [ISessionService, new SyncDescriptor(SessionService), InstantiationType.Eager],
-    // W7.1 / Chain 3 — `IMessageService`. Same wiring story as `ISessionService`:
-    // `MessageService` ctor takes `IHarnessBridge`; W2 has no ctor-arg DI so
-    // the daemon's `start.ts` calls `ix.createInstance(MessageService, a.get(IHarnessBridge))`
-    // and `services.set(IMessageService, instance)`. The descriptor entry is the
-    // canonical declaration of the service set.
+    // Chain 3 — `IMessageService`. Same auto-inject wiring as ISessionService;
+    // @ICoreProcessService is resolved by the container.
     [IMessageService, new SyncDescriptor(MessageService), InstantiationType.Eager],
-    // W7.2 / Chain 4 — `IPromptService`. Ctor takes `IHarnessBridge` + `IEventBus`
-    // (it self-registers as a lifecycle observer on the bus so it can synthesize
-    // `prompt.completed` / `prompt.aborted` from `turn.ended`). Same descriptor
-    // shape as the others — daemon does manual wiring in start.ts.
+    // Chain 4 — `IPromptService`. Ctor takes @ICoreProcessService +
+    // @IEventService (it self-registers as a lifecycle observer on the event
+    // stream so it can synthesize `prompt.completed` / `prompt.aborted` from
+    // `turn.ended`). Both deps auto-inject; daemon calls
+    // `ix.createInstance(PromptService)`.
     [IPromptService, new SyncDescriptor(PromptService), InstantiationType.Eager],
-    // W9.1 / Chain 7 — `IToolService` + `IMcpService`. Both depend only on
-    // `IHarnessBridge`; daemon's `start.ts` wires them after `IPromptService`
-    // so reverse-dispose closes them before the bridge.
+    // Chain 7 — `IToolService` + `IMcpService`. Both depend only on
+    // @ICoreProcessService; daemon's `start.ts` wires them after
+    // `IPromptService` so reverse-dispose closes them before the core process
+    // adapter.
     [IToolService, new SyncDescriptor(ToolService), InstantiationType.Eager],
     [IMcpService, new SyncDescriptor(McpService), InstantiationType.Eager],
-    // W9.2 / Chain 8 — `ITaskService`. Same ctor-arg-via-`createInstance`
-    // wiring as IToolService/IMcpService; appended last so reverse-dispose
-    // closes it first among the new services.
+    // Chain 8 — `ITaskService`. Same auto-inject wiring as IToolService /
+    // IMcpService; appended last so reverse-dispose closes it first among
+    // the new services.
     [ITaskService, new SyncDescriptor(TaskService), InstantiationType.Eager],
   ] as const;
 }

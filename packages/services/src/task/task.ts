@@ -1,7 +1,7 @@
 /**
  * `ITaskService` — daemon-facing background task surface (Chain 8 / P1.8, W9.2).
  *
- * Wraps `IHarnessBridge.rpc.{getBackground, stopBackground}` and adapts
+ * Wraps `ICoreProcessService.rpc.{getBackground, stopBackground}` and adapts
  * `BackgroundTaskInfo` (camelCase + ms timestamps + agent-core literal sets)
  * into SCHEMAS §7 `BackgroundTask` (snake_case + ISO + spec literal sets).
  *
@@ -9,11 +9,11 @@
  * (moved from `adapter/task-adapter.ts` in Phase B per-domain consolidation).
  *
  * **CoreAPI surface used**:
- *   - `bridge.rpc.getBackground({sessionId, agentId, activeOnly?, limit?})
+ *   - `core.rpc.getBackground({sessionId, agentId, activeOnly?, limit?})
  *      => readonly BackgroundTaskInfo[]`
  *     (packages/agent-core/src/rpc/core-api.ts:334 + WithSessionId+WithAgentId
  *      injection).
- *   - `bridge.rpc.stopBackground({sessionId, agentId, taskId, reason?})`
+ *   - `core.rpc.stopBackground({sessionId, agentId, taskId, reason?})`
  *     (line 323).
  *
  * **Error model**:
@@ -43,7 +43,6 @@ import { createDecorator, Disposable } from '@moonshot-ai/agent-core';
 import type { BackgroundTaskInfo } from '@moonshot-ai/agent-core';
 import type { BackgroundTask, BackgroundTaskKind, BackgroundTaskStatus } from '@moonshot-ai/protocol';
 
-import { IHarnessBridge } from '../bridge/harness-bridge';
 import { SessionNotFoundError } from '../session/session';
 
 // ---------------------------------------------------------------------------

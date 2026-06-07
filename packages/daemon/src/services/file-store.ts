@@ -9,7 +9,7 @@
  * write — abort on overrun, then delete the partial blob.
  *
  * **Daemon-OWN distinction**: like `IFsService` / `IFsWatcher`, the
- * store is NOT a thin wrapper around an `IHarnessBridge` call.
+ * store is NOT a thin wrapper around an `ICoreProcessService` call.
  * agent-core has no upload surface; the wire path directly addresses
  * the local filesystem. Lives in `packages/daemon`.
  *
@@ -19,7 +19,7 @@
  *   <homeDir>/files/index.json          # array of FileMeta
  *
  * `homeDir` defaults to `os.homedir()/.kimi`; the WS / REST adapter
- * passes `bridgeOptions.homeDir` so tests can isolate the store under
+ * passes `coreProcessOptions.homeDir` so tests can isolate the store under
  * a tmpdir.
  *
  * The index is read once into memory on first access (lazy) and

@@ -8,22 +8,23 @@ export { acquireLock, DEFAULT_LOCK_PATH, DEFAULT_LOCK_DIR } from './lock.js';
 export type { AcquireLockOptions, AcquireLockResult, LockContents } from './lock.js';
 
 // DI service decorators — re-exported so consumers / tests can `a.get(ILogger)` etc.
-// The concrete impls (PinoLogger, FastifyRestGateway, DaemonEventBus, broker stubs,
-// ConnectionRegistry, SessionClientsService, WSGateway) stay internal — daemon
-// owns its wiring choices; external consumers see only the interfaces.
+// The concrete impls (PinoLogger, FastifyRestGateway, EventService,
+// ApprovalService / QuestionService, ConnectionRegistry, SessionClientsService,
+// WSGateway) stay internal — daemon owns its wiring choices; external consumers
+// see only the interfaces.
 export { ILogger } from './services/logger.js';
 export { IRestGateway } from './services/rest-gateway.js';
 export { IConnectionRegistry } from './services/connection-registry.js';
 export { ISessionClientsService } from './services/session-clients.js';
 export { IWSGateway } from './services/ws-gateway.js';
-// Re-export the broker decorators + HarnessBridge handle from `@moonshot-ai/services`
-// so daemon consumers don't have to take a direct dep on the services package
-// just to reach into the container.
+// Re-export service decorators from `@moonshot-ai/services` so daemon
+// consumers don't have to take a direct dep on the services package just to
+// reach into the container.
 export {
-  IEventBus,
-  IApprovalBroker,
-  IQuestionBroker,
-  IHarnessBridge,
+  IEventService,
+  IApprovalService,
+  IQuestionService,
+  ICoreProcessService,
   ISessionService,
   SessionNotFoundError,
 } from '@moonshot-ai/services';

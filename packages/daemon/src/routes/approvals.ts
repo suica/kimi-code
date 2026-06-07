@@ -20,7 +20,7 @@
  * who answered first, so `details` stays absent — fully spec-compliant
  * but conservative.)
  *
- * **Anti-corruption**: route resolves `IApprovalBroker` via the accessor —
+ * **Anti-corruption**: route resolves `IApprovalService` via the accessor —
  * no SDK imports.
  */
 
@@ -32,7 +32,7 @@ import {
   type ApprovalResolveResult,
 } from '@moonshot-ai/protocol';
 import {
-  IApprovalBroker,
+  IApprovalService,
   approvalToAgentCoreResponse,
 } from '@moonshot-ai/services';
 import { z } from 'zod';
@@ -43,8 +43,8 @@ import { errEnvelope, okEnvelope } from '../envelope.js';
 import { buildRouteSchema } from '../middleware/schema.js';
 import { validateBody, validateParams } from '../middleware/validate.js';
 import {
-  DaemonApprovalBroker,
-} from '../services/approval-broker.js';
+  ApprovalService,
+} from '../services/approvalService.js';
 
 interface ApprovalRouteHost {
   post(
@@ -96,7 +96,7 @@ export function registerApprovalsRoutes(
         // typo'd id). Production-grade tracking of resolved ids could move
         // the discrimination into the broker; out of W8 scope.
         const broker = ix.invokeFunction((a) =>
-          a.get(IApprovalBroker) as DaemonApprovalBroker,
+          a.get(IApprovalService) as ApprovalService,
         );
         if (!broker.isPending(approval_id)) {
           // 40404 path covers BOTH "never-existed" and "already-resolved" in

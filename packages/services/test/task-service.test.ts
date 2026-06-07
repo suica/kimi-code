@@ -1,7 +1,7 @@
 /**
  * `TaskService` (Chain 8 / P1.8, W9.2) unit tests.
  *
- * Hermetic: mocks `IHarnessBridge` with an in-memory `rpc` proxy. Coverage:
+ * Hermetic: mocks `ICoreProcessService` with an in-memory `rpc` proxy. Coverage:
  *   - kind mapping (process/agent/question → bash/subagent/tool)
  *   - status mapping (running/completed/failed/timed_out/killed/lost → wire)
  *   - timestamp synthesis (created_at = started_at from startedAt; completed_at
@@ -16,13 +16,13 @@ import { describe, expect, it } from 'vitest';
 
 import type {
   BackgroundTaskInfo,
+  CoreRPC,
   SessionSummary,
   StopBackgroundPayload,
 } from '@moonshot-ai/agent-core';
 
 import {
-  type IHarnessBridge,
-  type HarnessRPC,
+  type ICoreProcessService,
   SessionNotFoundError,
   TaskAlreadyFinishedError,
   TaskNotFoundError,
@@ -36,8 +36,8 @@ interface FakeState {
   stopCalls: Array<StopBackgroundPayload & { sessionId: string; agentId: string }>;
 }
 
-function makeBridge(state: FakeState): IHarnessBridge {
-  const rpc: Partial<HarnessRPC> = {
+function makeBridge(state: FakeState): ICoreProcessService {
+  const rpc: Partial<CoreRPC> = {
     listSessions: async () => state.sessions,
     getBackground: async (p: { sessionId: string; agentId: string; activeOnly?: boolean }) =>
       state.tasksBySession.get(p.sessionId) ?? [],
@@ -48,7 +48,7 @@ function makeBridge(state: FakeState): IHarnessBridge {
     },
   };
   return {
-    rpc: rpc as HarnessRPC,
+    rpc: rpc as CoreRPC,
     ready: async () => undefined,
     dispose: () => undefined,
     _serviceBrand: undefined,

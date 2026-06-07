@@ -1,7 +1,7 @@
 /**
  * `ToolService` + `McpService` (Chain 7 / P1.7, W9.1) unit tests.
  *
- * Hermetic: mocks `IHarnessBridge` with an in-memory `rpc` proxy. Exercises:
+ * Hermetic: mocks `ICoreProcessService` with an in-memory `rpc` proxy. Exercises:
  *   - tool source mapping: 'builtin' / 'user'→'skill' / 'mcp' + mcp_server_id parse
  *   - mcp server status mapping (all 5 agent-core literals → 4 wire literals)
  *   - transport pass-through
@@ -13,6 +13,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type {
+  CoreRPC,
   EmptyPayload,
   McpServerInfo,
   ReconnectMcpServerPayload,
@@ -20,8 +21,7 @@ import type {
 } from '@moonshot-ai/agent-core';
 
 import {
-  type IHarnessBridge,
-  type HarnessRPC,
+  type ICoreProcessService,
   McpServerNotFoundError,
   McpService,
   ToolService,
@@ -37,8 +37,8 @@ interface FakeBridgeState {
   reconnectCalls: ReconnectMcpServerPayload[];
 }
 
-function makeFakeBridge(state: FakeBridgeState): IHarnessBridge {
-  const rpc: Partial<HarnessRPC> = {
+function makeFakeBridge(state: FakeBridgeState): ICoreProcessService {
+  const rpc: Partial<CoreRPC> = {
     listSessions: async () => state.sessions,
     getTools: async (_p: unknown) => state.tools as unknown as readonly never[],
     listMcpServers: async (_p: EmptyPayload & { sessionId: string }) => state.mcpServers,
@@ -49,7 +49,7 @@ function makeFakeBridge(state: FakeBridgeState): IHarnessBridge {
     },
   };
   return {
-    rpc: rpc as HarnessRPC,
+    rpc: rpc as CoreRPC,
     ready: async () => undefined,
     dispose: () => undefined,
     _serviceBrand: undefined,
@@ -176,7 +176,7 @@ describe('ToolService.list', () => {
     const state = freshState();
     state.sessions.push(fakeSession('s', 1));
     const bridge = makeFakeBridge(state);
-    (bridge.rpc as HarnessRPC).getTools = async () => {
+    (bridge.rpc as CoreRPC).getTools = async () => {
       throw new Error('session not loaded');
     };
     const svc = new ToolService(bridge);

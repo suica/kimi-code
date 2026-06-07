@@ -63,7 +63,7 @@ async function bootDaemon(): Promise<RunningDaemon> {
     port: 0,
     lockPath,
     logger: pino({ level: 'silent' }),
-    bridgeOptions: { homeDir: bridgeHome },
+    coreProcessOptions: { homeDir: bridgeHome },
   });
   return daemon;
 }
@@ -140,14 +140,14 @@ describe('GET /api/v1/meta — envelope + metaResponseSchema', () => {
       port: 0,
       lockPath: lockA,
       logger: pino({ level: 'silent' }),
-      bridgeOptions: { homeDir: homeA },
+      coreProcessOptions: { homeDir: homeA },
     });
     const r2 = await startDaemon({
       host: '127.0.0.1',
       port: 0,
       lockPath: lockB,
       logger: pino({ level: 'silent' }),
-      bridgeOptions: { homeDir: homeB },
+      coreProcessOptions: { homeDir: homeB },
     });
     try {
       const a = await appOf(r1).inject({ method: 'GET', url: '/api/v1/meta' });

@@ -55,10 +55,10 @@ import {
 } from './protocol.js';
 
 /**
- * Subset of `DaemonEventBus` consumed by `WsConnection` for the W5.3 replay
+ * Subset of `EventService` consumed by `WsConnection` for the W5.3 replay
  * path. Keeping it as a structural interface lets tests pass a stub without
- * a full event bus, and prevents `WsConnection` from circular-importing
- * `DaemonEventBus` (which itself imports types from this file via
+ * a full event service, and prevents `WsConnection` from circular-importing
+ * `EventService` (which itself imports types from this file via
  * `protocol.ts`).
  *
  * `events`: list of buffered envelopes with `seq > lastSeq`, in order.
@@ -147,8 +147,8 @@ export interface WsConnectionOptions {
   logger: ILogger;
   /** Per-session subscriber index — populated by `subscribe` / `unsubscribe` (W5.2). */
   sessionClients: ISessionClientsService;
-  /** Ring-buffer replay source — `DaemonEventBus` in prod, stub in tests (W5.3). */
-  eventBus: BufferReplaySource;
+  /** Ring-buffer replay source — `EventService` in prod, stub in tests (W5.3). */
+  eventService: BufferReplaySource;
   /** Abort handler — `IPromptService.abort` in prod, stub in tests (W7.3). */
   abortHandler?: AbortHandler;
   /** Watch_fs handler — `IFsWatcher` adapter in prod, stub in tests (W12 / Chain 14). */
@@ -183,7 +183,7 @@ export class WsConnection {
   private readonly socket: WebSocket;
   private readonly logger: ILogger;
   private readonly sessionClients: ISessionClientsService;
-  private readonly eventBus: BufferReplaySource;
+  private readonly eventService: BufferReplaySource;
   private readonly abortHandler: AbortHandler | undefined;
   private readonly fsWatchHandler: FsWatchHandler | undefined;
   private readonly pingIntervalMs: number;
@@ -200,7 +200,7 @@ export class WsConnection {
     this.socket = opts.socket;
     this.logger = opts.logger.child({ connId: this.id });
     this.sessionClients = opts.sessionClients;
-    this.eventBus = opts.eventBus;
+    this.eventService = opts.eventService;
     this.abortHandler = opts.abortHandler;
     this.fsWatchHandler = opts.fsWatchHandler;
     this.pingIntervalMs = opts.pingIntervalMs ?? DEFAULT_PING_INTERVAL_MS;
@@ -296,7 +296,7 @@ export class WsConnection {
           this.subscribe(sid);
           accepted.push(sid);
         }
-        const result = this.eventBus.getBufferedSince(sid, lastSeq);
+        const result = this.eventService.getBufferedSince(sid, lastSeq);
         if (result.resyncRequired) {
           this.send(buildResyncRequired(sid, 'buffer_overflow', result.currentSeq));
           resyncRequired.push(sid);
@@ -343,7 +343,7 @@ export class WsConnection {
     if (last_seq_by_session) {
       for (const [sid, lastSeq] of Object.entries(last_seq_by_session)) {
         this.lastSeqBySession.set(sid, lastSeq);
-        const result = this.eventBus.getBufferedSince(sid, lastSeq);
+        const result = this.eventService.getBufferedSince(sid, lastSeq);
         if (result.resyncRequired) {
           this.send(buildResyncRequired(sid, 'buffer_overflow', result.currentSeq));
           resyncRequired.push(sid);
@@ -654,7 +654,7 @@ export class WsConnection {
 
   /**
    * Outbound send. Used both for system frames (W5.1) and for per-session
-   * event envelopes pushed by `DaemonEventBus` (W5.2). Drops silently if the
+   * event envelopes pushed by `EventService` (W5.2). Drops silently if the
    * socket is closed or not yet OPEN.
    */
   public send(message: unknown): void {

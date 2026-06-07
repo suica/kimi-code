@@ -1,7 +1,7 @@
 /**
  * WS envelope helpers (W5.1+W5.2+W5.3 / P0.15+P0.16+P0.17) — thin builders
  * around the `@moonshot-ai/protocol` schemas so `WsConnection` and
- * `DaemonEventBus` don't both re-implement the wire shape (WS.md §2).
+ * `EventService` don't both re-implement the wire shape (WS.md §2).
  *
  * **W5.1**: `server_hello`, `ping`, `ack`.
  * **W5.2**: + `event` envelope helper.

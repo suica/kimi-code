@@ -2,7 +2,7 @@
  * Approval end-to-end tests (W8.1 / Chain 5 / P1.5).
  *
  * Covers the reverse-RPC path: agent-core → BridgeClientAPI.requestApproval
- * → IApprovalBroker.request → WS `event.approval.requested` → REST
+ * → IApprovalService.request → WS `event.approval.requested` → REST
  * `POST /api/v1/sessions/{sid}/approvals/{aid}` → Promise resolves with agent-core
  * `ApprovalResponse`.
  *
@@ -10,7 +10,7 @@
  * skip the `bridge.rpc.prompt(...)` path (requires provider creds), and drive
  * the broker DIRECTLY via the DI accessor. This exercises:
  *   - Adapter (in-process SDK shape → snake_case wire shape)
- *   - WS broadcast through `IEventBus.publish` → subscriber receives frame
+ *   - WS broadcast through `IEventService.publish` → subscriber receives frame
  *     with `payload.approval_id` + 12-arm `tool_input_display` preserved
  *   - REST `POST` resolves → broker Promise settles → response converts back
  *     to in-process SDK shape
@@ -28,7 +28,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 
 import {
-  IApprovalBroker,
+  IApprovalService,
   type ApprovalRequest,
   type ApprovalResponse,
 } from '@moonshot-ai/services';
@@ -36,8 +36,8 @@ import {
 import { IRestGateway, startDaemon, type RunningDaemon } from '../src';
 import {
   ApprovalExpiredError,
-  DaemonApprovalBroker,
-} from '../src/services/approval-broker';
+  ApprovalService,
+} from '../src/services/approvalService';
 
 let tmpDir: string;
 let lockPath: string;
@@ -67,7 +67,7 @@ async function bootDaemon(): Promise<RunningDaemon> {
     port: 0,
     lockPath,
     logger: pino({ level: 'silent' }),
-    bridgeOptions: { homeDir: bridgeHome },
+    coreProcessOptions: { homeDir: bridgeHome },
     wsGatewayOptions: { pingIntervalMs: 5_000, pongTimeoutMs: 5_000 },
   });
   return daemon;
@@ -171,7 +171,7 @@ describe('Approval reverse-RPC: WS broadcast → REST resolve → Promise settle
     const { ws, received } = await openSubscriber(r, sid);
 
     const broker = r.services.invokeFunction(
-      (a) => a.get(IApprovalBroker) as DaemonApprovalBroker,
+      (a) => a.get(IApprovalService) as ApprovalService,
     );
 
     const inProcReq: ApprovalRequest = {
@@ -269,7 +269,7 @@ describe('Approval reverse-RPC: WS broadcast → REST resolve → Promise settle
     // the container, since startDaemon doesn't expose a broker-options
     // override yet.
     const broker = r.services.invokeFunction(
-      (a) => a.get(IApprovalBroker) as DaemonApprovalBroker,
+      (a) => a.get(IApprovalService) as ApprovalService,
     );
     // Stamp the timeout via a private field hack — the test already
     // co-owns the impl. (In a fuller world we'd thread a `brokerOptions`
@@ -323,7 +323,7 @@ describe('Approval reverse-RPC: WS broadcast → REST resolve → Promise settle
     const sid = await createSession(r);
 
     const broker = r.services.invokeFunction(
-      (a) => a.get(IApprovalBroker) as DaemonApprovalBroker,
+      (a) => a.get(IApprovalService) as ApprovalService,
     );
     const pending = broker.request({
       sessionId: sid,
@@ -372,7 +372,7 @@ describe('Approval reverse-RPC: WS broadcast → REST resolve → Promise settle
     const sid = await createSession(r);
 
     const broker = r.services.invokeFunction(
-      (a) => a.get(IApprovalBroker) as DaemonApprovalBroker,
+      (a) => a.get(IApprovalService) as ApprovalService,
     );
     const _pending = broker.request({
       sessionId: sid,

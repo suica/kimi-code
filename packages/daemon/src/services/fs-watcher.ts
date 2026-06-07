@@ -11,7 +11,7 @@
  *
  * **Daemon-OWN distinction**: like `IFsService` / `IFsSearchService` /
  * `IFsGitService`, this service is NOT a thin wrapper around an
- * `IHarnessBridge` call. agent-core has no fs-watch surface; the wire path
+ * `ICoreProcessService` call. agent-core has no fs-watch surface; the wire path
  * directly addresses `session.metadata.cwd` and is implemented against
  * Node `fs` + `chokidar`. So it lives in `packages/daemon`, NOT in
  * `@moonshot-ai/services`.
@@ -67,7 +67,7 @@
  *
  * # Why bypass the EventBus seq channel
  *
- * `DaemonEventBus.publish` is typed around agent-core's `Event` union
+ * `EventService.publish` is typed around agent-core's `Event` union
  * (camelCase, `sessionId` discriminator). `event.fs.changed` is a
  * daemon-OWN event with NO agent-core source. Threading it through the
  * `Event` union would force a type-system hole (we'd have to cast) and
@@ -171,7 +171,7 @@ export class FsWatchLimitError extends Error {
 
 /**
  * `event.fs.changed` envelope built by `IFsWatcher` and consumed by the
- * targeted push path. We do NOT route this through `DaemonEventBus`
+ * targeted push path. We do NOT route this through `EventService`
  * (it's typed for agent-core's `Event` union and threads through the
  * per-session ring-buffer seq counter). Instead we push directly to the
  * filtered connection set — `seq` here is a daemon-mint that increments

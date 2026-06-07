@@ -1,7 +1,7 @@
 /**
  * `IToolService` — daemon-facing read-only tool surface (Chain 7 / P1.7, W9.1).
  *
- * Wraps `IHarnessBridge.rpc.getTools` and translates agent-core's `ToolInfo`
+ * Wraps `ICoreProcessService.rpc.getTools` and translates agent-core's `ToolInfo`
  * (camelCase, includes `'user'` source literal) into SCHEMAS §8 `ToolDescriptor`
  * (snake_case, `'skill'` literal). Adapter helpers (`toProtocolTool`,
  * `AgentCoreToolInfoLike`) are co-located here (moved from `adapter/tool-adapter.ts`
@@ -21,8 +21,6 @@
 
 import { createDecorator, Disposable } from '@moonshot-ai/agent-core';
 import type { ToolDescriptor, ToolSource } from '@moonshot-ai/protocol';
-
-import { IHarnessBridge } from '../bridge/harness-bridge';
 
 // ---------------------------------------------------------------------------
 // Adapter helpers (tool side of former adapter/tool-adapter.ts)

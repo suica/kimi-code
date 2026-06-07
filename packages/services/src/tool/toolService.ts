@@ -4,7 +4,7 @@
 
 import { Disposable } from '@moonshot-ai/agent-core';
 
-import { IHarnessBridge } from '../bridge/harness-bridge';
+import { ICoreProcessService } from '../coreProcess/coreProcess';
 import { IToolService, toProtocolTool, type AgentCoreToolInfoLike } from './tool';
 
 /** Matches the convention used elsewhere in services (message-service uses 'main'). */
@@ -13,7 +13,7 @@ const MAIN_AGENT_ID = 'main';
 export class ToolService extends Disposable implements IToolService {
   readonly _serviceBrand: undefined;
 
-  constructor(@IHarnessBridge private readonly bridge: IHarnessBridge) {
+  constructor(@ICoreProcessService private readonly core: ICoreProcessService) {
     super();
   }
 
@@ -22,7 +22,7 @@ export class ToolService extends Disposable implements IToolService {
     if (resolvedSid === undefined) return [];
     let raw: readonly unknown[];
     try {
-      raw = await this.bridge.rpc.getTools({
+      raw = await this.core.rpc.getTools({
         sessionId: resolvedSid,
         agentId: MAIN_AGENT_ID,
       });
@@ -39,7 +39,7 @@ export class ToolService extends Disposable implements IToolService {
    * most recently created session id, or `undefined` when no sessions exist.
    */
   private async _anyKnownSessionId(): Promise<string | undefined> {
-    const all = await this.bridge.rpc.listSessions({});
+    const all = await this.core.rpc.listSessions({});
     if (all.length === 0) return undefined;
     const sorted = [...all].sort((a, b) => b.createdAt - a.createdAt);
     return sorted[0]?.id;

@@ -263,21 +263,3 @@ function extractSessionId(event: Event): string | undefined {
   return undefined;
 }
 
-
-/**
- * Pull a session id off an Event. agent-core's Event union is `AgentEvent &
- * { agentId, sessionId }` (camelCase) per
- * `packages/agent-core/src/rpc/events.ts:320`. WS wire format is
- * `session_id` (snake_case) — the toWire mapping (WS.md §7.5) is a Phase 2
- * concern; for Stage 1 the inbound side is the agent-core camelCase shape.
- *
- * We accept both `sessionId` and `session_id` defensively so tests can pass
- * either spelling, and so future wire-mapped events still extract correctly.
- */
-function extractSessionId(event: Event): string | undefined {
-  const camel = (event as { sessionId?: unknown }).sessionId;
-  if (typeof camel === 'string' && camel.length > 0) return camel;
-  const snake = (event as { session_id?: unknown }).session_id;
-  if (typeof snake === 'string' && snake.length > 0) return snake;
-  return undefined;
-}

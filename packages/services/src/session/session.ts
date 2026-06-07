@@ -1,7 +1,7 @@
 /**
  * `ISessionService` — daemon-facing session CRUD interface (Chain 2 / P1.2).
  *
- * Wraps `IHarnessBridge.rpc.{createSession, listSessions, closeSession,
+ * Wraps `ICoreProcessService.rpc.{createSession, listSessions, closeSession,
  * updateSessionMetadata}` and adapts agent-core's camelCase + number
  * timestamps to the protocol's snake_case + ISO 8601 `Z` shape (see SCHEMAS.md
  * §2). The adapter is the load-bearing piece of this chain — every later
@@ -22,17 +22,18 @@
  * **Adapter helpers**: `toProtocolSession` is co-located here (moved from
  * `adapter/` in Phase B per-domain consolidation).
  *
- * **DI wiring**: this class takes `IHarnessBridge` via ctor positional arg.
- * `defaultServicesModule()` adds a `SyncDescriptor(SessionService)` entry,
- * but W2's container has no ctor-arg DI, so the daemon's `start.ts` wires it
- * via `ix.createInstance(SessionService, a.get(IHarnessBridge))` then
- * `services.set(ISessionService, instance)` — same pattern as HarnessBridge
- * in W4. The descriptor entry is the canonical declaration; the daemon's
- * manual wiring is the runtime path.
+ * **DI wiring**: this class takes `ICoreProcessService` via ctor positional
+ * arg. `defaultServicesModule()` adds a `SyncDescriptor(SessionService)`
+ * entry, but the container has no ctor-arg DI, so the daemon's `start.ts`
+ * wires it via
+ * `ix.createInstance(SessionService, a.get(ICoreProcessService))` then
+ * `services.set(ISessionService, instance)` — same pattern as
+ * `CoreProcessService` itself. The descriptor entry is the canonical
+ * declaration; the daemon's manual wiring is the runtime path.
  *
  * **Anti-corruption**: this file imports from `@moonshot-ai/agent-core` only
  * for type-only `SessionSummary` / `SessionMeta`. Runtime calls go through
- * `IHarnessBridge.rpc.<method>`, not direct CoreAPI consumption.
+ * `ICoreProcessService.rpc.<method>`, not direct CoreAPI consumption.
  */
 
 import { createDecorator, Disposable } from '@moonshot-ai/agent-core';
@@ -48,7 +49,6 @@ import type {
   CursorQuery,
 } from '@moonshot-ai/protocol';
 
-import { IHarnessBridge } from '../bridge/harness-bridge';
 
 /**
  * Listing query — `before_id`/`after_id` + `page_size` mutual exclusivity is
@@ -70,7 +70,7 @@ export interface ISessionService {
 
   /**
    * `GET /v1/sessions` — list sessions. Cursor pagination is applied
-   * client-side over `bridge.rpc.listSessions({})` (the CoreAPI surface
+   * client-side over `core.rpc.listSessions({})` (the CoreAPI surface
    * doesn't take a cursor today — see W6 STATUS Decisions). Default
    * `page_size = 20` per REST.md §1.6 is applied at the route layer, not here.
    */

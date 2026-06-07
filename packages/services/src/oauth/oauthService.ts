@@ -19,7 +19,8 @@ import type {
 } from '@moonshot-ai/protocol';
 import { ulid } from 'ulid';
 
-import { IOAuthService, type OAuthServiceOptions } from './oauth';
+import { IEnvironmentService } from '../environment/environment';
+import { IOAuthService } from './oauth';
 
 interface FlowState {
   readonly flowId: string;
@@ -45,14 +46,19 @@ export class OAuthService extends Disposable implements IOAuthService {
   private readonly _authFacade: KimiAuthFacade;
   private readonly _flows = new Map<string, FlowState>();
 
-  constructor(options: OAuthServiceOptions) {
+  constructor(@IEnvironmentService private readonly env: IEnvironmentService) {
     super();
-    this._authFacade =
-      options.authFacade ??
-      new KimiAuthFacade({
-        homeDir: options.homeDir,
-        configPath: options.configPath,
-      });
+    this._authFacade = new KimiAuthFacade({
+      homeDir: env.homeDir,
+      configPath: env.configPath,
+    });
+  }
+
+  /** @internal Test-only factory that injects a mock facade. */
+  static _createForTest(env: IEnvironmentService, facade: KimiAuthFacade): OAuthService {
+    const svc = new (OAuthService as any)(env) as OAuthService;
+    (svc as any)._authFacade = facade;
+    return svc;
   }
 
   async startLogin(providerName?: string): Promise<OAuthFlowStart> {

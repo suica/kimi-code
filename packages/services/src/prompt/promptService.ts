@@ -10,9 +10,9 @@ import type {
 } from '@moonshot-ai/protocol';
 import { ulid } from 'ulid';
 
-import { IHarnessBridge } from '../bridge/harness-bridge';
-import { IAuthSummaryService } from '../auth-summary/auth-summary';
-import { IEventBus } from '../event/event-bus';
+import { ICoreProcessService } from '../coreProcess/coreProcess';
+import { IAuthSummaryService } from '../authSummary/authSummary';
+import { IEventService } from '../event/event';
 import { SessionNotFoundError } from '../session/session';
 import {
   IPromptService,
@@ -78,17 +78,17 @@ export class PromptService
   private readonly _abortedHandlers = new Set<(e: SyntheticPromptAbortedEvent) => void>();
 
   constructor(
-    @IHarnessBridge private readonly bridge: IHarnessBridge,
-    @IEventBus private readonly eventBus: IEventBus,
+    @ICoreProcessService private readonly core: ICoreProcessService,
+    @IEventService private readonly eventService: IEventService,
     @IAuthSummaryService private readonly auth: IAuthSummaryService,
   ) {
     super();
-    // Phase C: self-subscribe to the bus for lifecycle synthesis. The detach
-    // handle travels through Disposable so it tears down when PromptService
-    // disposes (which happens BEFORE the bus disposes per start.ts wiring
-    // order). Re-entrance is safe: synthesised `prompt.*` events don't match
-    // the `turn.*` predicates below.
-    const detach = this.eventBus.subscribe(this._handleBusEvent.bind(this));
+    // Phase C: self-subscribe to the event stream for lifecycle synthesis.
+    // The detach handle travels through Disposable so it tears down when
+    // PromptService disposes (which happens BEFORE the event service disposes
+    // per start.ts wiring order). Re-entrance is safe: synthesised `prompt.*`
+    // events don't match the `turn.*` predicates below.
+    const detach = this.eventService.subscribe(this._handleBusEvent.bind(this));
     this._register({ dispose: detach });
   }
 
@@ -142,22 +142,22 @@ export class PromptService
       .filter((part): part is NonNullable<typeof part> => part !== undefined);
 
     // Fire-and-forget. agent-core streams events via the SDK side of the
-    // RPC pair which lands on `BridgeClientAPI.emitEvent → IEventBus.publish`.
+    // RPC pair which lands on `BridgeClientAPI.emitEvent → IEventService.publish`.
     // The submit RPC returns synchronously (PromptPayload → void); errors
     // would manifest as later `error` events, not as a rejection here.
     try {
       // eslint-disable-next-line no-console
       console.error(
-        `[DBG prompt-service.submit] sid=${sid} promptId=${promptId} agent=${MAIN_AGENT_ID} parts=${input.length} -> bridge.rpc.prompt(...)`,
+        `[DBG prompt-service.submit] sid=${sid} promptId=${promptId} agent=${MAIN_AGENT_ID} parts=${input.length} -> core.rpc.prompt(...)`,
       );
-      await this.bridge.rpc.prompt({
+      await this.core.rpc.prompt({
         sessionId: sid,
         agentId: MAIN_AGENT_ID,
         input,
       });
       // eslint-disable-next-line no-console
       console.error(
-        `[DBG prompt-service.submit] sid=${sid} promptId=${promptId} bridge.rpc.prompt(...) resolved`,
+        `[DBG prompt-service.submit] sid=${sid} promptId=${promptId} core.rpc.prompt(...) resolved`,
       );
     } catch (err) {
       // Clear our active-prompt state so the next submit succeeds; surface
@@ -165,7 +165,7 @@ export class PromptService
       this._active.delete(sid);
       // eslint-disable-next-line no-console
       console.error(
-        `[DBG prompt-service.submit] sid=${sid} promptId=${promptId} bridge.rpc.prompt(...) threw: ${(err as Error)?.message ?? err}`,
+        `[DBG prompt-service.submit] sid=${sid} promptId=${promptId} core.rpc.prompt(...) threw: ${(err as Error)?.message ?? err}`,
       );
       throw err;
     }
@@ -190,7 +190,7 @@ export class PromptService
         agentId: MAIN_AGENT_ID,
       };
       if (state.turnId !== null) cancelArgs.turnId = state.turnId;
-      await this.bridge.rpc.cancel(cancelArgs);
+      await this.core.rpc.cancel(cancelArgs);
     } catch (err) {
       // Roll back the optimistic flag so the route surfaces a real error;
       // the caller will see a 50001 (internal) via the global error handler.
@@ -207,9 +207,9 @@ export class PromptService
       promptId: pid,
       abortedAt: new Date().toISOString(),
     };
-    // Fire typed handlers BEFORE publishing to the bus.
+    // Fire typed handlers BEFORE publishing the event.
     for (const h of this._abortedHandlers) h(ev);
-    this.eventBus.publish(ev as unknown as Event);
+    this.eventService.publish(ev as unknown as Event);
     return { aborted: true };
   }
 
@@ -235,7 +235,7 @@ export class PromptService
     };
   }
 
-  // --- Phase C: private bus event handler (replaces IPromptLifecycleObserver) --
+  // --- Phase C: private event handler (replaces IPromptLifecycleObserver) --
 
   private _handleBusEvent(event: Event): void {
     const sid = (event as { sessionId?: string }).sessionId;
@@ -279,9 +279,9 @@ export class PromptService
           abortedAt: new Date().toISOString(),
         };
         this._active.delete(sid);
-        // Fire typed handlers BEFORE publishing to the bus.
+        // Fire typed handlers BEFORE publishing the event.
         for (const h of this._abortedHandlers) h(synth);
-        this.eventBus.publish(synth as unknown as Event);
+        this.eventService.publish(synth as unknown as Event);
         return;
       }
 
@@ -295,9 +295,9 @@ export class PromptService
         reason: reason === 'failed' ? 'failed' : 'completed',
       };
       this._active.delete(sid);
-      // Fire typed handlers BEFORE publishing to the bus.
+      // Fire typed handlers BEFORE publishing the event.
       for (const h of this._completedHandlers) h(synth);
-      this.eventBus.publish(synth as unknown as Event);
+      this.eventService.publish(synth as unknown as Event);
     }
   }
 
@@ -312,7 +312,7 @@ export class PromptService
   /**
    * Test helper — inject an active prompt record. Used by daemon e2e tests
    * that need to exercise the lifecycle-synthesis path WITHOUT driving a
-   * real `bridge.rpc.prompt(...)` call (which would require an in-memory
+   * real `core.rpc.prompt(...)` call (which would require an in-memory
    * KimiCore loaded with provider credentials). Not part of the public
    * contract; the underscore prefix is a "do not use in prod" signal.
    */
@@ -328,7 +328,7 @@ export class PromptService
   // --- internals -----------------------------------------------------------
 
   private async _requireSession(sid: string): Promise<void> {
-    const all = await this.bridge.rpc.listSessions({});
+    const all = await this.core.rpc.listSessions({});
     if (!all.some((s) => s.id === sid)) {
       throw new SessionNotFoundError(sid);
     }

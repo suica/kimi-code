@@ -4,10 +4,10 @@ import { defineConfig } from 'vitest/config';
 
 import { rawTextPlugin } from '../../build/raw-text-plugin.mjs';
 
-// `rawTextPlugin` is needed even for daemon-only tests because W4.4 wires
-// HarnessBridge → KimiCore, which drags in agent-core's `tools/builtin/*` tree
-// that imports 20+ raw `.md` description files. Without the plugin those
-// imports fail with "Failed to resolve import".
+// `rawTextPlugin` is needed even for daemon-only tests because the daemon
+// wires CoreProcessService → KimiCore, which drags in agent-core's
+// `tools/builtin/*` tree that imports 20+ raw `.md` description files.
+// Without the plugin those imports fail with "Failed to resolve import".
 //
 // Workspace `resolve.alias` mirrors `packages/services/vitest.config.ts:11` so
 // tests run against src/index.ts (not built dist/) — keeps the feedback loop

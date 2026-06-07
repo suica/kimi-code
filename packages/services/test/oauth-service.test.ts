@@ -34,6 +34,7 @@ import {
 } from '@moonshot-ai/kimi-code-oauth';
 import type { KimiAuthFacade } from '@moonshot-ai/kimi-code-sdk';
 
+import { IEnvironmentService } from '../src/environment/environment';
 import { OAuthService } from '../src/oauth/oauthService';
 
 interface LoginCall {
@@ -106,11 +107,12 @@ async function flushMicrotasks(): Promise<void> {
 
 function makeImpl(): { impl: OAuthService; mock: MockFacade } {
   const mock = makeMockFacade();
-  const impl = new OAuthService({
+  const env: IEnvironmentService = {
+    _serviceBrand: undefined,
     homeDir: '/tmp/oauth-test',
     configPath: '/tmp/oauth-test/config.toml',
-    authFacade: mock.facade,
-  });
+  };
+  const impl = OAuthService._createForTest(env, mock.facade);
   return { impl, mock };
 }
 

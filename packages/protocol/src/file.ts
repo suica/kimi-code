@@ -5,7 +5,7 @@
  * /v1/files`, looked up by `GET /v1/files/{file_id}` (binary stream OR
  * 40407 envelope), and dropped by `DELETE /v1/files/{file_id}`.
  *
- * **Daemon-OWN** (not bridged via HarnessBridge): `IFileStore` is
+ * **Daemon-OWN** (not bridged via ICoreProcessService): `IFileStore` is
  * implemented in `packages/daemon/src/services/file-store.ts` against the
  * local filesystem (`~/.kimi/files/<id>` blob + `~/.kimi/files/index.json`
  * metadata). Agent-core has no `file` surface — this is the second

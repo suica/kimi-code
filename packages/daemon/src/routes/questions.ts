@@ -26,7 +26,7 @@
  *   - 40001 (validation.failed)         — bad body via Zod
  *   - 40909 (question.dismissed)        — successful dismiss envelope
  *
- * **Anti-corruption**: route resolves `IQuestionBroker` via the accessor;
+ * **Anti-corruption**: route resolves `IQuestionService` via the accessor;
  * no SDK imports.
  */
 
@@ -38,7 +38,7 @@ import {
   type QuestionResolveResult,
 } from '@moonshot-ai/protocol';
 import {
-  IQuestionBroker,
+  IQuestionService,
   questionToAgentCoreResponse,
 } from '@moonshot-ai/services';
 import { z } from 'zod';
@@ -49,7 +49,7 @@ import { errEnvelope, okEnvelope } from '../envelope.js';
 import { buildRouteSchema } from '../middleware/schema.js';
 import { validateParams } from '../middleware/validate.js';
 import { parseActionSuffix } from './action-suffix.js';
-import { DaemonQuestionBroker } from '../services/question-broker.js';
+import { QuestionService } from '../services/questionService.js';
 
 interface QuestionRouteHost {
   post(
@@ -115,7 +115,7 @@ export function registerQuestionsRoutes(
       }
 
       const broker = ix.invokeFunction((a) =>
-        a.get(IQuestionBroker) as DaemonQuestionBroker,
+        a.get(IQuestionService) as QuestionService,
       );
 
       if (!broker.isPending(questionId)) {

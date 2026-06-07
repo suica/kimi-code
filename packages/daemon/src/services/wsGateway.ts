@@ -9,7 +9,7 @@ import { Disposable } from '@moonshot-ai/agent-core';
 import { WebSocketServer, type WebSocket } from 'ws';
 
 import { IConnectionRegistry } from './connection-registry.js';
-import type { DaemonEventBus } from './event-bus.js';
+import type { EventService } from './eventService.js';
 import { ILogger } from './logger.js';
 import { IRestGateway } from './rest-gateway.js';
 import { ISessionClientsService } from './session-clients.js';
@@ -27,18 +27,18 @@ export class WSGateway extends Disposable implements IWSGateway {
   private detached = false;
 
   constructor(
-    // P2.3: VSCode-style ctor ordering — static-first, services-last with
-    // `@I*` decorators. `eventBus` is kept as a non-decorated concrete
-    // `DaemonEventBus` static dep because the consumer (`WsConnection`) needs
+    // VSCode-style ctor ordering — static-first, services-last with
+    // `@I*` decorators. `eventService` is kept as a non-decorated concrete
+    // `EventService` static dep because the consumer (`WsConnection`) needs
     // the daemon-specific `BufferReplaySource` shape (`getBufferedSince`,
-    // `currentSeq`, `addObserver`) which the `IEventBus` interface from
-    // `@moonshot-ai/services` does NOT expose. Promoting `DaemonEventBus`
-    // to its own identifier is a deliberate followup (ROADMAP P2.3 note).
-    // `options` must follow `eventBus` (TS forbids a required param after an
-    // optional one); start.ts passes `opts.wsGatewayOptions ?? {}` explicitly,
-    // so we drop the inline default — the caller always supplies a concrete
-    // object.
-    private readonly eventBus: DaemonEventBus,
+    // `currentSeq`, `addObserver`) which the `IEventService` interface from
+    // `@moonshot-ai/services` does NOT expose. Promoting `EventService` to
+    // its own identifier is a deliberate followup.
+    // `options` must follow `eventService` (TS forbids a required param
+    // after an optional one); start.ts passes `opts.wsGatewayOptions ?? {}`
+    // explicitly, so we drop the inline default — the caller always supplies
+    // a concrete object.
+    private readonly eventService: EventService,
     private readonly options: WSGatewayOptions,
     @IRestGateway private readonly restGateway: IRestGateway,
     @IConnectionRegistry private readonly registry: IConnectionRegistry,
@@ -78,7 +78,7 @@ export class WSGateway extends Disposable implements IWSGateway {
       socket,
       logger: this.logger,
       sessionClients: this.sessionClients,
-      eventBus: this.eventBus,
+      eventService: this.eventService,
       ...(this.abortHandler !== undefined ? { abortHandler: this.abortHandler } : {}),
       ...(this.fsWatchHandler !== undefined ? { fsWatchHandler: this.fsWatchHandler } : {}),
       ...(this.options.pingIntervalMs !== undefined

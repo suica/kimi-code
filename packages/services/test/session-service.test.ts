@@ -1,7 +1,7 @@
 /**
  * `SessionService` (Chain 2 / P1.2) unit tests.
  *
- * Hermetic: we mock `IHarnessBridge` with an in-memory `rpc` proxy whose
+ * Hermetic: we mock `ICoreProcessService` with an in-memory `rpc` proxy whose
  * methods return controllable promises. No KimiCore, no agent-core RPC pair
  * — the adapter is exercised against a fake bridge.
  *
@@ -17,6 +17,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
+  CoreRPC,
   CreateSessionPayload,
   RenameSessionPayload,
   SessionMeta,
@@ -26,8 +27,7 @@ import type {
 import { emptySessionUsage, type Session } from '@moonshot-ai/protocol';
 
 import {
-  type IHarnessBridge,
-  type HarnessRPC,
+  type ICoreProcessService,
   SessionNotFoundError,
   SessionService,
   toProtocolSession,
@@ -44,12 +44,12 @@ interface FakeBridgeState {
 }
 
 /**
- * Build a tiny fake `IHarnessBridge` whose `rpc` proxy implements just the
+ * Build a tiny fake `ICoreProcessService` whose `rpc` proxy implements just the
  * five session methods the impl uses. Each method delegates to an in-memory
  * state object the test owns.
  */
-function makeFakeBridge(state: FakeBridgeState): IHarnessBridge {
-  const rpc: Partial<HarnessRPC> = {
+function makeFakeBridge(state: FakeBridgeState): ICoreProcessService {
+  const rpc: Partial<CoreRPC> = {
     createSession: vi
       .fn()
       .mockImplementation(async (payload: CreateSessionPayload): Promise<SessionSummary> => {
@@ -110,7 +110,7 @@ function makeFakeBridge(state: FakeBridgeState): IHarnessBridge {
       }),
   };
   return {
-    rpc: rpc as HarnessRPC,
+    rpc: rpc as CoreRPC,
     ready: async () => undefined,
     dispose: () => undefined,
     _serviceBrand: undefined,

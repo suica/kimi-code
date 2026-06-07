@@ -1,7 +1,7 @@
 /**
  * `MessageService` (Chain 3 / P1.3, W7.1) unit tests.
  *
- * Hermetic: a fake `IHarnessBridge` returns canned `SessionSummary[]` from
+ * Hermetic: a fake `ICoreProcessService` returns canned `SessionSummary[]` from
  * `listSessions` and a canned `AgentContextData.history` from `getContext`.
  *
  * Coverage:
@@ -22,12 +22,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   AgentContextData,
   ContextMessage,
+  CoreRPC,
   SessionSummary,
 } from '@moonshot-ai/agent-core';
 
 import {
-  type IHarnessBridge,
-  type HarnessRPC,
+  type ICoreProcessService,
   MessageNotFoundError,
   MessageService,
   SessionNotFoundError,
@@ -42,15 +42,15 @@ const SESSION_CREATED_AT = 1_700_000_000_000;
 function makeFakeBridge(
   sessions: SessionSummary[],
   history: ContextMessage[],
-): IHarnessBridge {
-  const rpc: Partial<HarnessRPC> = {
+): ICoreProcessService {
+  const rpc: Partial<CoreRPC> = {
     listSessions: vi.fn().mockImplementation(async () => sessions),
     getContext: vi.fn().mockImplementation(async (): Promise<AgentContextData> => {
       return { history, tokenCount: 0 };
     }),
   };
   return {
-    rpc: rpc as HarnessRPC,
+    rpc: rpc as CoreRPC,
     ready: vi.fn().mockResolvedValue(undefined),
     dispose: vi.fn(),
     _serviceBrand: undefined,
@@ -212,7 +212,7 @@ describe('toProtocolMessage content adapter', () => {
 
 describe('MessageService', () => {
   let impl: MessageService;
-  let bridge: IHarnessBridge;
+  let bridge: ICoreProcessService;
 
   beforeEach(() => {
     bridge = makeFakeBridge(

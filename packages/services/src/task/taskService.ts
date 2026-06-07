@@ -6,7 +6,7 @@ import { Disposable } from '@moonshot-ai/agent-core';
 import type { BackgroundTaskInfo } from '@moonshot-ai/agent-core';
 import type { BackgroundTask } from '@moonshot-ai/protocol';
 
-import { IHarnessBridge } from '../bridge/harness-bridge';
+import { ICoreProcessService } from '../coreProcess/coreProcess';
 import { SessionNotFoundError } from '../session/session';
 import {
   ITaskService,
@@ -22,7 +22,7 @@ const MAIN_AGENT_ID = 'main';
 export class TaskService extends Disposable implements ITaskService {
   readonly _serviceBrand: undefined;
 
-  constructor(@IHarnessBridge private readonly bridge: IHarnessBridge) {
+  constructor(@ICoreProcessService private readonly core: ICoreProcessService) {
     super();
   }
 
@@ -60,7 +60,7 @@ export class TaskService extends Disposable implements ITaskService {
     if (isTerminalStatus(wireStatus)) {
       throw new TaskAlreadyFinishedError(sessionId, taskId, wireStatus);
     }
-    await this.bridge.rpc.stopBackground({
+    await this.core.rpc.stopBackground({
       sessionId,
       agentId: MAIN_AGENT_ID,
       taskId,
@@ -71,7 +71,7 @@ export class TaskService extends Disposable implements ITaskService {
   // --- internals ------------------------------------------------------------
 
   private async _requireSession(sessionId: string): Promise<void> {
-    const all = await this.bridge.rpc.listSessions({});
+    const all = await this.core.rpc.listSessions({});
     if (!all.some((s) => s.id === sessionId)) {
       throw new SessionNotFoundError(sessionId);
     }
@@ -79,9 +79,9 @@ export class TaskService extends Disposable implements ITaskService {
 
   private async _getAllRaw(
     sessionId: string,
-  ): Promise<ReadonlyArray<Awaited<ReturnType<typeof this.bridge.rpc.getBackground>>[number]>> {
+  ): Promise<ReadonlyArray<Awaited<ReturnType<typeof this.core.rpc.getBackground>>[number]>> {
     try {
-      return await this.bridge.rpc.getBackground({
+      return await this.core.rpc.getBackground({
         sessionId,
         agentId: MAIN_AGENT_ID,
       });

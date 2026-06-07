@@ -14,29 +14,29 @@
  *
  * Construction order under W12 (Chains 14 + 15 add IFsWatcher + IFileStore):
  *   ILogger → IRestGateway → IConnectionRegistry → ISessionClientsService →
- *   IEventBus → IApprovalBroker → IQuestionBroker → IWSGateway →
- *   IHarnessBridge → ISessionService → IMessageService → IPromptService →
+ *   IEventService → IApprovalService → IQuestionService → IWSGateway →
+ *   ICoreProcessService → ISessionService → IMessageService → IPromptService →
  *   IToolService → IMcpService → ITaskService → IFsService →
  *   IFsSearchService → IFsGitService → IFsWatcher → IFileStore
  *
  * Expected dispose order (reverse):
  *   IFileStore → IFsWatcher → IFsGitService → IFsSearchService →
  *   IFsService → ITaskService → IMcpService → IToolService →
- *   IPromptService → IMessageService → ISessionService → IHarnessBridge →
- *   IWSGateway → IQuestionBroker → IApprovalBroker → IEventBus →
+ *   IPromptService → IMessageService → ISessionService → ICoreProcessService →
+ *   IWSGateway → IQuestionService → IApprovalService → IEventService →
  *   ISessionClientsService → IConnectionRegistry → IRestGateway → ILogger
  *
  * Focused invariants:
  *   - WSGateway disposes BEFORE brokers (W5.1)
  *   - SessionClients disposes AFTER EventBus (W5.2)
- *   - ISessionService disposes BEFORE IHarnessBridge (W6.2)
- *   - IMessageService disposes BEFORE IHarnessBridge (W7.1)
- *   - IPromptService disposes BEFORE IHarnessBridge AND BEFORE IEventBus
+ *   - ISessionService disposes BEFORE ICoreProcessService (W6.2)
+ *   - IMessageService disposes BEFORE ICoreProcessService (W7.1)
+ *   - IPromptService disposes BEFORE ICoreProcessService AND BEFORE IEventService
  *     (W7.2 — the service publishes synthetic events; the bus must still be
  *     live during its dispose window if it ever needs to flush)
- *   - IToolService / IMcpService dispose BEFORE IHarnessBridge (W9.1 —
+ *   - IToolService / IMcpService dispose BEFORE ICoreProcessService (W9.1 —
  *     they're thin adapters; bridge teardown after them is safe).
- *   - ITaskService disposes BEFORE IHarnessBridge (W9.2 — same).
+ *   - ITaskService disposes BEFORE ICoreProcessService (W9.2 — same).
  *   - IFsService disposes BEFORE ISessionService (W10 — fs reads
  *     `session.metadata.cwd` during its lifetime; on dispose we just
  *     clear the .gitignore cache, but the construction-after-session
@@ -58,13 +58,13 @@ import {
   type IDisposable,
 } from '@moonshot-ai/agent-core';
 import {
-  IApprovalBroker,
-  IEventBus,
-  IHarnessBridge,
+  IApprovalService,
+  IEventService,
+  ICoreProcessService,
   IMcpService,
   IMessageService,
   IPromptService,
-  IQuestionBroker,
+  IQuestionService,
   ISessionService,
   ITaskService,
   IToolService,
@@ -99,11 +99,11 @@ describe('Dispose order is reverse-of-construction (W5.1 closes W4 gap; W6.2 add
       [IRestGateway, makeRecorder('IRestGateway', order)],
       [IConnectionRegistry, makeRecorder('IConnectionRegistry', order)],
       [ISessionClientsService, makeRecorder('ISessionClientsService', order)],
-      [IEventBus, makeRecorder('IEventBus', order)],
-      [IApprovalBroker, makeRecorder('IApprovalBroker', order)],
-      [IQuestionBroker, makeRecorder('IQuestionBroker', order)],
+      [IEventService, makeRecorder('IEventService', order)],
+      [IApprovalService, makeRecorder('IApprovalService', order)],
+      [IQuestionService, makeRecorder('IQuestionService', order)],
       [IWSGateway, makeRecorder('IWSGateway', order)],
-      [IHarnessBridge, makeRecorder('IHarnessBridge', order)],
+      [ICoreProcessService, makeRecorder('ICoreProcessService', order)],
       [ISessionService, makeRecorder('ISessionService', order)],
       [IMessageService, makeRecorder('IMessageService', order)],
       [IPromptService, makeRecorder('IPromptService', order)],
@@ -124,11 +124,11 @@ describe('Dispose order is reverse-of-construction (W5.1 closes W4 gap; W6.2 add
       a.get(IRestGateway);
       a.get(IConnectionRegistry);
       a.get(ISessionClientsService);
-      a.get(IEventBus);
-      a.get(IApprovalBroker);
-      a.get(IQuestionBroker);
+      a.get(IEventService);
+      a.get(IApprovalService);
+      a.get(IQuestionService);
       a.get(IWSGateway);
-      a.get(IHarnessBridge);
+      a.get(ICoreProcessService);
       a.get(ISessionService);
       a.get(IMessageService);
       a.get(IPromptService);
@@ -156,11 +156,11 @@ describe('Dispose order is reverse-of-construction (W5.1 closes W4 gap; W6.2 add
       'IPromptService',
       'IMessageService',
       'ISessionService',
-      'IHarnessBridge',
+      'ICoreProcessService',
       'IWSGateway',
-      'IQuestionBroker',
-      'IApprovalBroker',
-      'IEventBus',
+      'IQuestionService',
+      'IApprovalService',
+      'IEventService',
       'ISessionClientsService',
       'IConnectionRegistry',
       'IRestGateway',
@@ -172,14 +172,14 @@ describe('Dispose order is reverse-of-construction (W5.1 closes W4 gap; W6.2 add
     const order: string[] = [];
     const services = new ServiceCollection(
       [ILogger, makeRecorder('ILogger', order)],
-      [IEventBus, makeRecorder('IEventBus', order)],
-      [IHarnessBridge, makeRecorder('IHarnessBridge', order)],
+      [IEventService, makeRecorder('IEventService', order)],
+      [ICoreProcessService, makeRecorder('ICoreProcessService', order)],
     );
     const ix = new InstantiationService(services);
     ix.invokeFunction((a) => {
       a.get(ILogger);
-      a.get(IEventBus);
-      a.get(IHarnessBridge);
+      a.get(IEventService);
+      a.get(ICoreProcessService);
     });
     ix.dispose();
     // Verify logger is last regardless of order.
@@ -189,122 +189,122 @@ describe('Dispose order is reverse-of-construction (W5.1 closes W4 gap; W6.2 add
   it('WSGateway disposes before brokers so brokers never emit on a live socket', () => {
     const order: string[] = [];
     const services = new ServiceCollection(
-      [IEventBus, makeRecorder('IEventBus', order)],
-      [IApprovalBroker, makeRecorder('IApprovalBroker', order)],
-      [IQuestionBroker, makeRecorder('IQuestionBroker', order)],
+      [IEventService, makeRecorder('IEventService', order)],
+      [IApprovalService, makeRecorder('IApprovalService', order)],
+      [IQuestionService, makeRecorder('IQuestionService', order)],
       [IWSGateway, makeRecorder('IWSGateway', order)],
     );
     const ix = new InstantiationService(services);
     ix.invokeFunction((a) => {
-      a.get(IEventBus);
-      a.get(IApprovalBroker);
-      a.get(IQuestionBroker);
+      a.get(IEventService);
+      a.get(IApprovalService);
+      a.get(IQuestionService);
       a.get(IWSGateway);
     });
     ix.dispose();
-    expect(order.indexOf('IWSGateway')).toBeLessThan(order.indexOf('IEventBus'));
-    expect(order.indexOf('IWSGateway')).toBeLessThan(order.indexOf('IApprovalBroker'));
-    expect(order.indexOf('IWSGateway')).toBeLessThan(order.indexOf('IQuestionBroker'));
+    expect(order.indexOf('IWSGateway')).toBeLessThan(order.indexOf('IEventService'));
+    expect(order.indexOf('IWSGateway')).toBeLessThan(order.indexOf('IApprovalService'));
+    expect(order.indexOf('IWSGateway')).toBeLessThan(order.indexOf('IQuestionService'));
   });
 
   it('SessionClients disposes AFTER EventBus so the bus stops publishing before subscriber index drops', () => {
     const order: string[] = [];
     const services = new ServiceCollection(
       [ISessionClientsService, makeRecorder('ISessionClientsService', order)],
-      [IEventBus, makeRecorder('IEventBus', order)],
+      [IEventService, makeRecorder('IEventService', order)],
     );
     const ix = new InstantiationService(services);
     ix.invokeFunction((a) => {
       a.get(ISessionClientsService);
-      a.get(IEventBus);
+      a.get(IEventService);
     });
     ix.dispose();
     // EventBus disposes BEFORE SessionClients (reverse-of-construction):
-    expect(order.indexOf('IEventBus')).toBeLessThan(order.indexOf('ISessionClientsService'));
+    expect(order.indexOf('IEventService')).toBeLessThan(order.indexOf('ISessionClientsService'));
   });
 
-  it('ISessionService disposes BEFORE IHarnessBridge so the service can rely on a live bridge during its own teardown (W6.2)', () => {
+  it('ISessionService disposes BEFORE ICoreProcessService so the service can rely on a live bridge during its own teardown (W6.2)', () => {
     const order: string[] = [];
     const services = new ServiceCollection(
-      [IHarnessBridge, makeRecorder('IHarnessBridge', order)],
+      [ICoreProcessService, makeRecorder('ICoreProcessService', order)],
       [ISessionService, makeRecorder('ISessionService', order)],
     );
     const ix = new InstantiationService(services);
     ix.invokeFunction((a) => {
-      a.get(IHarnessBridge);
+      a.get(ICoreProcessService);
       a.get(ISessionService);
     });
     ix.dispose();
-    // ISessionService disposes BEFORE IHarnessBridge — reverse of construction.
-    expect(order.indexOf('ISessionService')).toBeLessThan(order.indexOf('IHarnessBridge'));
+    // ISessionService disposes BEFORE ICoreProcessService — reverse of construction.
+    expect(order.indexOf('ISessionService')).toBeLessThan(order.indexOf('ICoreProcessService'));
   });
 
-  it('IMessageService disposes BEFORE IHarnessBridge so the service can rely on a live bridge during its own teardown (W7.1)', () => {
+  it('IMessageService disposes BEFORE ICoreProcessService so the service can rely on a live bridge during its own teardown (W7.1)', () => {
     const order: string[] = [];
     const services = new ServiceCollection(
-      [IHarnessBridge, makeRecorder('IHarnessBridge', order)],
+      [ICoreProcessService, makeRecorder('ICoreProcessService', order)],
       [IMessageService, makeRecorder('IMessageService', order)],
     );
     const ix = new InstantiationService(services);
     ix.invokeFunction((a) => {
-      a.get(IHarnessBridge);
+      a.get(ICoreProcessService);
       a.get(IMessageService);
     });
     ix.dispose();
-    expect(order.indexOf('IMessageService')).toBeLessThan(order.indexOf('IHarnessBridge'));
+    expect(order.indexOf('IMessageService')).toBeLessThan(order.indexOf('ICoreProcessService'));
   });
 
-  it('IPromptService disposes BEFORE IEventBus AND IHarnessBridge (W7.2)', () => {
+  it('IPromptService disposes BEFORE IEventService AND ICoreProcessService (W7.2)', () => {
     const order: string[] = [];
     const services = new ServiceCollection(
-      [IEventBus, makeRecorder('IEventBus', order)],
-      [IHarnessBridge, makeRecorder('IHarnessBridge', order)],
+      [IEventService, makeRecorder('IEventService', order)],
+      [ICoreProcessService, makeRecorder('ICoreProcessService', order)],
       [IPromptService, makeRecorder('IPromptService', order)],
     );
     const ix = new InstantiationService(services);
     ix.invokeFunction((a) => {
-      a.get(IEventBus);
-      a.get(IHarnessBridge);
+      a.get(IEventService);
+      a.get(ICoreProcessService);
       a.get(IPromptService);
     });
     ix.dispose();
-    expect(order.indexOf('IPromptService')).toBeLessThan(order.indexOf('IEventBus'));
-    expect(order.indexOf('IPromptService')).toBeLessThan(order.indexOf('IHarnessBridge'));
+    expect(order.indexOf('IPromptService')).toBeLessThan(order.indexOf('IEventService'));
+    expect(order.indexOf('IPromptService')).toBeLessThan(order.indexOf('ICoreProcessService'));
   });
 
-  it('IToolService + IMcpService dispose BEFORE IHarnessBridge so the bridge stays live during their dispose (W9.1)', () => {
+  it('IToolService + IMcpService dispose BEFORE ICoreProcessService so the bridge stays live during their dispose (W9.1)', () => {
     const order: string[] = [];
     const services = new ServiceCollection(
-      [IHarnessBridge, makeRecorder('IHarnessBridge', order)],
+      [ICoreProcessService, makeRecorder('ICoreProcessService', order)],
       [IToolService, makeRecorder('IToolService', order)],
       [IMcpService, makeRecorder('IMcpService', order)],
     );
     const ix = new InstantiationService(services);
     ix.invokeFunction((a) => {
-      a.get(IHarnessBridge);
+      a.get(ICoreProcessService);
       a.get(IToolService);
       a.get(IMcpService);
     });
     ix.dispose();
-    expect(order.indexOf('IMcpService')).toBeLessThan(order.indexOf('IHarnessBridge'));
-    expect(order.indexOf('IToolService')).toBeLessThan(order.indexOf('IHarnessBridge'));
+    expect(order.indexOf('IMcpService')).toBeLessThan(order.indexOf('ICoreProcessService'));
+    expect(order.indexOf('IToolService')).toBeLessThan(order.indexOf('ICoreProcessService'));
     // IMcpService was constructed AFTER IToolService → disposes FIRST.
     expect(order.indexOf('IMcpService')).toBeLessThan(order.indexOf('IToolService'));
   });
 
-  it('ITaskService disposes BEFORE IHarnessBridge so the bridge stays live during its dispose (W9.2)', () => {
+  it('ITaskService disposes BEFORE ICoreProcessService so the bridge stays live during its dispose (W9.2)', () => {
     const order: string[] = [];
     const services = new ServiceCollection(
-      [IHarnessBridge, makeRecorder('IHarnessBridge', order)],
+      [ICoreProcessService, makeRecorder('ICoreProcessService', order)],
       [ITaskService, makeRecorder('ITaskService', order)],
     );
     const ix = new InstantiationService(services);
     ix.invokeFunction((a) => {
-      a.get(IHarnessBridge);
+      a.get(ICoreProcessService);
       a.get(ITaskService);
     });
     ix.dispose();
-    expect(order.indexOf('ITaskService')).toBeLessThan(order.indexOf('IHarnessBridge'));
+    expect(order.indexOf('ITaskService')).toBeLessThan(order.indexOf('ICoreProcessService'));
   });
 
   it('IFsService disposes BEFORE ISessionService so the cwd lookup stays live during its dispose (W10)', () => {

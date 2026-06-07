@@ -15,9 +15,9 @@
  *
  * **Synthesized lifecycle events** (W7 §critical discovery point #2):
  * agent-core's event union has no `prompt.completed` / `prompt.aborted`
- * types. The daemon synthesizes them at the IEventBus layer when a
+ * types. The daemon synthesizes them at the IEventService layer when a
  * top-level `turn.ended` fires for a prompt — see
- * `packages/services/src/impls/prompt-service-impl.ts`. Wire types live
+ * `packages/services/src/prompt/promptService.ts`. Wire types live
  * here so clients can parse them.
  */
 

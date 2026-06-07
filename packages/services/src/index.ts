@@ -1,39 +1,47 @@
 /**
  * `@moonshot-ai/services` — in-process service container for the kimi-code
- * daemon. Houses broker interfaces (reverse-RPC: KimiCore → daemon) and the
- * `HarnessBridge` that owns the in-process `KimiCore` instance.
+ * daemon. Houses every `IXxxService` decorator (per-domain folder), the
+ * `CoreProcessService` that owns the in-process `KimiCore` instance, and the
+ * adapters that translate `KimiCore` shapes into protocol-shaped data.
  *
- * Per-domain layout (Phase B):
- *   session/session.ts              — ISessionService + toProtocolSession
- *   session/sessionService.ts       — SessionService
- *   message/message.ts              — IMessageService + toProtocolMessage
- *   message/messageService.ts       — MessageService
- *   prompt/prompt.ts                — IPromptService + SyntheticPrompt* events
- *   prompt/promptService.ts         — PromptService
- *   tool/tool.ts                    — IToolService + toProtocolTool
- *   tool/toolService.ts             — ToolService
- *   mcp/mcp.ts                      — IMcpService + toProtocolMcpServer
- *   mcp/mcpService.ts               — McpService
- *   task/task.ts                    — ITaskService + toProtocolTask
- *   task/taskService.ts             — TaskService
- *   oauth/oauth.ts                  — IOAuthService
- *   oauth/oauthService.ts           — OAuthService
- *   auth-summary/auth-summary.ts    — IAuthSummaryService
- *   auth-summary/authSummaryService.ts — AuthSummaryService
- *   event/event-bus.ts              — IEventBus
- *   approval/approval-broker.ts     — IApprovalBroker + adapter helpers
- *   question/question-broker.ts     — IQuestionBroker + adapter helpers
- *   bridge/                         — HarnessBridge + BridgeClientAPI + lifecycle
+ * Naming convention is encoded in `packages/services/AGENTS.md` — every
+ * injectable uses the `Service` suffix, contracts live in `<domain>.ts`,
+ * impl lives in `<domain>Service.ts`, folder names are camelCase.
+ *
+ * Per-domain layout:
+ *   coreProcess/coreProcess.ts          — ICoreProcessService + CoreProcessServiceOptions
+ *   coreProcess/coreProcessService.ts   — CoreProcessService
+ *   coreProcess/coreProcessClient.ts    — BridgeClientAPI (SDK-side of the RPC pair)
+ *   coreProcess/lifecycle.ts            — registerCoreProcessService (legacy registry helper)
+ *   event/event.ts                      — IEventService
+ *   approval/approval.ts                — IApprovalService + protocol adapter
+ *   question/question.ts                — IQuestionService + protocol adapter
+ *   environment/environment.ts          — IEnvironmentService
+ *   session/session.ts                  — ISessionService + toProtocolSession
+ *   session/sessionService.ts           — SessionService
+ *   message/message.ts                  — IMessageService + toProtocolMessage
+ *   message/messageService.ts           — MessageService
+ *   prompt/prompt.ts                    — IPromptService + SyntheticPrompt* events
+ *   prompt/promptService.ts             — PromptService
+ *   tool/tool.ts                        — IToolService + toProtocolTool
+ *   tool/toolService.ts                 — ToolService
+ *   mcp/mcp.ts                          — IMcpService + toProtocolMcpServer
+ *   mcp/mcpService.ts                   — McpService
+ *   task/task.ts                        — ITaskService + toProtocolTask
+ *   task/taskService.ts                 — TaskService
+ *   oauth/oauth.ts                      — IOAuthService
+ *   oauth/oauthService.ts               — OAuthService
+ *   authSummary/authSummary.ts          — IAuthSummaryService + sentinel errors
+ *   authSummary/authSummaryService.ts   — AuthSummaryService
  */
 
-export { BridgeClientAPI } from './bridge/bridge-client-api';
-export type { BridgeClientAPIDeps } from './bridge/bridge-client-api';
+export { BridgeClientAPI } from './coreProcess/coreProcessClient';
+export type { CoreProcessClientDeps } from './coreProcess/coreProcessClient';
 export {
-  IHarnessBridge,
-  type HarnessBridgeOptions,
-  type HarnessRPC,
-} from './bridge/harness-bridge';
-export { HarnessBridge } from './bridge/harnessBridge';
+  ICoreProcessService,
+  type CoreProcessServiceOptions,
+} from './coreProcess/coreProcess';
+export { CoreProcessService } from './coreProcess/coreProcessService';
 export {
   defaultServicesModule,
   type ServiceModuleEntry,
@@ -41,44 +49,43 @@ export {
 
 // --- per-domain exports ---------------------------------------------------
 
-// event bus
-export { IEventBus } from './event/event-bus';
+// event service
+export { IEventService } from './event/event';
 
-// approval broker + adapter
-export { IApprovalBroker } from './approval/approval-broker';
-export type { ApprovalRequest, ApprovalResponse } from './approval/approval-broker';
+// approval service + adapter
+export { IApprovalService } from './approval/approval';
+export type { ApprovalRequest, ApprovalResponse } from './approval/approval';
 export {
   toAgentCoreResponse as approvalToAgentCoreResponse,
   toBrokerRequest as approvalToBrokerRequest,
   type ToBrokerRequestParams as ApprovalToBrokerRequestParams,
-} from './approval/approval-broker';
+} from './approval/approval';
 
-// question broker + adapter
-export { IQuestionBroker } from './question/question-broker';
-export type { QuestionRequest, QuestionResult } from './question/question-broker';
+// question service + adapter
+export { IQuestionService } from './question/question';
+export type { QuestionRequest, QuestionResult } from './question/question';
 export {
   toAgentCoreResponse as questionToAgentCoreResponse,
   toBrokerRequest as questionToBrokerRequest,
   dismissedResult as questionDismissedResult,
   type QuestionToBrokerRequestParams,
-} from './question/question-broker';
+} from './question/question';
 
-// auth-summary service
+// environment service
+export { IEnvironmentService } from './environment/environment';
+
+// authSummary service
 export {
   IAuthSummaryService,
   AuthProvisioningRequiredError,
   AuthTokenMissingError,
   AuthTokenUnauthorizedError,
   AuthModelNotResolvedError,
-  type AuthSummaryServiceOptions,
-} from './auth-summary/auth-summary';
-export { AuthSummaryService } from './auth-summary/authSummaryService';
+} from './authSummary/authSummary';
+export { AuthSummaryService } from './authSummary/authSummaryService';
 
 // oauth service
-export {
-  IOAuthService,
-  type OAuthServiceOptions,
-} from './oauth/oauth';
+export { IOAuthService } from './oauth/oauth';
 export { OAuthService } from './oauth/oauthService';
 
 // session service + adapter
@@ -142,6 +149,7 @@ export {
 export type { TaskListQuery } from './task/task';
 export { TaskService } from './task/taskService';
 
-// NOTE: `registerHarnessBridge` (./bridge/lifecycle.ts) is intentionally not
-// re-exported. `defaultServicesModule()` is the canonical wiring path; the
-// registry-style helper exists only for legacy side-effect-on-import contexts.
+// NOTE: `registerCoreProcessService` (./coreProcess/lifecycle.ts) is
+// intentionally not re-exported. `defaultServicesModule()` is the canonical
+// wiring path; the registry-style helper exists only for legacy
+// side-effect-on-import contexts.

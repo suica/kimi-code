@@ -16,7 +16,7 @@ export class SessionClientsService extends Disposable implements ISessionClients
   /**
    * P2.2: `@ILogger` is auto-injected by the container. The service does
    * not currently emit log lines (the subscription model is silent by
-   * design — broker/event-bus call sites do the logging) but the dep is
+   * design — service / event-publish call sites do the logging) but the dep is
    * declared so future diagnostic work doesn't need a ctor reshuffle.
    */
   constructor(@ILogger private readonly _logger: ILogger) {

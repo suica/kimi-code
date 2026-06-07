@@ -115,17 +115,4 @@ export interface IOAuthService {
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const IOAuthService = createDecorator<IOAuthService>('oauthService');
 
-/** Same path-resolver options as `AuthSummaryService`. */
-export interface OAuthServiceOptions {
-  readonly homeDir: string;
-  readonly configPath: string;
-  /**
-   * Optional pre-built facade for tests. When omitted, the impl constructs
-   * its own from `homeDir + configPath`. Tests pass an instance whose
-   * `login / logout / getCachedAccessToken` methods are mocked so they
-   * don't need a real OAuth host on the network.
-   */
-  readonly authFacade?: KimiAuthFacade;
-}
-
 
