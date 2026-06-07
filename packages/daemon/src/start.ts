@@ -56,30 +56,33 @@ import { registerSessionsRoutes } from './routes/sessions.js';
 import { registerTasksRoutes } from './routes/tasks.js';
 import { registerToolsRoutes } from './routes/tools.js';
 import { DaemonApprovalBroker } from './services/approval-broker.js';
-import { ConnectionRegistry, IConnectionRegistry } from './services/connection-registry.js';
+import { IConnectionRegistry } from './services/connection-registry.js';
+import { ConnectionRegistry } from './services/connectionRegistry.js';
 import { DaemonEventBus } from './services/event-bus.js';
-import { FsServiceImpl, IFsService } from './services/fs-service.js';
+import { IFsService } from './services/fs.js';
+import { FsService } from './services/fsService.js';
+import { IFsGitService } from './services/fs-git.js';
+import { FsGitService } from './services/fsGitService.js';
+import { IFsSearchService } from './services/fs-search.js';
+import { FsSearchService } from './services/fsSearchService.js';
 import {
-  FsGitServiceImpl,
-  IFsGitService,
-} from './services/fs-git.js';
-import {
-  FsSearchServiceImpl,
-  IFsSearchService,
-} from './services/fs-search.js';
-import {
-  FsWatcherService,
   IFsWatcher,
   FsWatchLimitError,
   createConnectionLookup,
 } from './services/fs-watcher.js';
+import { FsWatcherService } from './services/fsWatcherService.js';
 import { FsPathEscapesError, resolveSafePath } from './services/fs-path-safety.js';
-import { FileStoreImpl, IFileStore } from './services/file-store.js';
-import { ILogger, PinoLogger } from './services/logger.js';
+import { IFileStore } from './services/file-store.js';
+import { FileStore } from './services/fileStore.js';
+import { ILogger } from './services/logger.js';
+import { PinoLogger } from './services/loggerService.js';
 import { DaemonQuestionBroker } from './services/question-broker.js';
-import { FastifyRestGateway, IRestGateway } from './services/rest-gateway.js';
-import { ISessionClientsService, SessionClientsService } from './services/session-clients.js';
-import { IWSGateway, WSGateway, type WSGatewayOptions } from './services/ws-gateway.js';
+import { IRestGateway } from './services/rest-gateway.js';
+import { FastifyRestGateway } from './services/restGateway.js';
+import { ISessionClientsService } from './services/session-clients.js';
+import { SessionClientsService } from './services/sessionClients.js';
+import { IWSGateway, type WSGatewayOptions } from './services/ws-gateway.js';
+import { WSGateway } from './services/wsGateway.js';
 import { getDaemonVersion } from './version.js';
 
 export interface DaemonStartOptions {
@@ -544,7 +547,7 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       // Construction order: [..., ITaskService, IFsService]. Reverse
       // dispose runs IFsService FIRST (clears its .gitignore matcher
       // cache) so the session service is still live during its dispose.
-      const fsService = ix.createInstance(FsServiceImpl);
+      const fsService = ix.createInstance(FsService);
       services.set(IFsService, fsService);
       a.get(IFsService);
 
@@ -553,7 +556,7 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       // one-shot "rg missing" warning). Inserted AFTER IFsService so
       // reverse-dispose runs IFsSearchService FIRST among the W11
       // additions, then IFsService, then ISessionService.
-      const fsSearchService = ix.createInstance(FsSearchServiceImpl);
+      const fsSearchService = ix.createInstance(FsSearchService);
       services.set(IFsSearchService, fsSearchService);
       a.get(IFsSearchService);
 
@@ -561,7 +564,7 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       // Depends only on ISessionService (for cwd). Inserted AFTER
       // IFsSearchService so reverse-dispose runs IFsGitService FIRST
       // among the W11 additions.
-      const fsGitService = ix.createInstance(FsGitServiceImpl);
+      const fsGitService = ix.createInstance(FsGitService);
       services.set(IFsGitService, fsGitService);
       a.get(IFsGitService);
 
@@ -675,7 +678,7 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       // a positional static arg.
       const fileStoreHomeDir = opts.bridgeOptions?.homeDir;
       const fileStore = ix.createInstance(
-        FileStoreImpl,
+        FileStore,
         fileStoreHomeDir !== undefined ? { homeDir: fileStoreHomeDir } : {},
       );
       services.set(IFileStore, fileStore);

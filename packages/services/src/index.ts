@@ -4,28 +4,36 @@
  * `HarnessBridge` that owns the in-process `KimiCore` instance.
  *
  * Per-domain layout (Phase B):
- *   session/session-service.ts       — ISessionService + SessionService + toProtocolSession
- *   message/message-service.ts       — IMessageService + MessageService + toProtocolMessage
- *   prompt/prompt-service.ts         — IPromptService + PromptService + SyntheticPrompt* events
- *   tool/tool-service.ts             — IToolService + ToolService + toProtocolTool
- *   mcp/mcp-service.ts               — IMcpService + McpService + toProtocolMcpServer
- *   task/task-service.ts             — ITaskService + TaskService + toProtocolTask
- *   oauth/oauth-service.ts           — IOAuthService + OAuthService
- *   auth-summary/auth-summary-service.ts — IAuthSummaryService + AuthSummaryService
- *   event/event-bus.ts               — IEventBus
- *   approval/approval-broker.ts      — IApprovalBroker + adapter helpers
- *   question/question-broker.ts      — IQuestionBroker + adapter helpers
- *   bridge/                          — HarnessBridge + BridgeClientAPI + lifecycle
+ *   session/session.ts              — ISessionService + toProtocolSession
+ *   session/sessionService.ts       — SessionService
+ *   message/message.ts              — IMessageService + toProtocolMessage
+ *   message/messageService.ts       — MessageService
+ *   prompt/prompt.ts                — IPromptService + SyntheticPrompt* events
+ *   prompt/promptService.ts         — PromptService
+ *   tool/tool.ts                    — IToolService + toProtocolTool
+ *   tool/toolService.ts             — ToolService
+ *   mcp/mcp.ts                      — IMcpService + toProtocolMcpServer
+ *   mcp/mcpService.ts               — McpService
+ *   task/task.ts                    — ITaskService + toProtocolTask
+ *   task/taskService.ts             — TaskService
+ *   oauth/oauth.ts                  — IOAuthService
+ *   oauth/oauthService.ts           — OAuthService
+ *   auth-summary/auth-summary.ts    — IAuthSummaryService
+ *   auth-summary/authSummaryService.ts — AuthSummaryService
+ *   event/event-bus.ts              — IEventBus
+ *   approval/approval-broker.ts     — IApprovalBroker + adapter helpers
+ *   question/question-broker.ts     — IQuestionBroker + adapter helpers
+ *   bridge/                         — HarnessBridge + BridgeClientAPI + lifecycle
  */
 
 export { BridgeClientAPI } from './bridge/bridge-client-api';
 export type { BridgeClientAPIDeps } from './bridge/bridge-client-api';
 export {
-  HarnessBridge,
   IHarnessBridge,
   type HarnessBridgeOptions,
   type HarnessRPC,
 } from './bridge/harness-bridge';
+export { HarnessBridge } from './bridge/harnessBridge';
 export {
   defaultServicesModule,
   type ServiceModuleEntry,
@@ -62,36 +70,36 @@ export {
   AuthTokenMissingError,
   AuthTokenUnauthorizedError,
   AuthModelNotResolvedError,
-  AuthSummaryService,
   type AuthSummaryServiceOptions,
-} from './auth-summary/auth-summary-service';
+} from './auth-summary/auth-summary';
+export { AuthSummaryService } from './auth-summary/authSummaryService';
 
 // oauth service
 export {
   IOAuthService,
-  OAuthService,
   type OAuthServiceOptions,
-} from './oauth/oauth-service';
+} from './oauth/oauth';
+export { OAuthService } from './oauth/oauthService';
 
 // session service + adapter
 export {
   ISessionService,
   SessionNotFoundError,
-  SessionService,
   toProtocolSession,
-} from './session/session-service';
-export type { SessionListQuery } from './session/session-service';
+} from './session/session';
+export type { SessionListQuery } from './session/session';
+export { SessionService } from './session/sessionService';
 
 // message service + adapter
 export {
   IMessageService,
   MessageNotFoundError,
-  MessageService,
   deriveMessageId,
   parseMessageId,
   toProtocolMessage,
-} from './message/message-service';
-export type { MessageListQuery } from './message/message-service';
+} from './message/message';
+export type { MessageListQuery } from './message/message';
+export { MessageService } from './message/messageService';
 
 // prompt service
 export {
@@ -99,40 +107,40 @@ export {
   PromptAlreadyCompletedError,
   PromptNotFoundError,
   SessionBusyError,
-  PromptService,
-} from './prompt/prompt-service';
+} from './prompt/prompt';
 export type {
   PromptAbortResult,
   SyntheticPromptAbortedEvent,
   SyntheticPromptCompletedEvent,
-} from './prompt/prompt-service';
+} from './prompt/prompt';
+export { PromptService } from './prompt/promptService';
 
 // tool service + adapter
 export {
   IToolService,
-  ToolService,
   toProtocolTool,
   type AgentCoreToolInfoLike,
-} from './tool/tool-service';
+} from './tool/tool';
+export { ToolService } from './tool/toolService';
 
 // mcp service + adapter
 export {
   IMcpService,
   McpServerNotFoundError,
-  McpService,
   toProtocolMcpServer,
-} from './mcp/mcp-service';
+} from './mcp/mcp';
+export { McpService } from './mcp/mcpService';
 
 // task service + adapter
 export {
   ITaskService,
   TaskAlreadyFinishedError,
   TaskNotFoundError,
-  TaskService,
   toProtocolTask,
   isTerminalStatus,
-} from './task/task-service';
-export type { TaskListQuery } from './task/task-service';
+} from './task/task';
+export type { TaskListQuery } from './task/task';
+export { TaskService } from './task/taskService';
 
 // NOTE: `registerHarnessBridge` (./bridge/lifecycle.ts) is intentionally not
 // re-exported. `defaultServicesModule()` is the canonical wiring path; the

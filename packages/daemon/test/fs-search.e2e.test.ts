@@ -36,7 +36,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ISessionService } from '@moonshot-ai/services';
 
 import { IRestGateway, startDaemon, type RunningDaemon } from '../src';
-import { FsSearchServiceImpl } from '../src/services/fs-search';
+import { FsSearchService } from '../src/services/fsSearchService';
 import { ILogger } from '../src/services/logger';
 
 let tmpDir: string;
@@ -379,7 +379,7 @@ describe('POST /api/v1/sessions/{sid}/fs:grep (W11.1)', () => {
 //     against the real HTTP handler.
 // -----------------------------------------------------------------
 
-describe('FsSearchServiceImpl direct: rg fallback + grep timeout (W11.1)', () => {
+describe('FsSearchService direct: rg fallback + grep timeout (W11.1)', () => {
   function makeStubSession(cwd: string): ISessionService {
     return {
       list: async () => [],
@@ -423,7 +423,7 @@ describe('FsSearchServiceImpl direct: rg fallback + grep timeout (W11.1)', () =>
   }
 
   /** Stub: pretends rg is missing AND records the warn-once invariant. */
-  class StubMissingRgImpl extends FsSearchServiceImpl {
+  class StubMissingRg extends FsSearchService {
     public override probeRg(): Promise<string | null> {
       if (this.rgPath !== undefined) return Promise.resolve(this.rgPath);
       this.rgPath = null;
@@ -440,7 +440,7 @@ describe('FsSearchServiceImpl direct: rg fallback + grep timeout (W11.1)', () =>
   it('node fallback runs when rg is missing AND warns exactly once', async () => {
     const sessions = makeStubSession(workspace);
     const logger = makeStubLogger();
-    const svc = new StubMissingRgImpl(sessions, logger);
+    const svc = new StubMissingRg(sessions, logger);
     writeFileSync(join(workspace, 'a.txt'), 'needle\n');
 
     const first = await svc.grep('sess_stub', {
@@ -480,7 +480,7 @@ describe('FsSearchServiceImpl direct: rg fallback + grep timeout (W11.1)', () =>
     const logger = makeStubLogger();
 
     // Use a class override that aborts the controller before any work runs.
-    class StubTimeoutImpl extends FsSearchServiceImpl {
+    class StubTimeout extends FsSearchService {
       protected override async grepWithNode(
         _cwd: string,
         _req: import('@moonshot-ai/protocol').FsGrepRequest,
@@ -498,7 +498,7 @@ describe('FsSearchServiceImpl direct: rg fallback + grep timeout (W11.1)', () =>
         return Promise.resolve(null);
       }
     }
-    const svc = new StubTimeoutImpl(sessions, logger);
+    const svc = new StubTimeout(sessions, logger);
     writeFileSync(join(workspace, 'a.txt'), 'needle\n');
     await expect(
       svc.grep('sess_stub', {
@@ -518,7 +518,7 @@ describe('FsSearchServiceImpl direct: rg fallback + grep timeout (W11.1)', () =>
   it('through DI seed-and-resolve preserves stubbed rg-missing fallback', async () => {
     const sessions = makeStubSession(workspace);
     const logger = makeStubLogger();
-    const svc = new StubMissingRgImpl(sessions, logger);
+    const svc = new StubMissingRg(sessions, logger);
     writeFileSync(join(workspace, 'a.txt'), 'needle\n');
     const out = await svc.grep('sess_stub', {
       pattern: 'needle',

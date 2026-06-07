@@ -9,7 +9,8 @@
 
 import { InstantiationType, registerSingleton } from '@moonshot-ai/agent-core';
 
-import { HarnessBridge, IHarnessBridge } from './harness-bridge';
+import { IHarnessBridge } from './harness-bridge';
+import { HarnessBridge } from './harnessBridge';
 
 export function registerHarnessBridge(): void {
   registerSingleton(IHarnessBridge, HarnessBridge, InstantiationType.Eager);

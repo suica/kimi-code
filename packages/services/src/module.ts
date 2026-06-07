@@ -35,19 +35,20 @@ import {
   type ServiceIdentifier,
 } from '@moonshot-ai/agent-core';
 
-import { HarnessBridge, IHarnessBridge } from './bridge/harness-bridge';
-import { McpService } from './mcp/mcp-service';
-import { IMcpService } from './mcp/mcp-service';
-import { MessageService } from './message/message-service';
-import { IMessageService } from './message/message-service';
-import { PromptService } from './prompt/prompt-service';
-import { IPromptService } from './prompt/prompt-service';
-import { SessionService } from './session/session-service';
-import { ISessionService } from './session/session-service';
-import { TaskService } from './task/task-service';
-import { ITaskService } from './task/task-service';
-import { ToolService } from './tool/tool-service';
-import { IToolService } from './tool/tool-service';
+import { HarnessBridge } from './bridge/harnessBridge';
+import { IHarnessBridge } from './bridge/harness-bridge';
+import { McpService } from './mcp/mcpService';
+import { IMcpService } from './mcp/mcp';
+import { MessageService } from './message/messageService';
+import { IMessageService } from './message/message';
+import { PromptService } from './prompt/promptService';
+import { IPromptService } from './prompt/prompt';
+import { SessionService } from './session/sessionService';
+import { ISessionService } from './session/session';
+import { TaskService } from './task/taskService';
+import { ITaskService } from './task/task';
+import { ToolService } from './tool/toolService';
+import { IToolService } from './tool/tool';
 
 export type ServiceModuleEntry = readonly [
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -34,7 +34,7 @@ import {
 } from '@moonshot-ai/kimi-code-oauth';
 import type { KimiAuthFacade } from '@moonshot-ai/kimi-code-sdk';
 
-import { OAuthService } from '../src/oauth/oauth-service';
+import { OAuthService } from '../src/oauth/oauthService';
 
 interface LoginCall {
   providerName: string | undefined;

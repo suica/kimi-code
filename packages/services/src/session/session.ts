@@ -1,0 +1,194 @@
+/**
+ * `ISessionService` — daemon-facing session CRUD interface (Chain 2 / P1.2).
+ *
+ * Wraps `IHarnessBridge.rpc.{createSession, listSessions, closeSession,
+ * updateSessionMetadata}` and adapts agent-core's camelCase + number
+ * timestamps to the protocol's snake_case + ISO 8601 `Z` shape (see SCHEMAS.md
+ * §2). The adapter is the load-bearing piece of this chain — every later
+ * service in `@moonshot-ai/services` (messages, prompts, ...) inherits this
+ * camelCase ↔ snake_case + number ↔ ISO pattern.
+ *
+ * **Why a service layer**: REST handlers in `@moonshot-ai/daemon` are
+ * disallowed from importing `@moonshot-ai/kimi-code-sdk` (anti-corruption
+ * test). Routes call `accessor.get(ISessionService).<method>(...)`; the
+ * adapter is here.
+ *
+ * **CoreAPI shape gap**: agent-core does NOT expose `getSession(id)` returning
+ * a full `SessionSummary` — `getSessionMetadata` returns the smaller
+ * `SessionMeta` shape. `get(id)` is implemented via `listSessions({})` +
+ * filter, throwing `SessionNotFoundError` (→ 40401) when the id is absent.
+ * See `SessionService` for details + the gap documentation.
+ *
+ * **Adapter helpers**: `toProtocolSession` is co-located here (moved from
+ * `adapter/` in Phase B per-domain consolidation).
+ *
+ * **DI wiring**: this class takes `IHarnessBridge` via ctor positional arg.
+ * `defaultServicesModule()` adds a `SyncDescriptor(SessionService)` entry,
+ * but W2's container has no ctor-arg DI, so the daemon's `start.ts` wires it
+ * via `ix.createInstance(SessionService, a.get(IHarnessBridge))` then
+ * `services.set(ISessionService, instance)` — same pattern as HarnessBridge
+ * in W4. The descriptor entry is the canonical declaration; the daemon's
+ * manual wiring is the runtime path.
+ *
+ * **Anti-corruption**: this file imports from `@moonshot-ai/agent-core` only
+ * for type-only `SessionSummary` / `SessionMeta`. Runtime calls go through
+ * `IHarnessBridge.rpc.<method>`, not direct CoreAPI consumption.
+ */
+
+import { createDecorator, Disposable } from '@moonshot-ai/agent-core';
+import type { JsonObject, SessionMeta, SessionSummary } from '@moonshot-ai/agent-core';
+import {
+  emptySessionUsage,
+  type PageResponse,
+  type Session,
+  type SessionCreate,
+  type SessionUpdate,
+} from '@moonshot-ai/protocol';
+import type {
+  CursorQuery,
+} from '@moonshot-ai/protocol';
+
+import { IHarnessBridge } from '../bridge/harness-bridge';
+
+/**
+ * Listing query — `before_id`/`after_id` + `page_size` mutual exclusivity is
+ * already enforced by `cursorQuerySchema`. The service layer adds an optional
+ * status filter the daemon layer parses out of the REST query string.
+ */
+export interface SessionListQuery extends CursorQuery {
+  status?: import('@moonshot-ai/protocol').SessionStatus;
+}
+
+export interface ISessionService {
+  readonly _serviceBrand: undefined;
+
+  /**
+   * `POST /v1/sessions` — create a new session. Requires `metadata.cwd`
+   * (agent-core's `createSession` calls `requiredWorkDir`; missing cwd ⇒ throw).
+   */
+  create(input: SessionCreate): Promise<Session>;
+
+  /**
+   * `GET /v1/sessions` — list sessions. Cursor pagination is applied
+   * client-side over `bridge.rpc.listSessions({})` (the CoreAPI surface
+   * doesn't take a cursor today — see W6 STATUS Decisions). Default
+   * `page_size = 20` per REST.md §1.6 is applied at the route layer, not here.
+   */
+  list(query: SessionListQuery): Promise<PageResponse<Session>>;
+
+  /**
+   * `GET /v1/sessions/{id}` — single session by id. Implemented as
+   * `listSessions({}) + .find(id)`; throws `SessionNotFoundError` (→ 40401)
+   * when not found.
+   */
+  get(id: string): Promise<Session>;
+
+  /**
+   * `PATCH /v1/sessions/{id}` — partial update. Backed by
+   * `updateSessionMetadata` for metadata changes; `title` writes through the
+   * same path (mapped onto agent-core's `SessionMeta.title`).
+   * Returns the post-update Session.
+   */
+  update(id: string, input: SessionUpdate): Promise<Session>;
+
+  /**
+   * `DELETE /v1/sessions/{id}` — close (= soft-delete in v1) the session.
+   * Backed by `bridge.rpc.closeSession({sessionId})`. CoreAPI does not
+   * surface a hard delete; first daemon version conflates close == delete
+   * (see W6 STATUS Decisions).
+   *
+   * Returns `{ deleted: true }` envelope shape per REST §3.3.
+   */
+  delete(id: string): Promise<{ deleted: true }>;
+
+  /**
+   * Subscribe to session-creation events. The handler fires synchronously
+   * after the bridge RPC returns a new `Session`.
+   *
+   * Returns a detach function. Pass it to `Disposable._register({ dispose:
+   * detach })` so the subscription tears down with the owning service.
+   */
+  onDidCreate(handler: (event: { session: Session }) => void): () => void;
+
+  /**
+   * Subscribe to session-close events. The handler fires synchronously after
+   * `bridge.rpc.closeSession` resolves.
+   *
+   * Returns a detach function.
+   */
+  onDidClose(handler: (event: { sessionId: string }) => void): () => void;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const ISessionService = createDecorator<ISessionService>('sessionService');
+
+/**
+ * Sentinel error class — daemon's route layer catches this and maps to
+ * `code: 40401` (session.not_found). Other errors fall through to the W4
+ * `installErrorHandler` (→ 50001 internal).
+ */
+export class SessionNotFoundError extends Error {
+  readonly sessionId: string;
+  constructor(sessionId: string) {
+    super(`session ${sessionId} does not exist`);
+    this.name = 'SessionNotFoundError';
+    this.sessionId = sessionId;
+  }
+}
+
+/**
+ * Convert agent-core's `SessionSummary` + optional `SessionMeta` into the
+ * protocol-level `Session` shape. The optional `meta` argument is the result
+ * of `getSessionMetadata` — when present, its `title` / `custom` enrich the
+ * baseline summary; when absent, defaults are used.
+ *
+ * `cwd` overrides apply in this priority order:
+ *   1. `meta.custom.cwd` (set by daemon when update wrote a new cwd).
+ *   2. `summary.metadata.cwd` (when caller-supplied during create).
+ *   3. `summary.workDir` (agent-core canonical field).
+ *
+ * The merged `Session.metadata` keeps `cwd` plus anything in `meta.custom`
+ * (excluding daemon-internal `goal` plumbing — that's not protocol surface).
+ */
+export function toProtocolSession(
+  summary: SessionSummary,
+  meta?: SessionMeta | undefined,
+): Session {
+  const summaryMetadata = (summary.metadata ?? {}) as Record<string, unknown>;
+  const customMetadata = (meta?.custom ?? {}) as Record<string, unknown>;
+  const cwd =
+    (typeof customMetadata['cwd'] === 'string' && (customMetadata['cwd'] as string)) ||
+    (typeof summaryMetadata['cwd'] === 'string' && (summaryMetadata['cwd'] as string)) ||
+    summary.workDir;
+
+  // Strip the internal "goal" key — that's daemon-side runtime state, not
+  // protocol surface (SCHEMAS §2 doesn't expose it).
+  const { goal: _drop, ...customWithoutGoal } = customMetadata;
+
+  const mergedMetadata: Session['metadata'] = {
+    ...customWithoutGoal,
+    cwd,
+  };
+
+  const title = meta?.title ?? summary.title ?? '';
+
+  return {
+    id: summary.id,
+    title,
+    created_at: new Date(summary.createdAt).toISOString(),
+    updated_at: new Date(summary.updatedAt).toISOString(),
+    status: 'idle',
+    metadata: mergedMetadata,
+    agent_config: {
+      // CoreAPI doesn't surface a session's effective model on the listSessions
+      // path; we leave it empty and let later chains populate via getModel
+      // (chain 3+). Empty string keeps the schema valid for downstream
+      // consumers that only inspect known keys.
+      model: '',
+    },
+    usage: emptySessionUsage(),
+    permission_rules: [],
+    message_count: 0,
+    last_seq: 0,
+  };
+}

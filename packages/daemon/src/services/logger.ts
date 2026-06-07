@@ -30,48 +30,4 @@ export interface ILogger {
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const ILogger = createDecorator<ILogger>('logger');
 
-/**
- * Adapter that satisfies `ILogger` by delegating to a `DaemonLogger` (pino).
- * No-op `dispose()`: pino's lifetime is managed by Fastify / the host process,
- * NOT by the DI container. Disposing here would close stdout writer streams
- * that other components still need during teardown.
- */
-export class PinoLogger extends Disposable implements ILogger {
-  readonly _serviceBrand: undefined;
 
-  constructor(private readonly logger: DaemonLogger) {
-    super();
-  }
-
-  info(obj: object | string, msg?: string): void {
-    if (typeof obj === 'string') {
-      this.logger.info(obj);
-      return;
-    }
-    this.logger.info(obj, msg);
-  }
-  warn(obj: object | string, msg?: string): void {
-    if (typeof obj === 'string') {
-      this.logger.warn(obj);
-      return;
-    }
-    this.logger.warn(obj, msg);
-  }
-  error(obj: object | string, msg?: string): void {
-    if (typeof obj === 'string') {
-      this.logger.error(obj);
-      return;
-    }
-    this.logger.error(obj, msg);
-  }
-  debug(obj: object | string, msg?: string): void {
-    if (typeof obj === 'string') {
-      this.logger.debug(obj);
-      return;
-    }
-    this.logger.debug(obj, msg);
-  }
-  child(bindings: object): ILogger {
-    return new PinoLogger(this.logger.child(bindings));
-  }
-}

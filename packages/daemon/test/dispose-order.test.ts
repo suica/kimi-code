@@ -74,7 +74,7 @@ import { IConnectionRegistry } from '../src/services/connection-registry';
 import { IFileStore } from '../src/services/file-store';
 import { IFsGitService } from '../src/services/fs-git';
 import { IFsSearchService } from '../src/services/fs-search';
-import { IFsService } from '../src/services/fs-service';
+import { IFsService } from '../src/services/fs';
 import { IFsWatcher } from '../src/services/fs-watcher';
 import { ILogger } from '../src/services/logger';
 import { IRestGateway } from '../src/services/rest-gateway';
