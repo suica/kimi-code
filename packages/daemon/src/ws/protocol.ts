@@ -25,7 +25,7 @@ import { ulid } from 'ulid';
 
 /** WS.md §3.1: `server_hello.payload`. */
 export interface ServerHelloPayload {
-  server_id: string;
+  ws_connection_id: string;
   heartbeat_ms: number;
   max_event_buffer_size: number;
   capabilities: {

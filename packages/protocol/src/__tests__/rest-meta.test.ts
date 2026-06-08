@@ -23,7 +23,7 @@ describe('metaResponseSchema', () => {
       mcp: true,
       background_tasks: true,
     },
-    server_id: '01HXYZABCDEFGHJKMNPQRSTVWX',
+    daemon_id: '01HXYZABCDEFGHJKMNPQRSTVWX',
     started_at: '2026-06-04T10:30:00.000Z',
   };
 
@@ -31,7 +31,7 @@ describe('metaResponseSchema', () => {
     const parsed: MetaResponse = metaResponseSchema.parse(sample);
     expect(parsed.daemon_version).toBe('0.1.0');
     expect(parsed.capabilities.websocket).toBe(true);
-    expect(parsed.server_id).toBe('01HXYZABCDEFGHJKMNPQRSTVWX');
+    expect(parsed.daemon_id).toBe('01HXYZABCDEFGHJKMNPQRSTVWX');
     expect(parsed.started_at).toBe('2026-06-04T10:30:00.000Z');
   });
 
@@ -55,8 +55,8 @@ describe('metaResponseSchema', () => {
     expect(metaResponseSchema.safeParse(rest).success).toBe(false);
   });
 
-  it('rejects missing server_id', () => {
-    const { server_id: _omit, ...rest } = sample;
+  it('rejects missing daemon_id', () => {
+    const { daemon_id: _omit, ...rest } = sample;
     expect(metaResponseSchema.safeParse(rest).success).toBe(false);
   });
 

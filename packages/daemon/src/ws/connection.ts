@@ -153,8 +153,6 @@ export interface WsConnectionOptions {
   abortHandler?: AbortHandler;
   /** Watch_fs handler — `IFsWatcher` adapter in prod, stub in tests (W12 / Chain 14). */
   fsWatchHandler?: FsWatchHandler;
-  /** Server ID echoed in `server_hello.payload.server_id` (defaults to a fresh ULID). */
-  serverId?: string;
   /** ms between server pings. Default 30_000 (WS.md §1.3). */
   pingIntervalMs?: number;
   /**
@@ -208,9 +206,11 @@ export class WsConnection {
     this.maxEventBufferSize = opts.maxEventBufferSize ?? DEFAULT_MAX_EVENT_BUFFER;
 
     // First frame after the WS upgrade is `server_hello` (WS.md §1 step 2).
+    // The `ws_connection_id` echoes this connection's internal `this.id` so
+    // the client and the daemon's logs agree on the connection identifier.
     this.send(
       buildServerHello({
-        server_id: opts.serverId ?? ulid(),
+        ws_connection_id: this.id,
         heartbeat_ms: this.pingIntervalMs,
         max_event_buffer_size: this.maxEventBufferSize,
         capabilities: { event_batching: false, compression: false },

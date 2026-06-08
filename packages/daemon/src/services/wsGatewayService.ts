@@ -82,7 +82,6 @@ export class WSGateway extends Disposable implements IWSGateway {
       ...(this.options.pongTimeoutMs !== undefined
         ? { pongTimeoutMs: this.options.pongTimeoutMs }
         : {}),
-      ...(this.options.serverId !== undefined ? { serverId: this.options.serverId } : {}),
     });
     this.registry.add(conn);
     socket.on('close', () => this.registry.remove(conn.id));

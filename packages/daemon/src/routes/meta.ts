@@ -2,7 +2,7 @@
  * `GET /meta` route handler — Chain 1 / P1.1.
  *
  * Returns the daemon's `daemon_version`, declared `capabilities` literal map,
- * a per-process `server_id` (ULID minted at boot — reset on every restart so
+ * a per-process `daemon_id` (ULID minted at boot — reset on every restart so
  * clients can detect a daemon restart and resync), and `started_at` ISO time.
  *
  * **No DI**: this route doesn't touch services — it's pure daemon-self info
@@ -47,7 +47,7 @@ export interface MetaRouteOptions {
   /** Daemon `package.json` version. Cached at startup. */
   readonly daemonVersion: string;
   /** Per-process ULID. Minted once at boot in `start.ts`. */
-  readonly serverId: string;
+  readonly daemonId: string;
   /** ISO 8601 UTC timestamp the daemon went live at. */
   readonly startedAt: string;
 }
@@ -64,7 +64,7 @@ export function registerMetaRoute(app: RouteHost, opts: MetaRouteOptions): void 
       mcp: true as const,
       background_tasks: true as const,
     }),
-    server_id: opts.serverId,
+    daemon_id: opts.daemonId,
     started_at: opts.startedAt,
   });
 

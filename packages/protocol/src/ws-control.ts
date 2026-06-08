@@ -70,7 +70,7 @@ export const wsAckEnvelopeSchema = <T extends z.ZodTypeAny>(payload: T) =>
  * ------------------------------------------------------------------------ */
 
 export const serverHelloPayloadSchema = z.object({
-  server_id: z.string(),
+  ws_connection_id: z.string(),
   heartbeat_ms: z.number().int().positive(),
   max_event_buffer_size: z.number().int().positive(),
   capabilities: z.object({

@@ -58,7 +58,7 @@ describe('ws-control — §3.1 server_hello', () => {
       type: 'server_hello',
       timestamp: TS,
       payload: {
-        server_id: 'srv_local',
+        ws_connection_id: 'conn_local',
         heartbeat_ms: 30000,
         max_event_buffer_size: 1000,
         capabilities: { event_batching: false, compression: false },
@@ -72,7 +72,7 @@ describe('ws-control — §3.1 server_hello', () => {
       type: 'server_hello',
       timestamp: TS,
       payload: {
-        server_id: 'srv_local',
+        ws_connection_id: 'conn_local',
         heartbeat_ms: 30000,
         max_event_buffer_size: 1000,
       },

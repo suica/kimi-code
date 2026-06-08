@@ -264,13 +264,13 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
     });
 
     // W6.1 / Chain 1 — `/meta`. Pure daemon-self info, no DI needed. Mint
-    // the per-process server_id + boot timestamp once at registration time
+    // the per-process daemon_id + boot timestamp once at registration time
     // (ROADMAP P1.1; REST.md §3.1).
-    const serverId = ulid();
+    const daemonId = ulid();
     const startedAt = new Date().toISOString();
     registerMetaRoute(apiV1, {
       daemonVersion,
-      serverId,
+      daemonId,
       startedAt,
     });
 

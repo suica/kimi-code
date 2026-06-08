@@ -80,8 +80,6 @@ export interface WSGatewayOptions {
   pingIntervalMs?: number;
   /** Override the default pong deadline (10_000ms). */
   pongTimeoutMs?: number;
-  /** Override server_hello server_id (defaults to a fresh ULID per connection). */
-  serverId?: string;
 }
 
 
