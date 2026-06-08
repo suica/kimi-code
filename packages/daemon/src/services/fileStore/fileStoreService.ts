@@ -9,12 +9,18 @@ import type { Readable } from 'node:stream';
 
 import { ulid } from 'ulid';
 
-import { Disposable, resolveKimiHome } from '@moonshot-ai/agent-core';
+import { Disposable } from '@moonshot-ai/agent-core';
 
 import type { FileMeta } from '@moonshot-ai/protocol';
+import { IEnvironmentService } from '@moonshot-ai/services';
 
 import { ILogService } from '#/services/logger';
-import { IFileStore, FileNotFoundError, FileTooLargeError, type FileStoreOptions } from './fileStore.js';
+import {
+  DEFAULT_MAX_UPLOAD_BYTES,
+  FileNotFoundError,
+  FileTooLargeError,
+  IFileStore,
+} from './fileStore.js';
 
 interface IndexFile {
   version: 1;
@@ -26,24 +32,17 @@ export class FileStore extends Disposable implements IFileStore {
 
   private readonly baseDir: string;
   private readonly indexPath: string;
-  private readonly maxUploadBytes: number;
+  private readonly maxUploadBytes = DEFAULT_MAX_UPLOAD_BYTES;
   private indexCache: Map<string, FileMeta> | undefined;
   private indexLoadPromise: Promise<void> | undefined;
 
   constructor(
-    // Constructor order stays static-first / services-last. `options`
-    // carries `homeDir` + `maxUploadBytes`; @ILogService auto-injects. The
-    // inline default on options is dropped (required `@ILogService` can't
-    // follow an optional param); start.ts passes `{}` explicitly when no
-    // overrides apply.
-    options: FileStoreOptions,
+    @IEnvironmentService env: IEnvironmentService,
     @ILogService private readonly logger: ILogService,
   ) {
     super();
-    const home = options.homeDir ?? resolveKimiHome();
-    this.baseDir = join(home, 'files');
+    this.baseDir = join(env.homeDir, 'files');
     this.indexPath = join(this.baseDir, 'index.json');
-    this.maxUploadBytes = options.maxUploadBytes ?? 50 * 1024 * 1024;
   }
 
   async save(

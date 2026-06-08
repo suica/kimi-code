@@ -30,6 +30,7 @@
 import { z } from 'zod';
 
 import { isoDateTimeSchema } from './time';
+import { workspaceIdSchema } from './workspace';
 
 // --- 2.x SessionStatus ------------------------------------------------------
 
@@ -127,6 +128,14 @@ export type SessionMetadata = z.infer<typeof sessionMetadataSchema>;
 
 export const sessionSchema = z.object({
   id: z.string().min(1),
+  /**
+   * Workspace this session belongs to. Always derived from
+   * `encodeWorkDirKey(summary.workDir)`, so every session has one; if the
+   * caller never registered a workspace for that root the id will simply
+   * not appear in `GET /workspaces` (front-end can group such sessions under
+   * an "unregistered" bucket).
+   */
+  workspace_id: workspaceIdSchema,
   title: z.string(),
   created_at: isoDateTimeSchema,
   updated_at: isoDateTimeSchema,
@@ -147,17 +156,25 @@ export type Session = z.infer<typeof sessionSchema>;
 /**
  * `POST /v1/sessions` request body (SCHEMAS.md §2 `SessionCreate`).
  *
- * `metadata.cwd` is the canonical session working dir. Inputs without
- * `metadata.cwd` are rejected by the daemon — agent-core `createSession`
- * REQUIRES `workDir` (see `core-impl.ts:requiredWorkDir`).
+ * Either `workspace_id` or `metadata.cwd` must be supplied (caller picks):
  *
- * Wire validation: send `metadata: { cwd: "/tmp/..." }`. Other metadata keys
- * pass through.
+ *   - `workspace_id` (preferred): daemon route layer resolves the workspace
+ *     root via the workspace registry and feeds it as `metadata.cwd` to
+ *     agent-core's `createSession`.
+ *   - `metadata.cwd` (legacy / direct): caller passes the absolute cwd
+ *     verbatim; no workspace association is created.
+ *
+ * If BOTH are supplied they must agree on the same root, otherwise the
+ * daemon returns `40001 validation.failed` from the route layer. The wire
+ * schema accepts either ordering; the at-least-one check happens at the
+ * route layer (we don't superRefine in the protocol because daemon-side
+ * needs to surface the dedicated validation error code).
  */
 export const sessionCreateSchema = z.object({
   title: z.string().min(1).optional(),
-  metadata: sessionMetadataSchema,
+  metadata: sessionMetadataSchema.optional(),
   agent_config: sessionAgentConfigPartialSchema.optional(),
+  workspace_id: workspaceIdSchema.optional(),
 });
 
 export type SessionCreate = z.infer<typeof sessionCreateSchema>;

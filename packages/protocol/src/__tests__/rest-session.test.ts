@@ -17,12 +17,20 @@ import {
 describe('createSessionRequestSchema', () => {
   it('accepts a minimal POST body with metadata.cwd', () => {
     const parsed = createSessionRequestSchema.parse({ metadata: { cwd: '/tmp/foo' } });
-    expect(parsed.metadata.cwd).toBe('/tmp/foo');
+    expect(parsed.metadata?.cwd).toBe('/tmp/foo');
   });
 
-  it('rejects missing metadata.cwd', () => {
+  it('accepts a POST body with only workspace_id (route layer resolves cwd)', () => {
+    const parsed = createSessionRequestSchema.parse({
+      workspace_id: 'wd_kimi_0123456789ab',
+    });
+    expect(parsed.workspace_id).toBe('wd_kimi_0123456789ab');
+    expect(parsed.metadata).toBeUndefined();
+  });
+
+  it('rejects metadata without cwd', () => {
     expect(
-      createSessionRequestSchema.safeParse({ title: 'no cwd' } as unknown).success,
+      createSessionRequestSchema.safeParse({ metadata: {} } as unknown).success,
     ).toBe(false);
   });
 

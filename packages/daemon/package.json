@@ -27,6 +27,8 @@
     "#/services/logger/*": "./src/services/logger/*.ts",
     "#/services/question": "./src/services/question/index.ts",
     "#/services/question/*": "./src/services/question/*.ts",
+    "#/services/workspace": "./src/services/workspace/index.ts",
+    "#/services/workspace/*": "./src/services/workspace/*.ts",
     "#/*": "./src/*.ts"
   },
   "exports": {

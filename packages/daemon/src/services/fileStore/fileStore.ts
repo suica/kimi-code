@@ -2,8 +2,8 @@
  * `IFileStore` — daemon-OWN files store.
  *
  * **Responsibility**: persist uploaded blobs under `<KIMI_CODE_HOME>/files/`
- * (defaults to `~/.kimi-code/files/`; overridable via `KIMI_CODE_HOME` env
- * or `options.homeDir`), maintain a JSON index of `FileMeta` records, and
+ * (defaults to `~/.kimi-code/files/`; overridable via `KIMI_CODE_HOME` env),
+ * maintain a JSON index of `FileMeta` records, and
  * serve them back by `file_id` for download / delete. Streams writes (no
  * in-memory buffering) and enforces the 50MB size cap DURING the streaming
  * write — abort on overrun, then delete the partial blob.
@@ -18,9 +18,8 @@
  *   <homeDir>/files/<file_id>           # blob (raw bytes)
  *   <homeDir>/files/index.json          # array of FileMeta
  *
- * `homeDir` defaults to `os.homedir()/.kimi`; the WS / REST adapter
- * passes `coreProcessOptions.homeDir` so tests can isolate the store under
- * a tmpdir.
+ * `homeDir` comes from `@IEnvironmentService.homeDir` so tests can
+ * isolate the store by mocking the environment service.
  *
  * The index is read once into memory on first access (lazy) and
  * written-on-mutate. The blob file is the source of truth for bytes;
@@ -156,17 +155,6 @@ export const IFileStore = createDecorator<IFileStore>('fileStore');
 /* -------------------------------------------------------------------------
  * Implementation
  * ----------------------------------------------------------------------- */
-
-export interface FileStoreOptions {
-  /**
-   * Base directory containing the `files/` subdir + `index.json`. In
-   * production this is `<KIMI_CODE_HOME>` (defaults to `~/.kimi-code`);
-   * tests pass a tmpdir under `~/.kimi-code-test-...`.
-   */
-  homeDir?: string;
-  /** Override the 50 MB cap (tests set this to something tiny). */
-  maxUploadBytes?: number;
-}
 
 interface IndexFile {
   version: 1;

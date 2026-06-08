@@ -8,10 +8,12 @@
  *     (`PinoLogger` wraps the Fastify-shared `pino.Logger`;
  *     `FastifyRestGateway` wraps the `FastifyLike` instance;
  *     `IEnvironmentService` carries CLI-resolved `homeDir` / `configPath`).
- *   - **Descriptor** `services.set(I, new SyncDescriptor(C, [options], false))`
- *     for services whose ctor signature is `(options, @I*...)` with options
- *     as a pure data bag. The container drives construction via
- *     `_createAndCacheServiceInstance` so `@I*` decorators auto-inject.
+ *   - **Descriptor** `services.set(I, new SyncDescriptor(C, [], false))` for
+ *     services whose ctor is pure `@I…` injection. The container drives
+ *     construction via `_createAndCacheServiceInstance` so decorators auto-inject.
+ *     A handful of services still take a leading options bag (e.g.
+ *     `CoreProcessService` with `coreProcessOptions`, `WSGateway` with
+ *     `wsGatewayOptions`); those use `new SyncDescriptor(C, [options], false)`.
  *
  * `supportsDelayedInstantiation = false` for every descriptor here to preserve
  * the `_constructionOrder` discipline that powers reverse-dispose order. The
@@ -40,6 +42,7 @@ import {
 import {
   AuthSummaryService,
   CoreProcessService,
+  defaultServicesModule,
   EventService,
   IApprovalService,
   IAuthSummaryService,
@@ -85,6 +88,12 @@ import { IRestGateway } from '#/services/gateway/restGateway';
 import { FastifyRestGateway } from '#/services/gateway/restGatewayService';
 import { ISessionClientsService } from '#/services/gateway/sessionClients';
 import { SessionClientsService } from '#/services/gateway/sessionClientsService';
+import {
+  IWorkspaceFsService,
+  IWorkspaceRegistry,
+  WorkspaceFsService,
+  WorkspaceRegistryService,
+} from '#/services/workspace';
 import { IWSGateway } from '#/services/gateway/wsGateway';
 import { WSGateway } from '#/services/gateway/wsGatewayService';
 import { IWSBroadcastService } from '#/services/gateway/wsBroadcast';
@@ -115,32 +124,29 @@ export function createDaemonServiceCollection(
 ): ServiceCollection {
   const { daemon, app, pinoLogger, envService } = input;
 
-  const services = new ServiceCollection();
+  const services = new ServiceCollection(
+    // Registry entries from `@moonshot-ai/services` (self-registered by each
+    // impl file at module-load time). These supply the default descriptors
+    // for services whose ctor is pure `@I…` injection.
+    ...defaultServicesModule(),
+    // Daemon-only services not shipped by `@moonshot-ai/services`.
+    [IConnectionRegistry, new SyncDescriptor(ConnectionRegistry, [], false)],
+    [ISessionClientsService, new SyncDescriptor(SessionClientsService, [], false)],
+    [IWSBroadcastService, new SyncDescriptor(WSBroadcastService, [], false)],
+    [IApprovalService, new SyncDescriptor(ApprovalService, [], false)],
+    [IQuestionService, new SyncDescriptor(QuestionService, [], false)],
+    [IFsService, new SyncDescriptor(FsService, [], false)],
+    [IFsSearchService, new SyncDescriptor(FsSearchService, [], false)],
+    [IFsGitService, new SyncDescriptor(FsGitService, [], false)],
+    [IWorkspaceFsService, new SyncDescriptor(WorkspaceFsService, [], false)],
+  );
 
   // -- Prebuilt: services that need runtime handles / external closures ------
-  //
-  // These are VSCode-`electron-main/main.ts:162-233`-style seedings: the
-  // ctor takes a non-serializable handle (the pino logger; the Fastify
-  // instance; the CLI-resolved path object) so the container can't drive
-  // construction.
   services.set(ILogService, new PinoLoggerAdapter(pinoLogger));
   services.set(IRestGateway, new FastifyRestGateway(app));
   services.set(IEnvironmentService, envService);
 
-  // -- Descriptor: pure `@I*` injection + options as data bag ---------------
-  //
-  // Order in this list is NOT load-bearing. The construction order is
-  // pinned by the `a.get(IX)` touch sequence in `start.ts`'s
-  // `ix.invokeFunction` block.
-  services.set(IConnectionRegistry, new SyncDescriptor(ConnectionRegistry, [], false));
-  services.set(ISessionClientsService, new SyncDescriptor(SessionClientsService, [], false));
-  services.set(IEventService, new SyncDescriptor(EventService, [], false));
-  services.set(
-    IWSBroadcastService,
-    new SyncDescriptor(WSBroadcastService, [{}], false),
-  );
-  services.set(IApprovalService, new SyncDescriptor(ApprovalService, [{}], false));
-  services.set(IQuestionService, new SyncDescriptor(QuestionService, [{}], false));
+  // -- Override registry entries with runtime static args --------------------
   services.set(
     IWSGateway,
     new SyncDescriptor(WSGateway, [daemon.wsGatewayOptions ?? {}], false),
@@ -149,31 +155,13 @@ export function createDaemonServiceCollection(
     ICoreProcessService,
     new SyncDescriptor(CoreProcessService, [daemon.coreProcessOptions ?? {}], false),
   );
-  services.set(ISessionService, new SyncDescriptor(SessionService, [], false));
-  services.set(IMessageService, new SyncDescriptor(MessageService, [], false));
-  services.set(IAuthSummaryService, new SyncDescriptor(AuthSummaryService, [], false));
-  services.set(IOAuthService, new SyncDescriptor(OAuthService, [], false));
-  services.set(IPromptService, new SyncDescriptor(PromptService, [], false));
-  services.set(IToolService, new SyncDescriptor(ToolService, [], false));
-  services.set(IMcpService, new SyncDescriptor(McpService, [], false));
-  services.set(ITaskService, new SyncDescriptor(TaskService, [], false));
-  services.set(IFsService, new SyncDescriptor(FsService, [], false));
-  services.set(IFsSearchService, new SyncDescriptor(FsSearchService, [], false));
-  services.set(IFsGitService, new SyncDescriptor(FsGitService, [], false));
 
-  // `IFileStore` carries `homeDir` resolution. Prefer the explicit
-  // override (tests set this); fall back to the default (resolved
-  // internally by FileStore against `resolveKimiHome()` when `homeDir`
-  // is undefined).
-  const fileStoreHomeDir = daemon.coreProcessOptions?.homeDir;
-  services.set(
-    IFileStore,
-    new SyncDescriptor(
-      FileStore,
-      [fileStoreHomeDir !== undefined ? { homeDir: fileStoreHomeDir } : {}],
-      false,
-    ),
-  );
+  // `IFileStore` + `IWorkspaceRegistry` derive their on-disk base from
+  // `IEnvironmentService.homeDir` (which itself reads
+  // `opts.coreProcessOptions?.homeDir`). No static args here — the impls
+  // inject `IEnvironmentService` directly.
+  services.set(IFileStore, new SyncDescriptor(FileStore, [], false));
+  services.set(IWorkspaceRegistry, new SyncDescriptor(WorkspaceRegistryService, [], false));
 
   return services;
 }

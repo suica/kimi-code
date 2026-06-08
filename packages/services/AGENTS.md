@@ -95,13 +95,14 @@ no new suffixes get reintroduced.
 | `authSummary/` | `authSummary.ts` | `authSummaryService.ts` | `IAuthSummaryService` |
 
 Adding a new service: create the folder + contracts + impl pair, add a
-bottom-of-file `registerSingleton(IXxx, new SyncDescriptor(XxxService,
-[...], false))` in the impl, add the corresponding side-effect import to
-`module.ts`, re-export from `index.ts`. The daemon's `start.ts` consumes
-`defaultServicesModule()` for descriptor-only services; only override the
-registry entry (via `services.set(I, prebuiltInstance)` or `services.set(I,
-new SyncDescriptor(C, [runtimeArgs], false))`) when the service needs an
-external handle or runtime static args that the registry can't supply.
+bottom-of-file `registerSingleton(IXxxService, XxxService,
+InstantiationType.Delayed)` in the impl, add the corresponding side-effect
+import to `module.ts`, re-export from `index.ts`. The daemon's `start.ts`
+consumes `defaultServicesModule()` for descriptor-only services; only override
+the registry entry (via `services.set(I, prebuiltInstance)` or
+`services.set(I, new SyncDescriptor(C, [runtimeArgs], false))`) when the
+service needs an external handle or runtime static args that the registry
+can't supply.
 
 ## Service registration (normative)
 
@@ -111,17 +112,20 @@ external handle or runtime static args that the registry can't supply.
 1. **Each `<X>Service.ts` impl file self-registers** at the bottom:
 
    ```ts
-   import { registerSingleton, SyncDescriptor } from '@moonshot-ai/agent-core';
+   import { registerSingleton, InstantiationType } from '@moonshot-ai/agent-core';
    // …class body…
-   registerSingleton(IXxxService, new SyncDescriptor(XxxService, [], false));
+   registerSingleton(IXxxService, XxxService, InstantiationType.Delayed);
    ```
 
-   - Pass `[]` for `staticArguments` when every ctor parameter is
-     `@I…`-decorated. Pass `[optionsBag]` when the ctor takes a leading
-     data-bag prefix (e.g. `CoreProcessService`'s `options`).
-   - Keep `supportsDelayedInstantiation = false` unless a follow-up phase
-     has audited the service's dispose ordering for lazy construction
-     (plan §540).
+   - Prefer `InstantiationType.Delayed` (the default). The container returns a
+     `Proxy` that defers real construction until the first method call, which
+     avoids paying ctor cost for services that are registered but never used
+     in a given session.
+   - Use `InstantiationType.Eager` only when the service must exist before any
+     consumer touches it (e.g. `ILogService` so early errors are captured).
+   - When the ctor takes a leading data-bag prefix (e.g.
+     `CoreProcessService`'s `options`), fall back to the descriptor overload:
+     `registerSingleton(IXxxService, new SyncDescriptor(XxxService, [optionsBag]))`.
 
 2. **`defaultServicesModule()` is a thin projection** of
    `getSingletonServiceDescriptors()`. It does NOT maintain a separate

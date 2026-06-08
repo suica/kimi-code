@@ -30,6 +30,7 @@ DAEMON_URL=http://127.0.0.1:8080 npx tsx packages/daemon-e2e/scenarios/02-tool-c
 | `01-create-and-send.mjs` | Happy path: create session → submit prompt → assert assistant replied with the expected token. |
 | `02-tool-call-with-approval.mjs` | Drives a Bash tool call; built-in approval handler auto-approves; asserts canary round-trips through `tool_result` AND assistant text; asserts session ends in `idle`. |
 | `03-refresh-replay.mjs` | "User refreshes the browser" worst case: Phase 0 probes (`/healthz`, `/meta`, `/auth`) → WS handshake → prompt to populate the ring buffer → fresh WS with `last_seq_by_session` (caught-up first, then `0` for full replay) → REST snapshot → steady-state follow-up prompt. Asserts replay ordering (seq 1..N) and that no `resync_required` fires while the buffer covers the gap. |
+| `05-workspace.mjs` | Workspace registry + folder picker happy path: `fs:home` → `fs:browse $HOME` → `POST /workspaces { root }` → `POST /sessions { workspace_id }` → `GET /sessions?workspace_id=` → prompt round-trip (skipped without provider auth) → `DELETE /workspaces/{id}` (verifies the session survives). |
 
 ## Writing a new scenario
 

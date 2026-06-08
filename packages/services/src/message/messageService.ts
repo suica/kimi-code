@@ -2,7 +2,7 @@
  * `MessageService` — implementation of `IMessageService`.
  */
 
-import { Disposable, registerSingleton, SyncDescriptor } from '@moonshot-ai/agent-core';
+import { Disposable, InstantiationType, registerSingleton } from '@moonshot-ai/agent-core';
 import type {
   AgentContextData,
   SessionSummary,
@@ -114,4 +114,4 @@ export class MessageService extends Disposable implements IMessageService {
 // Self-register under the global singleton registry. All ctor deps are
 // `@I…`-injected; `staticArguments = []`. `supportsDelayedInstantiation =
 // false` preserves current reverse-dispose semantics.
-registerSingleton(IMessageService, new SyncDescriptor(MessageService, [], false));
+registerSingleton(IMessageService, MessageService, InstantiationType.Delayed);

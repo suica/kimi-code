@@ -5,8 +5,8 @@
 import {
   Disposable,
   Emitter,
+  InstantiationType,
   registerSingleton,
-  SyncDescriptor,
 } from '@moonshot-ai/agent-core';
 import type {
   Event,
@@ -595,4 +595,4 @@ export class PromptService
 // `@I…`-injected (@ICoreProcessService / @IEventService / @IAuthSummaryService);
 // `staticArguments = []`. `supportsDelayedInstantiation = false` preserves
 // current reverse-dispose semantics.
-registerSingleton(IPromptService, new SyncDescriptor(PromptService, [], false));
+registerSingleton(IPromptService, PromptService, InstantiationType.Delayed);

@@ -5,8 +5,8 @@
 import {
   Disposable,
   Emitter,
+  InstantiationType,
   registerSingleton,
-  SyncDescriptor,
 } from '@moonshot-ai/agent-core';
 import type { JsonObject, SessionMeta, SessionSummary } from '@moonshot-ai/agent-core';
 import {
@@ -61,8 +61,16 @@ export class SessionService extends Disposable implements ISessionService {
   }
 
   async create(input: SessionCreate): Promise<Session> {
-    // SessionCreate.metadata.cwd is REQUIRED by Zod; agent-core's createSession
-    // also calls `requiredWorkDir(...)` which throws if missing.
+    // The protocol schema now allows `metadata` to be omitted (so callers can
+    // send `{ workspace_id }` only). The daemon route layer is responsible
+    // for resolving workspace_id → workspace.root → metadata.cwd BEFORE
+    // calling this method; by the time we land here `metadata.cwd` must be
+    // set. agent-core's `createSession` calls `requiredWorkDir(...)` and
+    // throws if cwd is missing, so a missing-cwd bug surfaces as a
+    // descriptive error rather than silently picking the daemon's cwd.
+    if (input.metadata === undefined || typeof input.metadata.cwd !== 'string') {
+      throw new Error('SessionService.create: metadata.cwd is required');
+    }
     const metadataForCore = asJsonObject(input.metadata as Record<string, unknown>);
     const summary = await this.core.rpc.createSession({
       workDir: input.metadata.cwd,
@@ -89,7 +97,14 @@ export class SessionService extends Disposable implements ISessionService {
   }
 
   async list(query: SessionListQuery): Promise<PageResponse<Session>> {
-    const all = await this.core.rpc.listSessions({});
+    // Fast path: when caller supplies a workDir (typically from `?workspace_id=`
+    // resolving to a workspace.root), agent-core's `listSessions({workDir})`
+    // walks a single wd-key bucket via readdir instead of scanning every
+    // workdir. Otherwise we list everything and apply downstream filters.
+    const all =
+      query.workDir !== undefined
+        ? await this.core.rpc.listSessions({ workDir: query.workDir })
+        : await this.core.rpc.listSessions({});
     // Sort by createdAt desc per REST §1.6 "最近 N 条（按 created_at desc）".
     const sorted = [...all].sort((a, b) => b.createdAt - a.createdAt);
 
@@ -226,4 +241,4 @@ export class SessionService extends Disposable implements ISessionService {
 // `getSingletonServiceDescriptors()`. All ctor deps are `@I…`-injected, so
 // `staticArguments` is `[]`. `supportsDelayedInstantiation = false` preserves
 // current reverse-dispose semantics.
-registerSingleton(ISessionService, new SyncDescriptor(SessionService, [], false));
+registerSingleton(ISessionService, SessionService, InstantiationType.Delayed);

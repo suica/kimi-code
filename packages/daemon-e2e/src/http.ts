@@ -6,6 +6,8 @@ import type {
   ApprovalResolveResult,
   ApprovalResponse,
   Envelope,
+  FsBrowseResponse,
+  FsHomeResponse,
   Message,
   PromptAbortResponse,
   PromptSubmission,
@@ -15,6 +17,9 @@ import type {
   Session,
   SessionCreate,
   SessionUpdate,
+  Workspace,
+  WorkspaceCreate,
+  WorkspaceUpdate,
 } from '@moonshot-ai/protocol';
 
 import { unwrap } from './envelope.js';
@@ -70,6 +75,7 @@ export class HttpClient {
     page_size?: number;
     before_id?: string;
     after_id?: string;
+    workspace_id?: string;
   }): Promise<{ items: Session[]; has_more: boolean }> {
     return this.request('GET', `/sessions${qs(query)}`, undefined);
   }
@@ -78,6 +84,36 @@ export class HttpClient {
   }
   deleteSession(sid: string): Promise<{ deleted: true }> {
     return this.request('DELETE', `/sessions/${encodeURIComponent(sid)}`, undefined);
+  }
+
+  // ── Workspaces ──────────────────────────────────────────────────────────
+  listWorkspaces(): Promise<{ items: Workspace[] }> {
+    return this.request('GET', '/workspaces', undefined);
+  }
+  createWorkspace(body: WorkspaceCreate): Promise<Workspace> {
+    return this.request<Workspace>('POST', '/workspaces', body);
+  }
+  updateWorkspace(workspaceId: string, body: WorkspaceUpdate): Promise<Workspace> {
+    return this.request<Workspace>(
+      'PATCH',
+      `/workspaces/${encodeURIComponent(workspaceId)}`,
+      body,
+    );
+  }
+  deleteWorkspace(workspaceId: string): Promise<{ deleted: true }> {
+    return this.request(
+      'DELETE',
+      `/workspaces/${encodeURIComponent(workspaceId)}`,
+      undefined,
+    );
+  }
+
+  // ── Folder picker (fs:browse + fs:home) ─────────────────────────────────
+  fsBrowse(path?: string): Promise<FsBrowseResponse> {
+    return this.request('GET', `/fs:browse${qs({ path })}`, undefined);
+  }
+  fsHome(): Promise<FsHomeResponse> {
+    return this.request('GET', '/fs:home', undefined);
   }
 
   // ── Messages ────────────────────────────────────────────────────────────

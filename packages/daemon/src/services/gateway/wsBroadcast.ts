@@ -75,10 +75,5 @@ export interface IWSBroadcastService {
 export const IWSBroadcastService =
   createDecorator<IWSBroadcastService>('wsBroadcastService');
 
-export interface WSBroadcastServiceOptions {
-  /** Ring buffer cap per session (default 1000, per WS.md §3.1, §6). */
-  maxBufferSize?: number;
-}
-
 /** Default ring buffer cap (WS.md §3.1, §6). */
 export const DEFAULT_MAX_BUFFER_SIZE = 1000;

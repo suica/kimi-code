@@ -2,7 +2,7 @@
  * `ToolService` — implementation of `IToolService`.
  */
 
-import { Disposable, registerSingleton, SyncDescriptor } from '@moonshot-ai/agent-core';
+import { Disposable, InstantiationType, registerSingleton } from '@moonshot-ai/agent-core';
 
 import { ICoreProcessService } from '../coreProcess/coreProcess';
 import { IToolService, toProtocolTool, type AgentCoreToolInfoLike } from './tool';
@@ -49,4 +49,4 @@ export class ToolService extends Disposable implements IToolService {
 // Self-register under the global singleton registry. All ctor deps are
 // `@I…`-injected; `staticArguments = []`. `supportsDelayedInstantiation =
 // false` preserves current reverse-dispose semantics.
-registerSingleton(IToolService, new SyncDescriptor(ToolService, [], false));
+registerSingleton(IToolService, ToolService, InstantiationType.Delayed);

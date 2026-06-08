@@ -48,6 +48,8 @@ import { registerSessionsRoutes } from './routes/sessions.js';
 import { registerTasksRoutes } from './routes/tasks.js';
 import { registerToolsRoutes } from './routes/tools.js';
 import { registerDebugRoutes } from './routes/debug.js';
+import { registerWorkspacesRoutes } from './routes/workspaces.js';
+import { registerWorkspaceFsRoutes } from './routes/workspaceFs.js';
 import { IConnectionRegistry } from '#/services/gateway';
 import { IFsService } from '#/services/fs';
 import { IFsGitService } from '#/services/fs';
@@ -60,6 +62,7 @@ import {
 import { FsWatcherService } from '#/services/fs/fsWatcherService';
 import { FsPathEscapesError, resolveSafePath } from '#/services/fs';
 import { IFileStore } from '#/services/fileStore';
+import { IWorkspaceFsService, IWorkspaceRegistry } from '#/services/workspace';
 import { ILogService } from '#/services/logger';
 import { IRestGateway } from '#/services/gateway';
 import { ISessionClientsService } from '#/services/gateway';
@@ -204,6 +207,7 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
         { name: 'meta', description: 'Daemon metadata' },
         { name: 'auth', description: 'Auth readiness & login state' },
         { name: 'sessions', description: 'Session lifecycle' },
+        { name: 'workspaces', description: 'Workspace registry + folder picker' },
         { name: 'messages', description: 'Message history' },
         { name: 'prompts', description: 'Prompt submission & abort' },
         { name: 'approvals', description: 'Approval resolution' },
@@ -368,6 +372,22 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
     // `IFileStore` via the DI accessor; no SDK imports.
     registerFilesRoutes(
       apiV1 as unknown as Parameters<typeof registerFilesRoutes>[0],
+      ix,
+    );
+
+    // Register `/workspaces*` routes — daemon-OWN workspace registry
+    // (one JSON file per agent-core wd-key bucket).
+    registerWorkspacesRoutes(
+      apiV1 as unknown as Parameters<typeof registerWorkspacesRoutes>[0],
+      ix,
+    );
+
+    // Register `/fs:browse` + `/fs:home` — daemon-OWN folder picker
+    // (not the session-scoped `/sessions/{sid}/fs:*` family). Each path
+    // is the static literal form `'/fs::browse'` / `'/fs::home'` because
+    // find-my-way collapses `::` to a literal `:`.
+    registerWorkspaceFsRoutes(
+      apiV1 as unknown as Parameters<typeof registerWorkspaceFsRoutes>[0],
       ix,
     );
 
@@ -613,6 +633,19 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       // baked into the `SyncDescriptor`'s static args by
       // `createDaemonServiceCollection()`.
       a.get(IFileStore);
+
+      // IWorkspaceRegistry. DAEMON-OWN. Workspace metadata lives in
+      // `<homeDir>/sessions/<wd-key>/workspace.json` — a single file per
+      // wd-key sitting alongside agent-core's per-session subdirectories
+      // inside the same bucket. Touched here so reverse-dispose unwinds
+      // alongside `IFileStore` (both are pure persistence services with
+      // no live dependants).
+      a.get(IWorkspaceRegistry);
+
+      // IWorkspaceFsService. DAEMON-OWN. Backs `GET /fs:browse` +
+      // `GET /fs:home` (folder picker). Depends on `IWorkspaceRegistry`
+      // for `recent_roots`; no other live runtime state.
+      a.get(IWorkspaceFsService);
 
       return built;
     });

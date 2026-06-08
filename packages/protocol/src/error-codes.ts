@@ -54,6 +54,10 @@ export const ErrorCode = {
   MCP_SERVER_NOT_FOUND: 40408,
   /** fs path 不存在 */
   FS_PATH_NOT_FOUND: 40409,
+  /** workspace_id 不存在 */
+  WORKSPACE_NOT_FOUND: 40410,
+  /** fs 路径存在但当前进程无权限读取 */
+  FS_PERMISSION_DENIED: 40411,
 
   /** session 有正在进行的 prompt，拒绝新请求 */
   SESSION_BUSY: 40901,
@@ -168,6 +172,8 @@ export const ErrorCodeReason: Readonly<Record<ErrorCode, string>> = {
   [ErrorCode.FILE_NOT_FOUND]: 'file.not_found',
   [ErrorCode.MCP_SERVER_NOT_FOUND]: 'mcp.server_not_found',
   [ErrorCode.FS_PATH_NOT_FOUND]: 'fs.path_not_found',
+  [ErrorCode.WORKSPACE_NOT_FOUND]: 'workspace.not_found',
+  [ErrorCode.FS_PERMISSION_DENIED]: 'fs.permission_denied',
 
   [ErrorCode.SESSION_BUSY]: 'session.busy',
   [ErrorCode.APPROVAL_ALREADY_RESOLVED]: 'approval.already_resolved',

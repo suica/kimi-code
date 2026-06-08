@@ -34,7 +34,6 @@ import {
   DEFAULT_MAX_BUFFER_SIZE,
   IWSBroadcastService,
   type BufferedSinceResult,
-  type WSBroadcastServiceOptions,
 } from './wsBroadcast.js';
 
 import { buildEventEnvelope, type EventEnvelope } from '#/ws/protocol';
@@ -60,13 +59,12 @@ export class WSBroadcastService extends Disposable implements IWSBroadcastServic
   private readonly _maxBufferSize: number;
 
   constructor(
-    options: WSBroadcastServiceOptions,
     @IEventService eventService: IEventService,
     @ILogService private readonly logger: ILogService,
     @ISessionClientsService private readonly sessionClients: ISessionClientsService,
   ) {
     super();
-    this._maxBufferSize = options.maxBufferSize ?? DEFAULT_MAX_BUFFER_SIZE;
+    this._maxBufferSize = DEFAULT_MAX_BUFFER_SIZE;
     // Auto-attach to the bus. The returned disposable lives on the service's
     // own dispose tracker, so reverse-construction order in start.ts (this
     // service constructed AFTER IEventService) ensures we unsubscribe BEFORE

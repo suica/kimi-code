@@ -74,11 +74,6 @@ interface PendingQuestion {
   timer: NodeJS.Timeout;
 }
 
-export interface QuestionServiceOptions {
-  timeoutMs?: number;
-  recentlyResolvedCap?: number;
-}
-
 export class QuestionService extends Disposable implements IQuestionService {
   readonly _serviceBrand: undefined;
 
@@ -86,20 +81,14 @@ export class QuestionService extends Disposable implements IQuestionService {
   private readonly _pending = new Map<string, PendingQuestion>();
   /** Bounded set of resolved/dismissed ids for idempotency. */
   private readonly _recentlyResolved = new Set<string>();
-  private readonly _timeoutMs: number;
-  private readonly _recentlyResolvedCap: number;
+  private _timeoutMs = QUESTION_DEFAULT_TIMEOUT_MS;
+  private readonly _recentlyResolvedCap = QUESTION_RECENTLY_RESOLVED_CAP;
 
   constructor(
-    // Static-first / services-last constructor with `@I*` decorators.
-    // `options` is required; call sites pass `{}` when no overrides apply.
-    options: QuestionServiceOptions,
     @ILogService private readonly logger: ILogService,
     @IEventService private readonly eventService: IEventService,
   ) {
     super();
-    this._timeoutMs = options.timeoutMs ?? QUESTION_DEFAULT_TIMEOUT_MS;
-    this._recentlyResolvedCap =
-      options.recentlyResolvedCap ?? QUESTION_RECENTLY_RESOLVED_CAP;
   }
 
   async request(
@@ -243,6 +232,11 @@ export class QuestionService extends Disposable implements IQuestionService {
     const p = this._pending.get(questionId);
     if (!p) return undefined;
     return { sessionId: p.sessionId, toolCallId: p.toolCallId };
+  }
+
+  /** Test helper — override the default 60s timeout. */
+  _setTimeoutMsForTests(ms: number): void {
+    this._timeoutMs = ms;
   }
 
   private _expire(questionId: string): void {

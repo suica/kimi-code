@@ -2,7 +2,7 @@
  * `OAuthService` — implementation of `IOAuthService`.
  */
 
-import { Disposable, registerSingleton, SyncDescriptor } from '@moonshot-ai/agent-core';
+import { Disposable, InstantiationType, registerSingleton } from '@moonshot-ai/agent-core';
 import {
   DeviceCodeTimeoutError,
   KIMI_CODE_PROVIDER_NAME,
@@ -283,4 +283,4 @@ function classifyFailure(err: unknown): OAuthFlowStatus {
 // `@I…`-injected (@IEnvironmentService only); `staticArguments = []`.
 // `supportsDelayedInstantiation = false` preserves current reverse-dispose
 // semantics.
-registerSingleton(IOAuthService, new SyncDescriptor(OAuthService, [], false));
+registerSingleton(IOAuthService, OAuthService, InstantiationType.Delayed);

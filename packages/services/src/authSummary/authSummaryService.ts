@@ -2,7 +2,7 @@
  * `AuthSummaryService` — implementation of `IAuthSummaryService`.
  */
 
-import { Disposable, registerSingleton, SyncDescriptor } from '@moonshot-ai/agent-core';
+import { Disposable, InstantiationType, registerSingleton } from '@moonshot-ai/agent-core';
 import type { KimiConfig } from '@moonshot-ai/agent-core';
 import { KimiAuthFacade } from '@moonshot-ai/kimi-code-sdk';
 import type { AuthSummary } from '@moonshot-ai/protocol';
@@ -146,4 +146,4 @@ function nonEmpty(value: string | undefined): string | null {
 // `@I…`-injected (@IEnvironmentService / @ICoreProcessService);
 // `staticArguments = []`. `supportsDelayedInstantiation = false` preserves
 // current reverse-dispose semantics.
-registerSingleton(IAuthSummaryService, new SyncDescriptor(AuthSummaryService, [], false));
+registerSingleton(IAuthSummaryService, AuthSummaryService, InstantiationType.Delayed);

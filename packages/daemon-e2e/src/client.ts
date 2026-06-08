@@ -16,6 +16,8 @@ import type {
   ApprovalRequest,
   ApprovalResolveResult,
   ApprovalResponse,
+  FsBrowseResponse,
+  FsHomeResponse,
   Message,
   PromptAbortResponse,
   PromptPermissionMode,
@@ -30,6 +32,9 @@ import type {
   SessionCreate,
   SessionStatus,
   SessionUpdate,
+  Workspace,
+  WorkspaceCreate,
+  WorkspaceUpdate,
 } from '@moonshot-ai/protocol';
 import { ulid } from 'ulid';
 import { WebSocket as WsWebSocket } from 'ws';
@@ -135,7 +140,7 @@ export class DaemonClient {
     return this.http.getSession(sid);
   }
   listSessions(
-    query?: { page_size?: number; before_id?: string; after_id?: string },
+    query?: { page_size?: number; before_id?: string; after_id?: string; workspace_id?: string },
   ): Promise<{ items: Session[]; has_more: boolean }> {
     return this.http.listSessions(query);
   }
@@ -144,6 +149,26 @@ export class DaemonClient {
   }
   deleteSession(sid: string): Promise<{ deleted: true }> {
     return this.http.deleteSession(sid);
+  }
+
+  // ── Workspaces + folder picker ──────────────────────────────────────────
+  listWorkspaces(): Promise<{ items: Workspace[] }> {
+    return this.http.listWorkspaces();
+  }
+  createWorkspace(body: WorkspaceCreate): Promise<Workspace> {
+    return this.http.createWorkspace(body);
+  }
+  updateWorkspace(workspaceId: string, body: WorkspaceUpdate): Promise<Workspace> {
+    return this.http.updateWorkspace(workspaceId, body);
+  }
+  deleteWorkspace(workspaceId: string): Promise<{ deleted: true }> {
+    return this.http.deleteWorkspace(workspaceId);
+  }
+  fsBrowse(path?: string): Promise<FsBrowseResponse> {
+    return this.http.fsBrowse(path);
+  }
+  fsHome(): Promise<FsHomeResponse> {
+    return this.http.fsHome();
   }
   listMessages(
     sid: string,

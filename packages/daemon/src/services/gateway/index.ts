@@ -13,7 +13,6 @@ export {
   IWSBroadcastService,
   DEFAULT_MAX_BUFFER_SIZE,
   type BufferedSinceResult,
-  type WSBroadcastServiceOptions,
 } from './wsBroadcast.js';
 export { WSBroadcastService } from './wsBroadcastService.js';
 export { IConnectionRegistry } from './connectionRegistry.js';

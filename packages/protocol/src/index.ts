@@ -19,6 +19,7 @@ export * from './ws-control';
 // Entity schemas (cross-endpoint). Keep these one level above `./rest/` so
 // per-endpoint REST schemas can import them without circular ref.
 export * from './session';
+export * from './workspace';
 export * from './message';
 export * from './approval';
 export * from './question';
@@ -33,6 +34,8 @@ export * from './rest/meta';
 export * from './rest/auth';
 export * from './rest/oauth';
 export * from './rest/session';
+export * from './rest/workspace';
+export * from './rest/fsBrowse';
 export * from './rest/message';
 export * from './rest/prompt';
 export * from './rest/approval';

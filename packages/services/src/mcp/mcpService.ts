@@ -2,7 +2,7 @@
  * `McpService` — implementation of `IMcpService`.
  */
 
-import { Disposable, registerSingleton, SyncDescriptor } from '@moonshot-ai/agent-core';
+import { Disposable, InstantiationType, registerSingleton } from '@moonshot-ai/agent-core';
 import type { McpServer } from '@moonshot-ai/protocol';
 
 import { ICoreProcessService } from '../coreProcess/coreProcess';
@@ -65,4 +65,4 @@ export class McpService extends Disposable implements IMcpService {
 // Self-register under the global singleton registry. All ctor deps are
 // `@I…`-injected; `staticArguments = []`. `supportsDelayedInstantiation =
 // false` preserves current reverse-dispose semantics.
-registerSingleton(IMcpService, new SyncDescriptor(McpService, [], false));
+registerSingleton(IMcpService, McpService, InstantiationType.Delayed);

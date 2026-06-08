@@ -94,13 +94,6 @@ interface PendingApproval {
   timer: NodeJS.Timeout;
 }
 
-export interface ApprovalServiceOptions {
-  /** Test override — defaults to 60s. */
-  timeoutMs?: number;
-  /** Test override — defaults to 1024. */
-  recentlyResolvedCap?: number;
-}
-
 export class ApprovalService extends Disposable implements IApprovalService {
   readonly _serviceBrand: undefined;
 
@@ -114,20 +107,14 @@ export class ApprovalService extends Disposable implements IApprovalService {
    * `_recentlyResolvedCap`.
    */
   private readonly _recentlyResolved = new Set<string>();
-  private readonly _timeoutMs: number;
-  private readonly _recentlyResolvedCap: number;
+  private _timeoutMs = APPROVAL_DEFAULT_TIMEOUT_MS;
+  private readonly _recentlyResolvedCap = APPROVAL_RECENTLY_RESOLVED_CAP;
 
   constructor(
-    // Static-first / services-last constructor with `@I*` decorators.
-    // `options` is required; call sites pass `{}` when no overrides apply.
-    options: ApprovalServiceOptions,
     @ILogService private readonly logger: ILogService,
     @IEventService private readonly eventService: IEventService,
   ) {
     super();
-    this._timeoutMs = options.timeoutMs ?? APPROVAL_DEFAULT_TIMEOUT_MS;
-    this._recentlyResolvedCap =
-      options.recentlyResolvedCap ?? APPROVAL_RECENTLY_RESOLVED_CAP;
   }
 
   async request(
@@ -267,6 +254,11 @@ export class ApprovalService extends Disposable implements IApprovalService {
     const p = this._pending.get(approvalId);
     if (!p) return undefined;
     return { sessionId: p.sessionId, toolCallId: p.toolCallId };
+  }
+
+  /** Test helper — override the default 60s timeout. */
+  _setTimeoutMsForTests(ms: number): void {
+    this._timeoutMs = ms;
   }
 
   private _expire(approvalId: string): void {

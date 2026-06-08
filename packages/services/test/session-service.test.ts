@@ -66,9 +66,18 @@ function makeFakeBridge(state: FakeBridgeState): ICoreProcessService {
         state.sessions.push(created);
         return created;
       }),
-    listSessions: vi.fn().mockImplementation(async (): Promise<readonly SessionSummary[]> => {
-      return state.sessions;
-    }),
+    listSessions: vi
+      .fn()
+      .mockImplementation(
+        async (
+          input?: { workDir?: string },
+        ): Promise<readonly SessionSummary[]> => {
+          if (input?.workDir !== undefined) {
+            return state.sessions.filter((s) => s.workDir === input.workDir);
+          }
+          return state.sessions;
+        },
+      ),
     closeSession: vi.fn().mockImplementation(async ({ sessionId }: { sessionId: string }) => {
       state.closedIds.push(sessionId);
     }),
@@ -218,6 +227,20 @@ describe('toProtocolSession adapter', () => {
     expect(proto.metadata['goal']).toBeUndefined();
     expect(proto.metadata['keep']).toBe('me');
   });
+
+  it('derives workspace_id from summary.workDir via encodeWorkDirKey', async () => {
+    const { encodeWorkDirKey } = await import('@moonshot-ai/agent-core/session/store');
+    const summary: SessionSummary = {
+      id: 'sess_ws',
+      workDir: '/tmp/wd-ws',
+      sessionDir: '/tmp/sd-ws',
+      createdAt: 0,
+      updatedAt: 0,
+    };
+    const proto = toProtocolSession(summary);
+    expect(proto.workspace_id).toBe(encodeWorkDirKey('/tmp/wd-ws'));
+    expect(proto.workspace_id).toMatch(/^wd_[A-Za-z0-9._-]+_[0-9a-f]{12}$/);
+  });
 });
 
 describe('SessionService.create', () => {
@@ -242,6 +265,12 @@ describe('SessionService.create', () => {
     const created = state.sessions[0]!;
     expect((state.sessions as SessionSummary[])[0]!.metadata?.['cwd']).toBe('/tmp/x');
     void created;
+  });
+
+  it('rejects when metadata.cwd is absent (daemon route must pre-resolve workspace_id → cwd)', async () => {
+    await expect(svc.create({} as unknown as Parameters<typeof svc.create>[0])).rejects.toThrow(
+      /metadata\.cwd is required/,
+    );
   });
 });
 
@@ -287,6 +316,20 @@ describe('SessionService.list', () => {
     expect(empty.items).toEqual([]);
     const idle = await svc.list({ status: 'idle' });
     expect(idle.items.length).toBe(3);
+  });
+
+  it('forwards workDir to the underlying core.rpc.listSessions for the workspace fast path', async () => {
+    const page = await svc.list({ workDir: '/tmp/b' });
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0]!.metadata.cwd).toBe('/tmp/b');
+    const calls = (state as unknown as { sessions: SessionSummary[] }).sessions;
+    void calls;
+  });
+
+  it('returns an empty page when workDir matches no sessions', async () => {
+    const page = await svc.list({ workDir: '/tmp/nonexistent' });
+    expect(page.items).toEqual([]);
+    expect(page.has_more).toBe(false);
   });
 });
 

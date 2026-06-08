@@ -35,6 +35,7 @@
  */
 
 import { createDecorator, Disposable } from '@moonshot-ai/agent-core';
+import { encodeWorkDirKey } from '@moonshot-ai/agent-core/session/store';
 import type { Event } from '@moonshot-ai/agent-core/base/common/event';
 import type { JsonObject, SessionMeta, SessionSummary } from '@moonshot-ai/agent-core';
 import {
@@ -52,10 +53,19 @@ import type {
 /**
  * Listing query — `before_id`/`after_id` + `page_size` mutual exclusivity is
  * already enforced by `cursorQuerySchema`. The service layer adds an optional
- * status filter the daemon layer parses out of the REST query string.
+ * status filter the daemon layer parses out of the REST query string, and an
+ * optional `workDir` filter for the `?workspace_id=` fast path (the daemon
+ * route layer resolves `workspace_id → workspace.root` and sets `workDir`).
  */
 export interface SessionListQuery extends CursorQuery {
   status?: import('@moonshot-ai/protocol').SessionStatus;
+  /**
+   * When set, the underlying `core.rpc.listSessions({workDir})` path uses
+   * agent-core's `listWorkDir` (readdir-based) instead of a full `listAll`.
+   * Daemon-route caller is responsible for resolving the workspace_id to its
+   * registered root before populating this.
+   */
+  workDir?: string;
 }
 
 export interface ISessionService {
@@ -145,6 +155,12 @@ export class SessionNotFoundError extends Error {
  *   2. `summary.metadata.cwd` (when caller-supplied during create).
  *   3. `summary.workDir` (agent-core canonical field).
  *
+ * `workspace_id` is ALWAYS derived from `summary.workDir` via
+ * `encodeWorkDirKey`, so every session round-trips to a stable workspace
+ * key. If the daemon has never seen a `POST /workspaces` for that wd-key
+ * the id simply won't appear in the workspaces list; the session still has
+ * an id the front-end can group on.
+ *
  * The merged `Session.metadata` keeps `cwd` plus anything in `meta.custom`
  * (excluding daemon-internal `goal` plumbing — that's not protocol surface).
  */
@@ -169,9 +185,11 @@ export function toProtocolSession(
   };
 
   const title = meta?.title ?? summary.title ?? '';
+  const workspaceId = encodeWorkDirKey(summary.workDir);
 
   return {
     id: summary.id,
+    workspace_id: workspaceId,
     title,
     created_at: new Date(summary.createdAt).toISOString(),
     updated_at: new Date(summary.updatedAt).toISOString(),

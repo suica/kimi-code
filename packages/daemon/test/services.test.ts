@@ -17,7 +17,7 @@
  * `WSBroadcastService` (daemon pkg), which subscribes to
  * `IEventService.onDidPublish` in its constructor. Tests in this file
  * construct both: `bus = new EventService()`, then
- * `broadcast = new WSBroadcastService({}, bus, ...)`.
+ * `broadcast = new WSBroadcastService(bus, ...)`.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -123,7 +123,7 @@ describe('WSBroadcastService (WS transport pump)', () => {
     clients.subscribe(c2, 'sid_test');
 
     const bus = new EventService();
-    const broadcast = new WSBroadcastService({}, bus, testLogger, clients);
+    const broadcast = new WSBroadcastService(bus, testLogger, clients);
     bus.publish({ type: 'fake.x', sessionId: 'sid_test' } as unknown as Event);
     bus.publish({ type: 'fake.y', sessionId: 'sid_test' } as unknown as Event);
 
@@ -148,7 +148,7 @@ describe('WSBroadcastService (WS transport pump)', () => {
     clients.subscribe(cB, 'sid_b');
 
     const bus = new EventService();
-    const broadcast = new WSBroadcastService({}, bus, testLogger, clients);
+    const broadcast = new WSBroadcastService(bus, testLogger, clients);
     bus.publish({ type: 'e1', sessionId: 'sid_a' } as unknown as Event);
     bus.publish({ type: 'e1', sessionId: 'sid_b' } as unknown as Event);
     bus.publish({ type: 'e2', sessionId: 'sid_a' } as unknown as Event);
@@ -171,7 +171,7 @@ describe('WSBroadcastService (WS transport pump)', () => {
     clients.subscribe(onOther, 'sid_other');
 
     const bus = new EventService();
-    const broadcast = new WSBroadcastService({}, bus, testLogger, clients);
+    const broadcast = new WSBroadcastService(bus, testLogger, clients);
     bus.publish({ type: 'evt', sessionId: 'sid_a' } as unknown as Event);
     expect(onA.sent.length).toBe(1);
     expect(onOther.sent.length).toBe(0);
@@ -186,7 +186,7 @@ describe('WSBroadcastService (WS transport pump)', () => {
     const warnSpy = vi.spyOn(testLogger, 'warn');
 
     const bus = new EventService();
-    const broadcast = new WSBroadcastService({}, bus, testLogger, clients);
+    const broadcast = new WSBroadcastService(bus, testLogger, clients);
     bus.publish({ type: 'no_sid' } as unknown as Event);
 
     expect(c.sent.length).toBe(0);
@@ -200,7 +200,7 @@ describe('WSBroadcastService (WS transport pump)', () => {
     const c = fakeConn();
     clients.subscribe(c, 'sid_x');
     const bus = new EventService();
-    const broadcast = new WSBroadcastService({}, bus, testLogger, clients);
+    const broadcast = new WSBroadcastService(bus, testLogger, clients);
     broadcast.dispose();
     bus.publish({ type: 'late', sessionId: 'sid_x' } as unknown as Event);
     expect(c.sent.length).toBe(0);
@@ -212,7 +212,7 @@ describe('WSBroadcastService (WS transport pump)', () => {
     const c = fakeConn();
     clients.subscribe(c, 'sid_test');
     const bus = new EventService();
-    const broadcast = new WSBroadcastService({}, bus, testLogger, clients);
+    const broadcast = new WSBroadcastService(bus, testLogger, clients);
     for (let i = 0; i < 5; i++) {
       bus.publish({ type: `e${i}`, sessionId: 'sid_test' } as unknown as Event);
     }
@@ -226,7 +226,7 @@ describe('WSBroadcastService (WS transport pump)', () => {
 
   it('getBufferedSince returns empty + currentSeq=0 for a never-seen session', () => {
     const bus = new EventService();
-    const broadcast = new WSBroadcastService({}, bus, testLogger, new FakeSessionClients());
+    const broadcast = new WSBroadcastService(bus, testLogger, new FakeSessionClients());
     const replay = broadcast.getBufferedSince('sid_new', 5);
     expect(replay.events).toEqual([]);
     expect(replay.resyncRequired).toBe(false);
@@ -237,7 +237,7 @@ describe('WSBroadcastService (WS transport pump)', () => {
 });
 
 describe('ApprovalService (broadcasts + resolve-by-approval_id)', () => {
-  function makeBrokerWithBus(opts?: { timeoutMs?: number }): {
+  function makeBrokerWithBus(): {
     broker: ApprovalService;
     bus: EventService;
     broadcast: WSBroadcastService;
@@ -248,8 +248,8 @@ describe('ApprovalService (broadcasts + resolve-by-approval_id)', () => {
     const conn = fakeConn('conn_subscriber');
     clients.subscribe(conn, 'sess_1');
     const bus = new EventService();
-    const broadcast = new WSBroadcastService({}, bus, testLogger, clients);
-    const broker = new ApprovalService(opts ?? {}, testLogger, bus);
+    const broadcast = new WSBroadcastService(bus, testLogger, clients);
+    const broker = new ApprovalService(testLogger, bus);
     return { broker, bus, broadcast, clients, conn };
   }
 
@@ -297,7 +297,8 @@ describe('ApprovalService (broadcasts + resolve-by-approval_id)', () => {
   });
 
   it('rejects with ApprovalExpiredError + broadcasts event.approval.expired after timeoutMs', async () => {
-    const { broker, bus, broadcast, conn } = makeBrokerWithBus({ timeoutMs: 30 });
+    const { broker, bus, broadcast, conn } = makeBrokerWithBus();
+    broker._setTimeoutMsForTests(30);
     const pending = broker.request({
       sessionId: 'sess_1',
       agentId: 'agent_1',
@@ -356,7 +357,7 @@ describe('ApprovalService (broadcasts + resolve-by-approval_id)', () => {
 });
 
 describe('QuestionService (broadcasts + dismiss)', () => {
-  function makeQuestionBroker(opts?: { timeoutMs?: number }): {
+  function makeQuestionBroker(): {
     broker: QuestionService;
     bus: EventService;
     broadcast: WSBroadcastService;
@@ -367,8 +368,8 @@ describe('QuestionService (broadcasts + dismiss)', () => {
     const conn = fakeConn('conn_q_subscriber');
     clients.subscribe(conn, 's');
     const bus = new EventService();
-    const broadcast = new WSBroadcastService({}, bus, testLogger, clients);
-    const broker = new QuestionService(opts ?? {}, testLogger, bus);
+    const broadcast = new WSBroadcastService(bus, testLogger, clients);
+    const broker = new QuestionService(testLogger, bus);
     return { broker, bus, broadcast, clients, conn };
   }
 
@@ -446,7 +447,8 @@ describe('QuestionService (broadcasts + dismiss)', () => {
   });
 
   it('60s timeout broadcasts event.question.expired + rejects QuestionExpiredError', async () => {
-    const { broker, bus, broadcast, conn } = makeQuestionBroker({ timeoutMs: 30 });
+    const { broker, bus, broadcast, conn } = makeQuestionBroker();
+    broker._setTimeoutMsForTests(30);
     const pending = broker.request({
       sessionId: 's',
       agentId: 'a',
@@ -487,8 +489,8 @@ describe('DI graph — broker resolution through the container', () => {
   it('resolves broker decorators against the same instances registered in the collection', () => {
     const clients = new FakeSessionClients();
     const eventBus = new EventService();
-    const approval = new ApprovalService({}, testLogger, eventBus);
-    const question = new QuestionService({}, testLogger, eventBus);
+    const approval = new ApprovalService(testLogger, eventBus);
+    const question = new QuestionService(testLogger, eventBus);
 
     // We don't need a CoreProcessService for this — just check the wiring symmetry.
     const collection = new ServiceCollection(

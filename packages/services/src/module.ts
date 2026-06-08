@@ -1,34 +1,24 @@
 /**
  * `defaultServicesModule()` — DI entries shipped by `@moonshot-ai/services`.
  *
- * This is now a thin projection of the global singleton registry:
- * service impl files (`./<domain>/<domain>Service.ts`) self-register at
- * module-load time via `registerSingleton(IXxx, new SyncDescriptor(...))`.
+ * Thin projection of the global singleton registry maintained by
+ * `@moonshot-ai/agent-core`. Each service impl file self-registers at
+ * module-load time via `registerSingleton` (ctor overload for pure `@I…`
+ * injection, descriptor overload when a leading options bag is required).
  * Importing this `module.ts` triggers the side-effect imports below, which
- * populate the registry; `defaultServicesModule()` then snapshots the registry
+ * populate the registry; `defaultServicesModule()` snapshots the registry
  * via `getSingletonServiceDescriptors()`.
  *
- * Callers spread the array into a `ServiceCollection` ctor:
+ * Usage:
  *
- *   const entries = defaultServicesModule();
- *   const collection = new ServiceCollection(
- *     ...entries.map(([id, descriptor]) => [id, descriptor] as const),
- *     // ...peer-service impls (IEventService / IApprovalService /
- *     //    IQuestionService — those live in @moonshot-ai/daemon)
- *   );
+ *   const services = new ServiceCollection(...defaultServicesModule());
  *
- * Each entry is `[ServiceIdentifier, SyncDescriptor, InstantiationType]` —
- * the `InstantiationType` is derived from each descriptor's
- * `supportsDelayedInstantiation` flag (Delayed when `true`, Eager otherwise).
- * Every entry registers with `supportsDelayedInstantiation = false`, so every
- * entry projects to `Eager`.
+ * Each entry is `[ServiceIdentifier, SyncDescriptor]`. The descriptor carries
+ * the `supportsDelayedInstantiation` flag; no extra projection is needed.
  *
- * Daemon-side `start.ts` consumes `defaultServicesModule()` for the
- * descriptor-only services and overrides specific entries via
- * `services.set(...)` for services that need runtime static args (e.g.
- * `CoreProcessService` with the real `coreProcessOptions` bag) or for prebuilt
- * instances that carry external handles (`PinoLogger` / `FastifyRestGateway`).
- * Later registrations win at every layer.
+ * Consumers (e.g. the daemon) override entries with `services.set(...)` for
+ * runtime static args (`CoreProcessService` with real `coreProcessOptions`)
+ * or prebuilt instances (`PinoLogger`). Later registrations win.
  *
  * Per-domain layout: see `packages/services/AGENTS.md`. Classes live in
  * per-domain folders (`session/`, `message/`, …) with one `<domain>.ts`
@@ -37,7 +27,6 @@
 
 import {
   getSingletonServiceDescriptors,
-  InstantiationType,
   SyncDescriptor,
   type ServiceIdentifier,
 } from '@moonshot-ai/agent-core';
@@ -67,18 +56,10 @@ export type ServiceModuleEntry = readonly [
   ServiceIdentifier<any>,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   SyncDescriptor<any>,
-  InstantiationType,
 ];
 
 export function defaultServicesModule(): ReadonlyArray<ServiceModuleEntry> {
   return getSingletonServiceDescriptors().map(
-    ([id, descriptor]) =>
-      [
-        id,
-        descriptor,
-        descriptor.supportsDelayedInstantiation
-          ? InstantiationType.Delayed
-          : InstantiationType.Eager,
-      ] as const,
+    ([id, descriptor]) => [id, descriptor] as const,
   );
 }

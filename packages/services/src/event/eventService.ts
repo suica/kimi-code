@@ -16,8 +16,8 @@
 import {
   Disposable,
   Emitter,
+  InstantiationType,
   registerSingleton,
-  SyncDescriptor,
 } from '@moonshot-ai/agent-core';
 import type { Event as ProtocolEvent } from '@moonshot-ai/protocol';
 
@@ -42,4 +42,4 @@ export class EventService extends Disposable implements IEventService {
 
 // Self-register under the global singleton registry. No ctor args — the
 // service has no dependencies.
-registerSingleton(IEventService, new SyncDescriptor(EventService, [], false));
+registerSingleton(IEventService, EventService, InstantiationType.Delayed);
