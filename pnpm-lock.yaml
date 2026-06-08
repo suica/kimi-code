@@ -425,6 +425,25 @@ importers:
         specifier: ^8.18.0
         version: 8.18.1
 
+  packages/daemon-e2e:
+    dependencies:
+      '@moonshot-ai/protocol':
+        specifier: workspace:^
+        version: link:../protocol
+      ulid:
+        specifier: ^3.0.1
+        version: 3.0.2
+      ws:
+        specifier: ^8.18.0
+        version: 8.20.0
+      zod:
+        specifier: 'catalog:'
+        version: 4.3.6
+    devDependencies:
+      '@types/ws':
+        specifier: ^8.18.0
+        version: 8.18.1
+
   packages/kaos:
     dependencies:
       pathe:

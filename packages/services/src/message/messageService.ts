@@ -101,14 +101,9 @@ export class MessageService extends Disposable implements IMessageService {
     return summary;
   }
 
-  /**
-   * Fetch the session's in-memory history via `getContext`. Closed sessions
-   * may surface an error here — re-thrown as `SessionNotFoundError` so the
-   * route layer maps it to 40401 (the most defensible mapping when the
-   * session is not currently loaded into the active session map).
-   */
   private async _getContext(sid: string): Promise<AgentContextData> {
     try {
+      await this.core.rpc.resumeSession({ sessionId: sid });
       return await this.core.rpc.getContext({ sessionId: sid, agentId: MAIN_AGENT_ID });
     } catch (err) {
       throw new SessionNotFoundError(sid);

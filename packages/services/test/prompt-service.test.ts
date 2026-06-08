@@ -67,6 +67,7 @@ function makeBridge(
   const record: RpcRecord = { promptCalls: [], cancelCalls: [] };
   const rpc: Partial<CoreRPC> = {
     listSessions: vi.fn().mockImplementation(async () => sessions),
+    resumeSession: vi.fn().mockResolvedValue(undefined as unknown as never),
     prompt: vi.fn().mockImplementation(async (payload) => {
       record.promptCalls.push(payload);
     }),
@@ -186,6 +187,7 @@ describe('PromptService.submit (W7.2)', () => {
       .mockResolvedValue(undefined);
     const rpc: Partial<CoreRPC> = {
       listSessions: vi.fn().mockResolvedValue(sessions),
+      resumeSession: vi.fn().mockResolvedValue(undefined as unknown as never),
       prompt: promptMock,
       cancel: vi.fn().mockImplementation(async () => undefined),
     };
@@ -202,6 +204,21 @@ describe('PromptService.submit (W7.2)', () => {
     ).rejects.toThrowError(/boom/);
     // A second submit must succeed (state was cleared).
     await impl.submit(SID, { content: [{ type: 'text', text: 'x' }] });
+  });
+
+  it('calls resumeSession before prompt so cross-restart sessions resolve', async () => {
+    const { bridge } = makeBridge();
+    const { bus } = makeBus();
+    const impl = new PromptService(bridge, bus, makeAuth());
+    await impl.submit(SID, { content: [{ type: 'text', text: 'hi' }] });
+    const resumeMock = bridge.rpc.resumeSession as ReturnType<typeof vi.fn>;
+    const promptMock = bridge.rpc.prompt as ReturnType<typeof vi.fn>;
+    expect(resumeMock).toHaveBeenCalledWith({ sessionId: SID });
+    const resumeOrder = resumeMock.mock.invocationCallOrder[0];
+    const promptOrder = promptMock.mock.invocationCallOrder[0];
+    expect(resumeOrder).toBeDefined();
+    expect(promptOrder).toBeDefined();
+    expect(resumeOrder!).toBeLessThan(promptOrder!);
   });
 });
 

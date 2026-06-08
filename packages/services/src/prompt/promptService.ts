@@ -118,6 +118,7 @@ export class PromptService
 
   async submit(sid: string, body: PromptSubmission): Promise<PromptSubmitResult> {
     await this._requireSession(sid);
+    await this.core.rpc.resumeSession({ sessionId: sid });
 
     // Readiness gate. Throws AuthProvisioningRequired /
     // AuthTokenMissing / AuthModelNotResolved before we mint a prompt_id and

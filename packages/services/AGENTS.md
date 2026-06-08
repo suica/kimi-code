@@ -136,3 +136,37 @@ external handle or runtime static args that the registry can't supply.
 The legacy "hand-built array in `module.ts`" pattern that lived here
 through Phase 2 is gone. Do NOT reintroduce it — extending the array in
 `module.ts` no longer has any effect on what the daemon resolves.
+
+## Comments (normative)
+
+Default to **no comments**. Well-named identifiers and types already say
+WHAT the code does; a comment that restates that just decays as the code
+changes around it.
+
+Write a comment only when the **WHY** is non-obvious to a reader who
+has the diff in front of them: a hidden constraint, a subtle invariant,
+a workaround for a specific upstream bug, behavior that would surprise
+someone reading the call. One short line max.
+
+Do **not** write:
+
+- Block / paragraph docstrings on internal helpers.
+- Comments that narrate the diff itself ("now we call resumeSession
+  first so cold sessions auto-load") — that belongs in the commit
+  message and PR description, not in the source. The next reader has
+  no diff context; they just see prose that drifts as the surrounding
+  code evolves.
+- Comments that re-explain types already visible at the call site
+  ("returns `Promise<Session>`", "throws `SessionNotFoundError`").
+- Comments pointing at other files by line number (`core-impl.ts:286-289`).
+  Line numbers move; the pointer rots within a release.
+- "Regression guard for …" / "fixes the bug where …" preambles on
+  tests. The test name and assertions are the contract; the bug
+  history belongs in git.
+
+Existing files in this package over-comment by historical accident.
+**Do not propagate that style to new code.** When touching an existing
+file, prefer leaving the surrounding comments alone — large comment
+deletions belong in their own dedicated cleanup pass, not bundled into
+behavior changes.
+
