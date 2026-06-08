@@ -18,15 +18,15 @@ import { Disposable } from '@moonshot-ai/agent-core';
 
 import type { FsBrowseEntry, FsBrowseResponse, FsHomeResponse } from '@moonshot-ai/protocol';
 
-import { IWorkspaceRegistry } from './workspaceRegistry.js';
+import { IWorkspaceRegistry } from './workspaceRegistry';
 import {
   IWorkspaceFsService,
   RECENT_ROOTS_LIMIT,
   WorkspaceFsNotAbsoluteError,
   WorkspaceFsNotFoundError,
   WorkspaceFsPermissionError,
-} from './workspaceFs.js';
-import { detectGit } from './workspaceRegistryService.js';
+} from './workspaceFs';
+import { detectGit } from './workspaceRegistryService';
 
 export class WorkspaceFsService extends Disposable implements IWorkspaceFsService {
   readonly _serviceBrand: undefined;

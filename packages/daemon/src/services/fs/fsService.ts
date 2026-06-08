@@ -30,8 +30,8 @@ import {
   FsTooLargeError,
   FsTooManyResultsError,
   type FsDownloadResolved,
-} from './fs.js';
-import { FsPathEscapesError, resolveSafePath } from './fsPathSafety.js';
+} from './fs';
+import { FsPathEscapesError, resolveSafePath } from './fsPathSafety';
 
 /** 10 MB cap on `:read` total file size (SCHEMAS §10 / REST.md §3.9). */
 const FS_READ_MAX_BYTES = 10 * 1024 * 1024;

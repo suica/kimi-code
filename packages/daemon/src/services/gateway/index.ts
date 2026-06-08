@@ -1,21 +1,21 @@
 export {
   IRestGateway,
   type FastifyLike,
-} from './restGateway.js';
-export { FastifyRestGateway } from './restGatewayService.js';
+} from './restGateway';
+export { FastifyRestGateway } from './restGatewayService';
 export {
   IWSGateway,
   WS_PATH,
   type WSGatewayOptions,
-} from './wsGateway.js';
-export { WSGateway } from './wsGatewayService.js';
+} from './wsGateway';
+export { WSGateway } from './wsGatewayService';
 export {
   IWSBroadcastService,
   DEFAULT_MAX_BUFFER_SIZE,
   type BufferedSinceResult,
-} from './wsBroadcast.js';
-export { WSBroadcastService } from './wsBroadcastService.js';
-export { IConnectionRegistry } from './connectionRegistry.js';
-export { ConnectionRegistry } from './connectionRegistryService.js';
-export { ISessionClientsService } from './sessionClients.js';
-export { SessionClientsService } from './sessionClientsService.js';
+} from './wsBroadcast';
+export { WSBroadcastService } from './wsBroadcastService';
+export { IConnectionRegistry } from './connectionRegistry';
+export { ConnectionRegistry } from './connectionRegistryService';
+export { ISessionClientsService } from './sessionClients';
+export { SessionClientsService } from './sessionClientsService';

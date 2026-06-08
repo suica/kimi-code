@@ -57,7 +57,17 @@ export type ListSessionsQuery = z.infer<typeof listSessionsQuerySchema>;
 export const getSessionResponseSchema = sessionSchema;
 export type GetSessionResponse = z.infer<typeof getSessionResponseSchema>;
 
-// --- PATCH /v1/sessions/{id} ------------------------------------------------
+// --- POST /v1/sessions/{id}/meta --------------------------------------------
+// Per design principle: no PATCH on sessions; mutating properties go through
+// an explicit action-suffix endpoint.
+
+export const updateSessionMetaRequestSchema = sessionUpdateSchema;
+export type UpdateSessionMetaRequest = z.infer<typeof updateSessionMetaRequestSchema>;
+
+export const updateSessionMetaResponseSchema = sessionSchema;
+export type UpdateSessionMetaResponse = z.infer<typeof updateSessionMetaResponseSchema>;
+
+// --- (deprecated alias kept for gradual migration) PATCH /v1/sessions/{id} ----
 
 export const updateSessionRequestSchema = sessionUpdateSchema;
 export type UpdateSessionRequest = z.infer<typeof updateSessionRequestSchema>;

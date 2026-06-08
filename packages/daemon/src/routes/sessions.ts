@@ -6,12 +6,11 @@
  *   POST   /sessions               body: SessionCreate    data: Session
  *   GET    /sessions               query: ListSessions    data: Page<Session>
  *   GET    /sessions/{id}          -                      data: Session
- *   PATCH  /sessions/{id}          body: SessionUpdate    data: Session
+ *   POST   /sessions/{id}/meta     body: SessionUpdate    data: Session
  *   DELETE /sessions/{id}          -                      data: { deleted: true }
  *
- * Each handler validates input with the Zod `validateBody` / `validateQuery`
- * preHandler (40001 on failure with `details` path), invokes
- * `accessor.get(ISessionService).<method>(...)`, and emits an `okEnvelope`.
+ * Each handler invokes `accessor.get(ISessionService).<method>(...)`, and emits
+ * an `okEnvelope`.
  *
  * **Error mapping**: `SessionNotFoundError` → envelope `code: 40401`. Other
  * errors fall through to the global `installErrorHandler` (→ 50001).
@@ -33,23 +32,20 @@ import {
   pageResponseSchema,
   sessionSchema,
   sessionStatusSchema,
+  updateSessionMetaRequestSchema,
   updateSessionRequestSchema,
   workspaceIdSchema,
-  type SessionCreate,
-  type SessionUpdate,
 } from '@moonshot-ai/protocol';
 import {
   ISessionService,
   SessionNotFoundError,
-  type SessionListQuery,
 } from '@moonshot-ai/services';
 import { z } from 'zod';
 
 import type { IInstantiationService } from '@moonshot-ai/agent-core';
 
-import { errEnvelope, okEnvelope } from '../envelope.js';
-import { buildRouteSchema } from '../middleware/schema.js';
-import { validateBody, validateParams, validateQuery } from '../middleware/validate.js';
+import { errEnvelope, okEnvelope } from '../envelope';
+import { defineRoute } from '../middleware/defineRoute';
 import {
   IWorkspaceRegistry,
   WorkspaceNotFoundError,
@@ -137,25 +133,29 @@ const sessionIdParamSchema = z.object({
 
 // --- Registration -----------------------------------------------------------
 
+const detailsSchema = z.array(z.object({ path: z.string(), message: z.string() }));
+
 export function registerSessionsRoutes(
   app: SessionRouteHost,
   ix: IInstantiationService,
 ): void {
   // POST /sessions ------------------------------------------------------
-  app.post(
-    '/sessions',
+  const createRoute = defineRoute(
     {
-      preHandler: [validateBody(createSessionRequestSchema)],
-      schema: buildRouteSchema({
-        description: 'Create a new session',
-        tags: ['sessions'],
-        body: createSessionRequestSchema,
-        response: { 200: sessionSchema },
-      }),
+      method: 'POST',
+      path: '/sessions',
+      body: createSessionRequestSchema,
+      success: { data: sessionSchema },
+      errors: {
+        [ErrorCode.VALIDATION_FAILED]: { detailsSchema },
+        [ErrorCode.WORKSPACE_NOT_FOUND]: {},
+      },
+      description: 'Create a new session',
+      tags: ['sessions'],
     },
     async (req, reply) => {
       try {
-        const body = req.body as SessionCreate;
+        const body = req.body;
         // The protocol schema accepts either `workspace_id` or `metadata.cwd`
         // (or both). The route layer:
         //   1. requires at-least-one (→ 40001 if neither is set)
@@ -183,7 +183,7 @@ export function registerSessionsRoutes(
           return;
         }
 
-        let normalized: SessionCreate;
+        let normalized: Omit<typeof body, 'workspace_id'>;
         if (workspaceId !== undefined) {
           const registry = ix.invokeFunction((a) => a.get(IWorkspaceRegistry));
           let workspaceRoot: string;
@@ -234,29 +234,26 @@ export function registerSessionsRoutes(
       }
     },
   );
+  app.post(createRoute.path, createRoute.options, createRoute.handler as Parameters<SessionRouteHost['post']>[2]);
 
   // GET /sessions -------------------------------------------------------
-  app.get(
-    '/sessions',
+  const listRoute = defineRoute(
     {
-      preHandler: [validateQuery(sessionsListQueryCoercion)],
-      schema: buildRouteSchema({
-        description: 'List sessions',
-        tags: ['sessions'],
-        querystring: sessionsListQueryCoercion,
-        response: { 200: pageResponseSchema(sessionSchema) },
-      }),
+      method: 'GET',
+      path: '/sessions',
+      querystring: sessionsListQueryCoercion,
+      success: { data: pageResponseSchema(sessionSchema) },
+      errors: {
+        [ErrorCode.VALIDATION_FAILED]: { detailsSchema },
+        [ErrorCode.WORKSPACE_NOT_FOUND]: {},
+      },
+      description: 'List sessions',
+      tags: ['sessions'],
     },
     async (req, reply) => {
       try {
-        const raw = req.query as {
-          before_id?: string;
-          after_id?: string;
-          page_size?: number;
-          status?: import('@moonshot-ai/protocol').SessionStatus;
-          workspace_id?: string;
-        };
-        let query: SessionListQuery;
+        const raw = req.query;
+        let query;
         if (raw.workspace_id !== undefined) {
           const registry = ix.invokeFunction((a) => a.get(IWorkspaceRegistry));
           let root: string;
@@ -284,22 +281,25 @@ export function registerSessionsRoutes(
       }
     },
   );
+  app.get(listRoute.path, listRoute.options, listRoute.handler as Parameters<SessionRouteHost['get']>[2]);
 
   // GET /sessions/{session_id} ------------------------------------------
-  app.get(
-    '/sessions/:session_id',
+  const getRoute = defineRoute(
     {
-      preHandler: [validateParams(sessionIdParamSchema)],
-      schema: buildRouteSchema({
-        description: 'Get a session by ID',
-        tags: ['sessions'],
-        params: sessionIdParamSchema,
-        response: { 200: sessionSchema },
-      }),
+      method: 'GET',
+      path: '/sessions/{session_id}',
+      params: sessionIdParamSchema,
+      success: { data: sessionSchema },
+      errors: {
+        [ErrorCode.VALIDATION_FAILED]: { detailsSchema },
+        [ErrorCode.SESSION_NOT_FOUND]: {},
+      },
+      description: 'Get a session by ID',
+      tags: ['sessions'],
     },
     async (req, reply) => {
       try {
-        const { session_id } = req.params as { session_id: string };
+        const { session_id } = req.params;
         const session = await ix.invokeFunction((a) => a.get(ISessionService).get(session_id));
         reply.send(okEnvelope(session, req.id));
       } catch (err) {
@@ -307,27 +307,27 @@ export function registerSessionsRoutes(
       }
     },
   );
+  app.get(getRoute.path, getRoute.options, getRoute.handler as Parameters<SessionRouteHost['get']>[2]);
 
-  // PATCH /sessions/{session_id} ----------------------------------------
-  app.patch(
-    '/sessions/:session_id',
+  // POST /sessions/{session_id}/meta ------------------------------------
+  const metaRoute = defineRoute(
     {
-      preHandler: [
-        validateParams(sessionIdParamSchema),
-        validateBody(updateSessionRequestSchema),
-      ],
-      schema: buildRouteSchema({
-        description: 'Update a session',
-        tags: ['sessions'],
-        params: sessionIdParamSchema,
-        body: updateSessionRequestSchema,
-        response: { 200: sessionSchema },
-      }),
+      method: 'POST',
+      path: '/sessions/{session_id}/meta',
+      params: sessionIdParamSchema,
+      body: updateSessionMetaRequestSchema,
+      success: { data: sessionSchema },
+      errors: {
+        [ErrorCode.VALIDATION_FAILED]: { detailsSchema },
+        [ErrorCode.SESSION_NOT_FOUND]: {},
+      },
+      description: 'Update session mutable properties (title, metadata, agent_config)',
+      tags: ['sessions'],
     },
     async (req, reply) => {
       try {
-        const { session_id } = req.params as { session_id: string };
-        const body = req.body as SessionUpdate;
+        const { session_id } = req.params;
+        const body = req.body;
         const session = await ix.invokeFunction((a) =>
           a.get(ISessionService).update(session_id, body),
         );
@@ -337,22 +337,25 @@ export function registerSessionsRoutes(
       }
     },
   );
+  app.post(metaRoute.path, metaRoute.options, metaRoute.handler as Parameters<SessionRouteHost['post']>[2]);
 
   // DELETE /sessions/{session_id} ---------------------------------------
-  app.delete(
-    '/sessions/:session_id',
+  const deleteRoute = defineRoute(
     {
-      preHandler: [validateParams(sessionIdParamSchema)],
-      schema: buildRouteSchema({
-        description: 'Delete a session',
-        tags: ['sessions'],
-        params: sessionIdParamSchema,
-        response: { 200: deleteSessionResponseSchema },
-      }),
+      method: 'DELETE',
+      path: '/sessions/{session_id}',
+      params: sessionIdParamSchema,
+      success: { data: deleteSessionResponseSchema },
+      errors: {
+        [ErrorCode.VALIDATION_FAILED]: { detailsSchema },
+        [ErrorCode.SESSION_NOT_FOUND]: {},
+      },
+      description: 'Delete a session',
+      tags: ['sessions'],
     },
     async (req, reply) => {
       try {
-        const { session_id } = req.params as { session_id: string };
+        const { session_id } = req.params;
         const result = await ix.invokeFunction((a) => a.get(ISessionService).delete(session_id));
         reply.send(okEnvelope(result, req.id));
       } catch (err) {
@@ -360,6 +363,7 @@ export function registerSessionsRoutes(
       }
     },
   );
+  app.delete(deleteRoute.path, deleteRoute.options, deleteRoute.handler as Parameters<SessionRouteHost['delete']>[2]);
 }
 
 /**

@@ -4,7 +4,7 @@
 
 import { Disposable } from '@moonshot-ai/agent-core';
 
-import { IRestGateway, type FastifyLike } from './restGateway.js';
+import { IRestGateway, type FastifyLike } from './restGateway';
 
 export class FastifyRestGateway extends Disposable implements IRestGateway {
   readonly _serviceBrand: undefined;

@@ -35,7 +35,7 @@ import {
   WorkspaceNotFoundError,
   WorkspaceRootNotFoundError,
   type WorkspacePatch,
-} from './workspaceRegistry.js';
+} from './workspaceRegistry';
 
 const WORKSPACE_FILE = 'workspace.json';
 const WORKSPACE_FILE_VERSION = 1;

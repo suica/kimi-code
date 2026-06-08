@@ -183,9 +183,14 @@ export class SessionService extends Disposable implements ISessionService {
       });
     }
 
-    // 3) agent_config + permission_rules: no CoreAPI surface yet — we accept
-    //    the input (schema-validated) but no CoreAPI surface exists to persist
-    //    them yet.
+    // 3) agent_config.model: dispatch to core RPC when present and non-empty.
+    const model = input.agent_config?.model;
+    if (model !== undefined && model !== '') {
+      await this.core.rpc.setModel({ sessionId: id, agentId: 'main', model });
+    }
+
+    // 4) permission_rules: no CoreAPI surface yet — we accept the input
+    //    (schema-validated) but no CoreAPI surface exists to persist them yet.
 
     // Re-fetch to return the post-update Session.
     const allAfter = await this.core.rpc.listSessions({});

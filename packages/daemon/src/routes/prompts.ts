@@ -28,7 +28,6 @@ import {
   promptAbortResponseSchema,
   promptSubmissionSchema,
   promptSubmitResultSchema,
-  type PromptSubmission,
 } from '@moonshot-ai/protocol';
 import {
   IPromptService,
@@ -45,10 +44,9 @@ import { z } from 'zod';
 
 import type { IInstantiationService } from '@moonshot-ai/agent-core';
 
-import { errEnvelope, okEnvelope } from '../envelope.js';
-import { buildRouteSchema } from '../middleware/schema.js';
-import { validateBody, validateParams } from '../middleware/validate.js';
-import { parseActionSuffix } from './action-suffix.js';
+import { errEnvelope, okEnvelope } from '../envelope';
+import { defineRoute } from '../middleware/defineRoute';
+import { parseActionSuffix } from './action-suffix';
 
 interface PromptRouteHost {
   post(
@@ -74,25 +72,38 @@ export function registerPromptsRoutes(
   ix: IInstantiationService,
 ): void {
   // POST /sessions/{session_id}/prompts ---------------------------------
-  app.post(
-    '/sessions/:session_id/prompts',
+  const submitRoute = defineRoute(
     {
-      preHandler: [
-        validateParams(sessionIdParamSchema),
-        validateBody(promptSubmissionSchema),
-      ],
-      schema: buildRouteSchema({
-        description: 'Submit a prompt to a session',
-        tags: ['prompts'],
-        params: sessionIdParamSchema,
-        body: promptSubmissionSchema,
-        response: { 200: promptSubmitResultSchema },
-      }),
+      method: 'POST',
+      path: '/sessions/{session_id}/prompts',
+      body: promptSubmissionSchema,
+      params: sessionIdParamSchema,
+      success: { data: promptSubmitResultSchema },
+      errors: {
+        [ErrorCode.VALIDATION_FAILED]: {
+          detailsSchema: z.array(
+            z.object({ path: z.string(), message: z.string() }),
+          ),
+        },
+        [ErrorCode.AUTH_PROVISIONING_REQUIRED]: {},
+        [ErrorCode.AUTH_TOKEN_MISSING]: { detailsSchema: z.object({ provider_id: z.string() }) },
+        [ErrorCode.AUTH_TOKEN_UNAUTHORIZED]: { detailsSchema: z.object({ provider_id: z.string() }) },
+        [ErrorCode.AUTH_MODEL_NOT_RESOLVED]: {
+          detailsSchema: z
+            .object({ model_id: z.string(), provider_id: z.string() })
+            .partial(),
+        },
+        [ErrorCode.SESSION_NOT_FOUND]: {},
+        [ErrorCode.SESSION_BUSY]: { detailsSchema: z.object({ active_prompt_id: z.string() }) },
+        [ErrorCode.PROMPT_ALREADY_COMPLETED]: { dataSchema: z.object({ aborted: z.literal(false) }) },
+      },
+      description: 'Submit a prompt to a session',
+      tags: ['prompts'],
     },
     async (req, reply) => {
       try {
-        const { session_id } = req.params as { session_id: string };
-        const body = req.body as PromptSubmission;
+        const { session_id } = req.params;
+        const body = req.body;
         const result = await ix.invokeFunction((a) =>
           a.get(IPromptService).submit(session_id, body),
         );
@@ -103,22 +114,34 @@ export function registerPromptsRoutes(
     },
   );
 
+  // Cast handler back to the loose shape PromptRouteHost expects so the
+  // structural type lines up (TypeScript function params are contravariant).
+  app.post(
+    submitRoute.path,
+    submitRoute.options,
+    submitRoute.handler as Parameters<PromptRouteHost['post']>[2],
+  );
+
   // POST /sessions/{session_id}/prompts/{prompt_id}:abort ---------------
   // Fastify's path syntax doesn't allow a literal `:abort` suffix on a
   // colon-prefixed param (`:prompt_id:abort` parses ambiguously). REST.md
   // §3.5 specifies the action-suffix syntax `{prompt_id}:abort`. We register
   // the route by capturing the tail segment (`:tail`) and verifying it ends
   // with `:abort` via the shared `parseActionSuffix` helper.
-  app.post(
-    '/sessions/:session_id/prompts/:tail',
+  const abortRoute = defineRoute(
     {
-      preHandler: [],
-      schema: buildRouteSchema({
-        description: 'Abort a running prompt',
-        tags: ['prompts'],
-        operationId: 'abortPrompt',
-        response: { 200: promptAbortResponseSchema },
-      }),
+      method: 'POST',
+      path: '/sessions/{session_id}/prompts/{tail}',
+      success: { data: promptAbortResponseSchema },
+      errors: {
+        [ErrorCode.VALIDATION_FAILED]: {},
+        [ErrorCode.SESSION_NOT_FOUND]: {},
+        [ErrorCode.PROMPT_NOT_FOUND]: {},
+        [ErrorCode.PROMPT_ALREADY_COMPLETED]: { dataSchema: z.object({ aborted: z.literal(false) }) },
+      },
+      description: 'Abort a running prompt',
+      tags: ['prompts'],
+      operationId: 'abortPrompt',
     },
     async (req, reply) => {
       try {
@@ -163,6 +186,12 @@ export function registerPromptsRoutes(
         sendMappedError(reply, req.id, err);
       }
     },
+  );
+
+  app.post(
+    abortRoute.path,
+    abortRoute.options,
+    abortRoute.handler as Parameters<PromptRouteHost['post']>[2],
   );
 }
 

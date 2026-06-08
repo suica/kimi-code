@@ -28,8 +28,6 @@ import {
   approvalResolveRequestSchema,
   approvalResolveResultSchema,
   ErrorCode,
-  type ApprovalResolveRequest,
-  type ApprovalResolveResult,
 } from '@moonshot-ai/protocol';
 import {
   IApprovalService,
@@ -39,9 +37,8 @@ import { z } from 'zod';
 
 import type { IInstantiationService } from '@moonshot-ai/agent-core';
 
-import { errEnvelope, okEnvelope } from '../envelope.js';
-import { buildRouteSchema } from '../middleware/schema.js';
-import { validateBody, validateParams } from '../middleware/validate.js';
+import { errEnvelope, okEnvelope } from '../envelope';
+import { defineRoute } from '../middleware/defineRoute';
 import {
   ApprovalService,
 } from '#/services/approval';
@@ -66,25 +63,20 @@ export function registerApprovalsRoutes(
   app: ApprovalRouteHost,
   ix: IInstantiationService,
 ): void {
-  app.post(
-    '/sessions/:session_id/approvals/:approval_id',
+  const route = defineRoute(
     {
-      preHandler: [
-        validateParams(approvalParamsSchema),
-        validateBody(approvalResolveRequestSchema),
-      ],
-      schema: buildRouteSchema({
-        description: 'Resolve an approval request',
-        tags: ['approvals'],
-        params: approvalParamsSchema,
-        body: approvalResolveRequestSchema,
-        response: { 200: approvalResolveResultSchema },
-      }),
+      method: 'POST',
+      path: '/sessions/{session_id}/approvals/{approval_id}',
+      params: approvalParamsSchema,
+      body: approvalResolveRequestSchema,
+      success: { data: approvalResolveResultSchema },
+      description: 'Resolve an approval request',
+      tags: ['approvals'],
     },
     async (req, reply) => {
       try {
-        const { approval_id } = req.params as { session_id: string; approval_id: string };
-        const body = req.body as ApprovalResolveRequest;
+        const { approval_id } = req.params;
+        const body = req.body;
 
         // Pre-check pending state. Two failure modes:
         //   - never-existed → 40404 (approval.not_found)
@@ -131,7 +123,7 @@ export function registerApprovalsRoutes(
         // Mark for short-window idempotency.
         broker.markResolved(approval_id);
 
-        const result: ApprovalResolveResult = {
+        const result = {
           resolved: true,
           resolved_at: new Date().toISOString(),
         };
@@ -141,5 +133,11 @@ export function registerApprovalsRoutes(
         throw err;
       }
     },
+  );
+
+  app.post(
+    route.path,
+    route.options,
+    route.handler as Parameters<ApprovalRouteHost['post']>[2],
   );
 }

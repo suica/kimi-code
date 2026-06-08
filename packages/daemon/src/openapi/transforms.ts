@@ -24,7 +24,7 @@ import { z } from 'zod';
 import {
   openApiDocumentEnvelopeJsonSchema,
   openApiDocumentJsonSchema,
-} from '../middleware/schema.js';
+} from '../middleware/schema';
 
 const binarySchema = {
   type: 'string',

@@ -9,8 +9,8 @@ import { Disposable } from '@moonshot-ai/agent-core';
 import type { FsGitStatusRequest, FsGitStatusResponse } from '@moonshot-ai/protocol';
 import { ISessionService, SessionNotFoundError } from '@moonshot-ai/services';
 
-import { IFsGitService, FsGitUnavailableError, parsePorcelain } from './fsGit.js';
-import { FsPathEscapesError, resolveSafePath } from './fsPathSafety.js';
+import { IFsGitService, FsGitUnavailableError, parsePorcelain } from './fsGit';
+import { FsPathEscapesError, resolveSafePath } from './fsPathSafety';
 
 export class FsGitService extends Disposable implements IFsGitService {
   readonly _serviceBrand: undefined;

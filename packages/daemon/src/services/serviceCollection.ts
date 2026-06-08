@@ -68,7 +68,7 @@ import {
 import type { Logger as PinoLogger } from 'pino';
 
 import type { FastifyLike } from '#/services/gateway/restGateway';
-import type { DaemonStartOptions } from '../start.js';
+import type { DaemonStartOptions } from '../start';
 
 import { ApprovalService } from '#/services/approval/approvalService';
 import { IConnectionRegistry } from '#/services/gateway/connectionRegistry';

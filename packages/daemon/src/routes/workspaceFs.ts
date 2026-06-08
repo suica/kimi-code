@@ -25,14 +25,12 @@ import {
   fsBrowseQuerySchema,
   fsBrowseResponseSchema,
   fsHomeResponseSchema,
-  type FsBrowseQuery,
 } from '@moonshot-ai/protocol';
 
 import type { IInstantiationService } from '@moonshot-ai/agent-core';
 
-import { errEnvelope, okEnvelope } from '../envelope.js';
-import { buildRouteSchema } from '../middleware/schema.js';
-import { validateQuery } from '../middleware/validate.js';
+import { errEnvelope, okEnvelope } from '../envelope';
+import { defineRoute } from '../middleware/defineRoute';
 import {
   IWorkspaceFsService,
   WorkspaceFsNotAbsoluteError,
@@ -57,21 +55,19 @@ export function registerWorkspaceFsRoutes(
 ): void {
   // GET /fs:browse  → registered as the static literal `/fs::browse`
   // because find-my-way's `::` escape collapses to a literal `:`.
-  app.get(
-    '/fs::browse',
+  const browseRoute = defineRoute(
     {
-      preHandler: [validateQuery(fsBrowseQuerySchema)],
-      schema: buildRouteSchema({
-        description: 'Browse local directories (daemon folder picker backend)',
-        tags: ['workspaces'],
-        operationId: 'fsBrowse',
-        querystring: fsBrowseQuerySchema,
-        response: { 200: fsBrowseResponseSchema },
-      }),
+      method: 'GET',
+      path: '/fs::browse',
+      querystring: fsBrowseQuerySchema,
+      success: { data: fsBrowseResponseSchema },
+      description: 'Browse local directories (daemon folder picker backend)',
+      tags: ['workspaces'],
+      operationId: 'fsBrowse',
     },
     async (req, reply) => {
       try {
-        const query = req.query as FsBrowseQuery;
+        const query = req.query;
         const data = await ix.invokeFunction((a) =>
           a.get(IWorkspaceFsService).browse(query.path),
         );
@@ -81,18 +77,17 @@ export function registerWorkspaceFsRoutes(
       }
     },
   );
+  app.get(browseRoute.path, browseRoute.options, browseRoute.handler as Parameters<WorkspaceFsRouteHost['get']>[2]);
 
   // GET /fs:home  → registered as the static literal `/fs::home`.
-  app.get(
-    '/fs::home',
+  const homeRoute = defineRoute(
     {
-      preHandler: [],
-      schema: buildRouteSchema({
-        description: 'Folder picker landing payload: $HOME + recent workspace roots',
-        tags: ['workspaces'],
-        operationId: 'fsHome',
-        response: { 200: fsHomeResponseSchema },
-      }),
+      method: 'GET',
+      path: '/fs::home',
+      success: { data: fsHomeResponseSchema },
+      description: 'Folder picker landing payload: $HOME + recent workspace roots',
+      tags: ['workspaces'],
+      operationId: 'fsHome',
     },
     async (req, reply) => {
       try {
@@ -103,6 +98,7 @@ export function registerWorkspaceFsRoutes(
       }
     },
   );
+  app.get(homeRoute.path, homeRoute.options, homeRoute.handler as Parameters<WorkspaceFsRouteHost['get']>[2]);
 }
 
 function sendMappedError(

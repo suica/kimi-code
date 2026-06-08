@@ -14,7 +14,7 @@
 
 import { Disposable, createDecorator } from '@moonshot-ai/agent-core';
 
-import type { DaemonLogger } from '../logger.js';
+import type { DaemonLogger } from '../logger';
 
 export interface ILogService {
   readonly _serviceBrand: undefined;

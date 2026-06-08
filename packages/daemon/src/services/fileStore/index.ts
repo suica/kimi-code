@@ -5,5 +5,5 @@ export {
   FileTooLargeError,
   type SaveOptions,
   type GetResult,
-} from './fileStore.js';
-export { FileStore } from './fileStoreService.js';
+} from './fileStore';
+export { FileStore } from './fileStoreService';

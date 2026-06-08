@@ -45,9 +45,8 @@ import { z } from 'zod';
 
 import type { IInstantiationService } from '@moonshot-ai/agent-core';
 
-import { errEnvelope, okEnvelope } from '../envelope.js';
-import { buildRouteSchema } from '../middleware/schema.js';
-import { validateParams } from '../middleware/validate.js';
+import { errEnvelope, okEnvelope } from '../envelope';
+import { defineRoute } from '../middleware/defineRoute';
 import {
   DEFAULT_MAX_UPLOAD_BYTES,
   FileNotFoundError,
@@ -137,113 +136,122 @@ export function registerFilesRoutes(
   // `multipart/form-data` with required `file` field + optional `name`
   // / `expires_in_sec` fields. We stream the `file` directly into
   // `IFileStore.save` (no in-memory buffering).
-  app.post('/files', {
-    schema: buildRouteSchema({
+  const uploadRoute = defineRoute(
+    {
+      method: 'POST',
+      path: '/files',
+      success: { data: uploadFileResponseSchema },
+      consumes: ['multipart/form-data'],
       description: 'Upload a file',
       tags: ['files'],
-      consumes: ['multipart/form-data'],
-      response: { 200: uploadFileResponseSchema },
-    }),
-  }, async (req, reply) => {
-    try {
-      if (!req.file) {
-        reply.send(
-          errEnvelope(
-            ErrorCode.VALIDATION_FAILED,
-            'multipart not initialized',
-            req.id,
-          ),
-        );
-        return;
-      }
-      const part = await req.file();
-      if (!part) {
-        reply.send(
-          errEnvelope(
-            ErrorCode.VALIDATION_FAILED,
-            'missing `file` field',
-            req.id,
-          ),
-        );
-        return;
-      }
-
-      // Extract the optional `name` / `expires_in_sec` overrides from
-      // sibling field parts. `fields` is populated by busboy as parts
-      // arrive — the order matters: the field MUST appear BEFORE the
-      // file in the multipart body for `fields` to be set at this
-      // point. Browsers / `form-data` libs do this naturally.
-      const nameOverride = readFieldString(part.fields['name']);
-      const expiresInSec = readFieldNumber(part.fields['expires_in_sec']);
-
-      const store = ix.invokeFunction((a) => a.get(IFileStore));
-      // `@fastify/multipart`'s busboy underlay flips `part.file.truncated`
-      // when the `fileSize` limit trips DURING streaming (it does not
-      // throw — the stream just ends early). The IFileStore.save call
-      // below also tracks bytes for defense in depth, but on the
-      // boundary case where the bytes go through clean and only THEN
-      // busboy reports truncation, we re-check `truncated` after the
-      // save completes and rewind by deleting the (now-too-small) blob.
-      const partFile = part.file as NodeJS.ReadableStream & { truncated?: boolean };
-      let busboyTruncated = false;
-      partFile.on('limit', () => {
-        busboyTruncated = true;
-      });
+    },
+    async (req, reply) => {
       try {
-        const meta = await store.save(
-          partFile as unknown as import('node:stream').Readable,
-          part.filename,
-          {
-            name: nameOverride ?? part.filename,
-            mimeType: part.mimetype,
-            ...(expiresInSec !== undefined ? { expiresInSec } : {}),
-          },
-        );
-        if (busboyTruncated || partFile.truncated === true) {
-          // Roll back the partial-on-disk blob; surface 41301.
-          try {
-            await store.delete(meta.id);
-          } catch {
-            /* ignore */
-          }
-          sendMappedError(
-            reply,
-            req.id,
-            new FileTooLargeError(meta.size + 1, DEFAULT_MAX_UPLOAD_BYTES),
+        const fastifyReq = req as unknown as FastifyRequestLike;
+        if (!fastifyReq.file) {
+          reply.send(
+            errEnvelope(
+              ErrorCode.VALIDATION_FAILED,
+              'multipart not initialized',
+              req.id,
+            ),
           );
           return;
         }
-        reply.send(okEnvelope(meta, req.id));
+        const part = await fastifyReq.file();
+        if (!part) {
+          reply.send(
+            errEnvelope(
+              ErrorCode.VALIDATION_FAILED,
+              'missing `file` field',
+              req.id,
+            ),
+          );
+          return;
+        }
+
+        // Extract the optional `name` / `expires_in_sec` overrides from
+        // sibling field parts. `fields` is populated by busboy as parts
+        // arrive — the order matters: the field MUST appear BEFORE the
+        // file in the multipart body for `fields` to be set at this
+        // point. Browsers / `form-data` libs do this naturally.
+        const nameOverride = readFieldString(part.fields['name']);
+        const expiresInSec = readFieldNumber(part.fields['expires_in_sec']);
+
+        const store = ix.invokeFunction((a) => a.get(IFileStore));
+        // `@fastify/multipart`'s busboy underlay flips `part.file.truncated`
+        // when the `fileSize` limit trips DURING streaming (it does not
+        // throw — the stream just ends early). The IFileStore.save call
+        // below also tracks bytes for defense in depth, but on the
+        // boundary case where the bytes go through clean and only THEN
+        // busboy reports truncation, we re-check `truncated` after the
+        // save completes and rewind by deleting the (now-too-small) blob.
+        const partFile = part.file as NodeJS.ReadableStream & { truncated?: boolean };
+        let busboyTruncated = false;
+        partFile.on('limit', () => {
+          busboyTruncated = true;
+        });
+        try {
+          const meta = await store.save(
+            partFile as unknown as import('node:stream').Readable,
+            part.filename,
+            {
+              name: nameOverride ?? part.filename,
+              mimeType: part.mimetype,
+              ...(expiresInSec !== undefined ? { expiresInSec } : {}),
+            },
+          );
+          if (busboyTruncated || partFile.truncated === true) {
+            // Roll back the partial-on-disk blob; surface 41301.
+            try {
+              await store.delete(meta.id);
+            } catch {
+              /* ignore */
+            }
+            sendMappedError(
+              reply as unknown as FilesReply,
+              req.id,
+              new FileTooLargeError(meta.size + 1, DEFAULT_MAX_UPLOAD_BYTES),
+            );
+            return;
+          }
+          reply.send(okEnvelope(meta, req.id));
+        } catch (err) {
+          sendMappedError(reply as unknown as FilesReply, req.id, err);
+        }
       } catch (err) {
-        sendMappedError(reply, req.id, err);
+        sendMappedError(reply as unknown as FilesReply, req.id, err);
       }
-    } catch (err) {
-      sendMappedError(reply, req.id, err);
-    }
-  });
+    },
+  );
+  app.post(uploadRoute.path, uploadRoute.options, uploadRoute.handler as unknown as Parameters<FilesRouteHost['post']>[2]);
 
   // GET /files/{file_id} -------------------------------------------
   //
   // Architectural exception: the ONLY endpoint that does not use the
   // envelope on success (REST.md §3.10 line 691). 404 still returns a
   // JSON envelope; clients distinguish by `Content-Type`.
-  app.get(
-    '/files/:file_id',
+  const downloadRoute = defineRoute(
     {
-      preHandler: [validateParams(getFileParamSchema)],
-      schema: buildRouteSchema({
-        description: 'Download a file by ID',
-        tags: ['files'],
-        params: getFileParamSchema,
-      }),
+      method: 'GET',
+      path: '/files/{file_id}',
+      params: getFileParamSchema,
+      rawResponse: {
+        200: { type: 'string', format: 'binary' },
+      },
+      errors: {
+        [ErrorCode.FILE_NOT_FOUND]: {},
+      },
+      description: 'Download a file by ID',
+      tags: ['files'],
     },
     async (req, reply) => {
       try {
-        const { file_id } = req.params as { file_id: string };
+        const { file_id } = req.params;
         const store = ix.invokeFunction((a) => a.get(IFileStore));
         const { meta, blobPath } = await store.get(file_id);
-        reply
-          .type(meta.media_type)
+        const r = reply as unknown as FilesReply;
+        r.type(meta.media_type)
           .header(
             'content-disposition',
             buildContentDisposition(meta.name),
@@ -256,37 +264,37 @@ export function registerFilesRoutes(
         // CRITICAL: `return reply.send(stream)` so Fastify's
         // async-return discipline ties the response lifecycle to the
         // pipeline (mirrors `routes/fs.ts:368`).
-        return reply.send(createReadStream(blobPath));
+        return r.send(createReadStream(blobPath)) as unknown as void;
       } catch (err) {
-        sendMappedError(reply, req.id, err);
+        sendMappedError(reply as unknown as FilesReply, req.id, err);
         return;
       }
     },
   );
+  app.get(downloadRoute.path, downloadRoute.options, downloadRoute.handler as unknown as Parameters<FilesRouteHost['get']>[2]);
 
   // DELETE /files/{file_id} ----------------------------------------
-  app.delete(
-    '/files/:file_id',
+  const deleteRoute = defineRoute(
     {
-      preHandler: [validateParams(deleteFileParamSchema)],
-      schema: buildRouteSchema({
-        description: 'Delete a file by ID',
-        tags: ['files'],
-        params: deleteFileParamSchema,
-        response: { 200: deleteFileResponseSchema },
-      }),
+      method: 'DELETE',
+      path: '/files/{file_id}',
+      params: deleteFileParamSchema,
+      success: { data: deleteFileResponseSchema },
+      description: 'Delete a file by ID',
+      tags: ['files'],
     },
     async (req, reply) => {
       try {
-        const { file_id } = req.params as { file_id: string };
+        const { file_id } = req.params;
         const store = ix.invokeFunction((a) => a.get(IFileStore));
         await store.delete(file_id);
         reply.send(okEnvelope({ deleted: true as const }, req.id));
       } catch (err) {
-        sendMappedError(reply, req.id, err);
+        sendMappedError(reply as unknown as FilesReply, req.id, err);
       }
     },
   );
+  app.delete(deleteRoute.path, deleteRoute.options, deleteRoute.handler as unknown as Parameters<FilesRouteHost['delete']>[2]);
 }
 
 /* -------------------------------------------------------------------------

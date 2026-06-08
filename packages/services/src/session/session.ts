@@ -93,9 +93,10 @@ export interface ISessionService {
   get(id: string): Promise<Session>;
 
   /**
-   * `PATCH /v1/sessions/{id}` — partial update. Backed by
-   * `updateSessionMetadata` for metadata changes; `title` writes through the
-   * same path (mapped onto agent-core's `SessionMeta.title`).
+   * `POST /v1/sessions/{id}/meta` — update session mutable properties.
+   * Backed by `updateSessionMetadata` for metadata changes; `title` writes
+   * through the same path (mapped onto agent-core's `SessionMeta.title`).
+   * `agent_config.model` is dispatched to `core.rpc.setModel` when present.
    * Returns the post-update Session.
    */
   update(id: string, input: SessionUpdate): Promise<Session>;

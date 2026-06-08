@@ -11,6 +11,7 @@ import {
   createSessionRequestSchema,
   deleteSessionResponseSchema,
   listSessionsQuerySchema,
+  updateSessionMetaRequestSchema,
   updateSessionRequestSchema,
 } from '../rest/session';
 
@@ -79,15 +80,30 @@ describe('listSessionsQuerySchema', () => {
   });
 });
 
-describe('updateSessionRequestSchema', () => {
+describe('updateSessionMetaRequestSchema', () => {
   it('accepts a metadata patch (without cwd)', () => {
     expect(
-      updateSessionRequestSchema.parse({ metadata: { custom_field: 'x' } }),
+      updateSessionMetaRequestSchema.parse({ metadata: { custom_field: 'x' } }),
     ).toEqual({ metadata: { custom_field: 'x' } });
   });
 
-  it('accepts an empty PATCH body (no-op)', () => {
-    expect(updateSessionRequestSchema.parse({})).toEqual({});
+  it('accepts an empty POST body (no-op)', () => {
+    expect(updateSessionMetaRequestSchema.parse({})).toEqual({});
+  });
+
+  it('accepts agent_config.model', () => {
+    const parsed = updateSessionMetaRequestSchema.parse({
+      agent_config: { model: 'moonshot-v1-128k' },
+    });
+    expect(parsed.agent_config?.model).toBe('moonshot-v1-128k');
+  });
+});
+
+describe('updateSessionRequestSchema (legacy alias)', () => {
+  it('round-trips through the same schema as updateSessionMetaRequestSchema', () => {
+    expect(updateSessionRequestSchema.parse({ metadata: { custom_field: 'x' } })).toEqual(
+      updateSessionMetaRequestSchema.parse({ metadata: { custom_field: 'x' } }),
+    );
   });
 });
 

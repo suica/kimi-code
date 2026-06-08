@@ -32,8 +32,8 @@ import { z } from 'zod';
 
 import type { IInstantiationService } from '@moonshot-ai/agent-core';
 
-import { okEnvelope } from '../envelope.js';
-import { validateParams } from '../middleware/validate.js';
+import { okEnvelope } from '../envelope';
+import { defineRoute } from '../middleware/defineRoute';
 
 interface DebugRouteHost {
   get(
@@ -56,13 +56,15 @@ export function registerDebugRoutes(
   app: DebugRouteHost,
   ix: IInstantiationService,
 ): void {
-  app.get(
-    '/debug/prompts/:session_id/state',
+  // GET /debug/prompts/{session_id}/state --------------------------------
+  const debugPromptStateRoute = defineRoute(
     {
-      preHandler: [validateParams(sessionIdParamSchema)],
+      method: 'GET',
+      path: '/debug/prompts/{session_id}/state',
+      params: sessionIdParamSchema,
     },
     async (req, reply) => {
-      const { session_id: sid } = req.params as { session_id: string };
+      const { session_id: sid } = req.params;
       const prompts = ix.invokeFunction((a) => a.get(IPromptService)) as PromptService;
       // `_agentStateForTest` returns `undefined` before the first submit.
       // Surface that as JSON `null` so the wire shape stays explicit.
@@ -70,17 +72,29 @@ export function registerDebugRoutes(
       reply.send(okEnvelope(snap, req.id));
     },
   );
-
   app.get(
-    '/debug/prompts/:session_id/dispatch-log',
+    debugPromptStateRoute.path,
+    debugPromptStateRoute.options,
+    debugPromptStateRoute.handler as Parameters<DebugRouteHost['get']>[2],
+  );
+
+  // GET /debug/prompts/{session_id}/dispatch-log -------------------------
+  const debugPromptDispatchLogRoute = defineRoute(
     {
-      preHandler: [validateParams(sessionIdParamSchema)],
+      method: 'GET',
+      path: '/debug/prompts/{session_id}/dispatch-log',
+      params: sessionIdParamSchema,
     },
     async (req, reply) => {
-      const { session_id: sid } = req.params as { session_id: string };
+      const { session_id: sid } = req.params;
       const prompts = ix.invokeFunction((a) => a.get(IPromptService)) as PromptService;
       const entries = prompts._dispatchLogForTest(sid) ?? [];
       reply.send(okEnvelope({ entries }, req.id));
     },
+  );
+  app.get(
+    debugPromptDispatchLogRoute.path,
+    debugPromptDispatchLogRoute.options,
+    debugPromptDispatchLogRoute.handler as Parameters<DebugRouteHost['get']>[2],
   );
 }

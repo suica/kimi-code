@@ -5,7 +5,7 @@
 import { Disposable } from '@moonshot-ai/agent-core';
 
 import type { WsConnection } from '#/ws/connection';
-import { IConnectionRegistry } from './connectionRegistry.js';
+import { IConnectionRegistry } from './connectionRegistry';
 
 export class ConnectionRegistry extends Disposable implements IConnectionRegistry {
   readonly _serviceBrand: undefined;

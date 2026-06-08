@@ -104,7 +104,7 @@ import ignore, { type Ignore } from 'ignore';
 import {
   FsPathEscapesError,
   resolveSafePath,
-} from './fsPathSafety.js';
+} from './fsPathSafety';
 
 // ---------------------------------------------------------------------------
 // Error sentinels (mapped 1:1 to envelope codes in routes/fs.ts)

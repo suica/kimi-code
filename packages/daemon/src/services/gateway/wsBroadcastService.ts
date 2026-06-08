@@ -29,12 +29,12 @@ import type { Event } from '@moonshot-ai/protocol';
 import { IEventService } from '@moonshot-ai/services';
 
 import { ILogService } from '#/services/logger';
-import { ISessionClientsService } from './sessionClients.js';
+import { ISessionClientsService } from './sessionClients';
 import {
   DEFAULT_MAX_BUFFER_SIZE,
   IWSBroadcastService,
   type BufferedSinceResult,
-} from './wsBroadcast.js';
+} from './wsBroadcast';
 
 import { buildEventEnvelope, type EventEnvelope } from '#/ws/protocol';
 

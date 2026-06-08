@@ -79,7 +79,7 @@ import { ILogService } from '#/services/logger';
 import {
   FsPathEscapesError,
   resolveSafePath,
-} from './fsPathSafety.js';
+} from './fsPathSafety';
 
 // ---------------------------------------------------------------------------
 // Error sentinels

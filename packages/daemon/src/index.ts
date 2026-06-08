@@ -1,11 +1,11 @@
-export { startDaemon, DaemonLockedError } from './start.js';
-export type { DaemonStartOptions, RunningDaemon } from './start.js';
-export { okEnvelope, errEnvelope } from './envelope.js';
-export type { Envelope } from './envelope.js';
-export { createDaemonLogger } from './logger.js';
-export type { CreateLoggerOptions, DaemonLogger, DaemonLogLevel } from './logger.js';
-export { acquireLock, DEFAULT_LOCK_PATH, DEFAULT_LOCK_DIR } from './lock.js';
-export type { AcquireLockOptions, AcquireLockResult, LockContents } from './lock.js';
+export { startDaemon, DaemonLockedError } from './start';
+export type { DaemonStartOptions, RunningDaemon } from './start';
+export { okEnvelope, errEnvelope } from './envelope';
+export type { Envelope } from './envelope';
+export { createDaemonLogger } from './logger';
+export type { CreateLoggerOptions, DaemonLogger, DaemonLogLevel } from './logger';
+export { acquireLock, DEFAULT_LOCK_PATH, DEFAULT_LOCK_DIR } from './lock';
+export type { AcquireLockOptions, AcquireLockResult, LockContents } from './lock';
 
 // DI service decorators — re-exported so consumers / tests can `a.get(ILogService)` etc.
 // The concrete impls (PinoLogger, FastifyRestGateway, WSBroadcastService,

@@ -6,19 +6,19 @@ export {
   FsTooLargeError,
   FsTooManyResultsError,
   type FsDownloadResolved,
-} from './fs.js';
-export { FsService } from './fsService.js';
+} from './fs';
+export { FsService } from './fsService';
 export {
   IFsSearchService,
   FsGrepTimeoutError,
-} from './fsSearch.js';
-export { FsSearchService } from './fsSearchService.js';
+} from './fsSearch';
+export { FsSearchService } from './fsSearchService';
 export {
   IFsGitService,
   FsGitUnavailableError,
   parsePorcelain,
-} from './fsGit.js';
-export { FsGitService } from './fsGitService.js';
+} from './fsGit';
+export { FsGitService } from './fsGitService';
 export {
   IFsWatcher,
   FsWatchLimitError,
@@ -27,10 +27,10 @@ export {
   type FsWatcherConnectionLookup,
   type FsWatcherServiceOptions,
   createConnectionLookup,
-} from './fsWatcher.js';
-export { FsWatcherService } from './fsWatcherService.js';
+} from './fsWatcher';
+export { FsWatcherService } from './fsWatcherService';
 export {
   FsPathEscapesError,
   resolveSafePath,
   type PathSafetyResult,
-} from './fsPathSafety.js';
+} from './fsPathSafety';

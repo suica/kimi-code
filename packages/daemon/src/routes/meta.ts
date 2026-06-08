@@ -21,8 +21,8 @@
 
 import { metaResponseSchema } from '@moonshot-ai/protocol';
 
-import { okEnvelope } from '../envelope.js';
-import { buildRouteSchema } from '../middleware/schema.js';
+import { okEnvelope } from '../envelope';
+import { defineRoute } from '../middleware/defineRoute';
 import type { MetaResponse } from '@moonshot-ai/protocol';
 
 /**
@@ -68,17 +68,17 @@ export function registerMetaRoute(app: RouteHost, opts: MetaRouteOptions): void 
     started_at: opts.startedAt,
   });
 
-  app.get(
-    '/meta',
+  const route = defineRoute(
     {
-      schema: buildRouteSchema({
-        description: 'Get daemon metadata',
-        tags: ['meta'],
-        response: { 200: metaResponseSchema },
-      }),
+      method: 'GET',
+      path: '/meta',
+      success: { data: metaResponseSchema },
+      description: 'Get daemon metadata',
+      tags: ['meta'],
     },
     async (req, reply) => {
       reply.send(okEnvelope(data, req.id));
     },
   );
+  app.get(route.path, route.options, route.handler as Parameters<RouteHost['get']>[2]);
 }

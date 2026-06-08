@@ -32,8 +32,6 @@ import {
   ErrorCode,
   questionResolveRequestSchema,
   questionResolveResultSchema,
-  type QuestionResolveRequest,
-  type QuestionResolveResult,
 } from '@moonshot-ai/protocol';
 import {
   IQuestionService,
@@ -43,10 +41,9 @@ import { z } from 'zod';
 
 import type { IInstantiationService } from '@moonshot-ai/agent-core';
 
-import { errEnvelope, okEnvelope } from '../envelope.js';
-import { buildRouteSchema } from '../middleware/schema.js';
-import { validateParams } from '../middleware/validate.js';
-import { parseActionSuffix } from './action-suffix.js';
+import { errEnvelope, okEnvelope } from '../envelope';
+import { defineRoute } from '../middleware/defineRoute';
+import { parseActionSuffix } from './action-suffix';
 import { QuestionService } from '#/services/question';
 
 interface QuestionRouteHost {
@@ -69,22 +66,32 @@ export function registerQuestionsRoutes(
   app: QuestionRouteHost,
   ix: IInstantiationService,
 ): void {
-  // Single route capturing both the resolve and dismiss paths via `:tail`.
-  app.post(
-    '/sessions/:session_id/questions/:tail',
+  const route = defineRoute(
     {
-      preHandler: [validateParams(tailParamsSchema)],
-      schema: buildRouteSchema({
-        description: 'Resolve or dismiss a question',
-        tags: ['questions'],
-        operationId: 'resolveOrDismissQuestion',
-        params: tailParamsSchema,
-        body: questionResolveRequestSchema,
-        response: { 200: questionResolveResultSchema },
-      }),
+      method: 'POST',
+      path: '/sessions/{session_id}/questions/{tail}',
+      params: tailParamsSchema,
+      success: { data: questionResolveResultSchema },
+      errors: {
+        [ErrorCode.VALIDATION_FAILED]: {
+          detailsSchema: z.array(
+            z.object({ path: z.string(), message: z.string() }),
+          ),
+        },
+        [ErrorCode.QUESTION_NOT_FOUND]: {},
+        [ErrorCode.APPROVAL_ALREADY_RESOLVED]: { dataSchema: z.object({ resolved: z.literal(false) }) },
+        [ErrorCode.QUESTION_DISMISSED]: {
+          dataSchema: z.object({
+            dismissed: z.boolean(),
+            dismissed_at: z.string(),
+          }),
+        },
+      },
+      description: 'Resolve or dismiss a question',
+      tags: ['questions'],
     },
     async (req, reply) => {
-      const { tail } = req.params as { session_id: string; tail: string };
+      const { tail } = req.params;
       const parsed = parseActionSuffix({
         tail,
         allowedActions: ['dismiss'] as const,
@@ -157,11 +164,12 @@ export function registerQuestionsRoutes(
           message: issue.message,
         }));
         const first = details[0];
-        const msg = first === undefined
-          ? 'validation failed'
-          : first.path === ''
-            ? first.message
-            : `${first.path}: ${first.message}`;
+        const msg =
+          first === undefined
+            ? 'validation failed'
+            : first.path === ''
+              ? first.message
+              : `${first.path}: ${first.message}`;
         reply.send({
           code: ErrorCode.VALIDATION_FAILED,
           msg,
@@ -172,16 +180,22 @@ export function registerQuestionsRoutes(
         return;
       }
 
-      const body = bodyParse.data as QuestionResolveRequest;
+      const body = bodyParse.data;
       const inProc = questionToAgentCoreResponse(body);
       broker.resolve(questionId, inProc);
       broker.markResolved(questionId);
 
-      const result: QuestionResolveResult = {
+      const result = {
         resolved: true,
         resolved_at: new Date().toISOString(),
       };
       reply.send(okEnvelope(result, req.id));
     },
+  );
+
+  app.post(
+    route.path,
+    route.options,
+    route.handler as Parameters<QuestionRouteHost['post']>[2],
   );
 }

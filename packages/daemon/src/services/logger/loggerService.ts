@@ -4,8 +4,8 @@
 
 import { Disposable } from '@moonshot-ai/agent-core';
 
-import type { DaemonLogger } from '../logger.js';
-import { ILogService } from './logger.js';
+import type { DaemonLogger } from '../logger';
+import { ILogService } from './logger';
 
 /**
  * Adapter that satisfies `ILogService` by delegating to a `DaemonLogger` (pino).

@@ -8,12 +8,12 @@ import type { Socket } from 'node:net';
 import { Disposable } from '@moonshot-ai/agent-core';
 import { WebSocketServer, type WebSocket } from 'ws';
 
-import { IConnectionRegistry } from './connectionRegistry.js';
+import { IConnectionRegistry } from './connectionRegistry';
 import { ILogService } from '#/services/logger';
-import { IRestGateway } from './restGateway.js';
-import { ISessionClientsService } from './sessionClients.js';
-import { IWSBroadcastService } from './wsBroadcast.js';
-import { IWSGateway, type WSGatewayOptions, WS_PATH } from './wsGateway.js';
+import { IRestGateway } from './restGateway';
+import { ISessionClientsService } from './sessionClients';
+import { IWSBroadcastService } from './wsBroadcast';
+import { IWSGateway, type WSGatewayOptions, WS_PATH } from './wsGateway';
 import { WsConnection, type AbortHandler, type FsWatchHandler } from '#/ws/connection';
 
 export class WSGateway extends Disposable implements IWSGateway {

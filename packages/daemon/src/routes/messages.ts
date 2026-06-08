@@ -29,7 +29,6 @@ import {
   getMessageResponseSchema,
   listMessagesResponseSchema,
   messageRoleSchema,
-  type ListMessagesQuery,
 } from '@moonshot-ai/protocol';
 import {
   IMessageService,
@@ -40,9 +39,8 @@ import { z } from 'zod';
 
 import type { IInstantiationService } from '@moonshot-ai/agent-core';
 
-import { errEnvelope, okEnvelope } from '../envelope.js';
-import { buildRouteSchema } from '../middleware/schema.js';
-import { validateParams, validateQuery } from '../middleware/validate.js';
+import { errEnvelope, okEnvelope } from '../envelope';
+import { defineRoute } from '../middleware/defineRoute';
 
 /**
  * Per-request structural typing — keeps the route module decoupled from the
@@ -102,25 +100,20 @@ export function registerMessagesRoutes(
   ix: IInstantiationService,
 ): void {
   // GET /sessions/{session_id}/messages --------------------------------
-  app.get(
-    '/sessions/:session_id/messages',
+  const listRoute = defineRoute(
     {
-      preHandler: [
-        validateParams(sessionIdParamSchema),
-        validateQuery(messagesListQueryCoercion),
-      ],
-      schema: buildRouteSchema({
-        description: 'List messages for a session',
-        tags: ['messages'],
-        params: sessionIdParamSchema,
-        querystring: messagesListQueryCoercion,
-        response: { 200: listMessagesResponseSchema },
-      }),
+      method: 'GET',
+      path: '/sessions/{session_id}/messages',
+      params: sessionIdParamSchema,
+      querystring: messagesListQueryCoercion,
+      success: { data: listMessagesResponseSchema },
+      description: 'List messages for a session',
+      tags: ['messages'],
     },
     async (req, reply) => {
       try {
-        const { session_id } = req.params as { session_id: string };
-        const query = req.query as ListMessagesQuery;
+        const { session_id } = req.params;
+        const query = req.query;
         const page = await ix.invokeFunction((a) =>
           a.get(IMessageService).list(session_id, query),
         );
@@ -130,25 +123,21 @@ export function registerMessagesRoutes(
       }
     },
   );
+  app.get(listRoute.path, listRoute.options, listRoute.handler as Parameters<MessageRouteHost['get']>[2]);
 
   // GET /sessions/{session_id}/messages/{message_id} -------------------
-  app.get(
-    '/sessions/:session_id/messages/:message_id',
+  const getRoute = defineRoute(
     {
-      preHandler: [validateParams(messageIdParamSchema)],
-      schema: buildRouteSchema({
-        description: 'Get a message by ID',
-        tags: ['messages'],
-        params: messageIdParamSchema,
-        response: { 200: getMessageResponseSchema },
-      }),
+      method: 'GET',
+      path: '/sessions/{session_id}/messages/{message_id}',
+      params: messageIdParamSchema,
+      success: { data: getMessageResponseSchema },
+      description: 'Get a message by ID',
+      tags: ['messages'],
     },
     async (req, reply) => {
       try {
-        const { session_id, message_id } = req.params as {
-          session_id: string;
-          message_id: string;
-        };
+        const { session_id, message_id } = req.params;
         const message = await ix.invokeFunction((a) =>
           a.get(IMessageService).get(session_id, message_id),
         );
@@ -158,6 +147,7 @@ export function registerMessagesRoutes(
       }
     },
   );
+  app.get(getRoute.path, getRoute.options, getRoute.handler as Parameters<MessageRouteHost['get']>[2]);
 }
 
 /**

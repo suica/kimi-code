@@ -20,7 +20,7 @@ import {
   FileNotFoundError,
   FileTooLargeError,
   IFileStore,
-} from './fileStore.js';
+} from './fileStore';
 
 interface IndexFile {
   version: 1;

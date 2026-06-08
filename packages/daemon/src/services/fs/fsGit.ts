@@ -52,7 +52,7 @@ import type {
 import {
   FsPathEscapesError,
   resolveSafePath,
-} from './fsPathSafety.js';
+} from './fsPathSafety';
 
 // ---------------------------------------------------------------------------
 // Error sentinels

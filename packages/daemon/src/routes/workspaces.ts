@@ -32,15 +32,12 @@ import {
   updateWorkspaceRequestSchema,
   updateWorkspaceResponseSchema,
   workspaceIdParamSchema,
-  type CreateWorkspaceRequest,
-  type UpdateWorkspaceRequest,
 } from '@moonshot-ai/protocol';
 
 import type { IInstantiationService } from '@moonshot-ai/agent-core';
 
-import { errEnvelope, okEnvelope } from '../envelope.js';
-import { buildRouteSchema } from '../middleware/schema.js';
-import { validateBody, validateParams } from '../middleware/validate.js';
+import { errEnvelope, okEnvelope } from '../envelope';
+import { defineRoute } from '../middleware/defineRoute';
 import {
   IWorkspaceRegistry,
   WorkspaceNotFoundError,
@@ -86,16 +83,14 @@ export function registerWorkspacesRoutes(
   app: WorkspaceRouteHost,
   ix: IInstantiationService,
 ): void {
-  // GET /workspaces -----------------------------------------------------
-  app.get(
-    '/workspaces',
+  // GET /workspaces --------------------------------------------------------
+  const listRoute = defineRoute(
     {
-      preHandler: [],
-      schema: buildRouteSchema({
-        description: 'List registered workspaces',
-        tags: ['workspaces'],
-        response: { 200: listWorkspacesResponseSchema },
-      }),
+      method: 'GET',
+      path: '/workspaces',
+      success: { data: listWorkspacesResponseSchema },
+      description: 'List registered workspaces',
+      tags: ['workspaces'],
     },
     async (req, reply) => {
       try {
@@ -107,23 +102,56 @@ export function registerWorkspacesRoutes(
     },
   );
 
-  // POST /workspaces ----------------------------------------------------
+  app.get(
+    listRoute.path,
+    listRoute.options,
+    listRoute.handler as Parameters<WorkspaceRouteHost['get']>[2],
+  );
+
+  // POST /workspaces -------------------------------------------------------
+  const createRoute = defineRoute(
+    {
+      method: 'POST',
+      path: '/workspaces',
+      body: createWorkspaceRequestSchema,
+      success: { data: createWorkspaceResponseSchema },
+      description: 'Register a workspace (idempotent on root)',
+      tags: ['workspaces'],
+    },
+    async (req, reply) => {
+      try {
+        const ws = await ix.invokeFunction((a) =>
+          a.get(IWorkspaceRegistry).createOrTouch(req.body.root, req.body.name),
+        );
+        reply.send(okEnvelope(ws, req.id));
+      } catch (err) {
+        sendMappedError(reply, req.id, err);
+      }
+    },
+  );
+
   app.post(
-    '/workspaces',
+    createRoute.path,
+    createRoute.options,
+    createRoute.handler as Parameters<WorkspaceRouteHost['post']>[2],
+  );
+
+  // PATCH /workspaces/{workspace_id} ---------------------------------------
+  const updateRoute = defineRoute(
     {
-      preHandler: [validateBody(createWorkspaceRequestSchema)],
-      schema: buildRouteSchema({
-        description: 'Register a workspace (idempotent on root)',
-        tags: ['workspaces'],
-        body: createWorkspaceRequestSchema,
-        response: { 200: createWorkspaceResponseSchema },
-      }),
+      method: 'PATCH',
+      path: '/workspaces/{workspace_id}',
+      params: workspaceIdParamSchema,
+      body: updateWorkspaceRequestSchema,
+      success: { data: updateWorkspaceResponseSchema },
+      description: 'Rename a workspace (display name only)',
+      tags: ['workspaces'],
     },
     async (req, reply) => {
       try {
-        const body = req.body as CreateWorkspaceRequest;
+        const { workspace_id } = req.params;
         const ws = await ix.invokeFunction((a) =>
-          a.get(IWorkspaceRegistry).createOrTouch(body.root, body.name),
+          a.get(IWorkspaceRegistry).update(workspace_id, { name: req.body.name }),
         );
         reply.send(okEnvelope(ws, req.id));
       } catch (err) {
@@ -132,57 +160,37 @@ export function registerWorkspacesRoutes(
     },
   );
 
-  // PATCH /workspaces/{workspace_id} ------------------------------------
   app.patch(
-    '/workspaces/:workspace_id',
-    {
-      preHandler: [
-        validateParams(workspaceIdParamSchema),
-        validateBody(updateWorkspaceRequestSchema),
-      ],
-      schema: buildRouteSchema({
-        description: 'Rename a workspace (display name only)',
-        tags: ['workspaces'],
-        params: workspaceIdParamSchema,
-        body: updateWorkspaceRequestSchema,
-        response: { 200: updateWorkspaceResponseSchema },
-      }),
-    },
-    async (req, reply) => {
-      try {
-        const { workspace_id } = req.params as { workspace_id: string };
-        const body = req.body as UpdateWorkspaceRequest;
-        const ws = await ix.invokeFunction((a) =>
-          a.get(IWorkspaceRegistry).update(workspace_id, { name: body.name }),
-        );
-        reply.send(okEnvelope(ws, req.id));
-      } catch (err) {
-        sendMappedError(reply, req.id, err);
-      }
-    },
+    updateRoute.path,
+    updateRoute.options,
+    updateRoute.handler as Parameters<WorkspaceRouteHost['patch']>[2],
   );
 
-  // DELETE /workspaces/{workspace_id} -----------------------------------
-  app.delete(
-    '/workspaces/:workspace_id',
+  // DELETE /workspaces/{workspace_id} --------------------------------------
+  const deleteRoute = defineRoute(
     {
-      preHandler: [validateParams(workspaceIdParamSchema)],
-      schema: buildRouteSchema({
-        description: 'Unregister a workspace (does not remove on-disk content)',
-        tags: ['workspaces'],
-        params: workspaceIdParamSchema,
-        response: { 200: deleteWorkspaceResponseSchema },
-      }),
+      method: 'DELETE',
+      path: '/workspaces/{workspace_id}',
+      params: workspaceIdParamSchema,
+      success: { data: deleteWorkspaceResponseSchema },
+      description: 'Unregister a workspace (does not remove on-disk content)',
+      tags: ['workspaces'],
     },
     async (req, reply) => {
       try {
-        const { workspace_id } = req.params as { workspace_id: string };
+        const { workspace_id } = req.params;
         await ix.invokeFunction((a) => a.get(IWorkspaceRegistry).delete(workspace_id));
         reply.send(okEnvelope({ deleted: true as const }, req.id));
       } catch (err) {
         sendMappedError(reply, req.id, err);
       }
     },
+  );
+
+  app.delete(
+    deleteRoute.path,
+    deleteRoute.options,
+    deleteRoute.handler as Parameters<WorkspaceRouteHost['delete']>[2],
   );
 }
 

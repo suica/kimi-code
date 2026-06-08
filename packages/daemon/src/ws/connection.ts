@@ -48,7 +48,7 @@ import {
   buildResyncRequired,
   buildServerHello,
   type EventEnvelope,
-} from './protocol.js';
+} from './protocol';
 
 /**
  * Subset of `IWSBroadcastService` consumed by `WsConnection` for the replay

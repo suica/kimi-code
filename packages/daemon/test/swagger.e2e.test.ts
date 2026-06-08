@@ -144,7 +144,10 @@ describe('Swagger / OpenAPI', () => {
     expect(metaDataProperties['daemon_version']).toBeDefined();
 
     const listSessionsResponse = responseJsonSchema(doc, '/api/v1/sessions', 'get');
-    const listSessionData = schemaWithProperties(asRecord(asRecord(listSessionsResponse['properties'])['data']));
+    // Sessions list route now declares error variants → response is a oneOf.
+    // Unwrap via schemaWithProperties to reach the envelope shape.
+    const listSessionsEnvelope = schemaWithProperties(listSessionsResponse);
+    const listSessionData = schemaWithProperties(asRecord(asRecord(listSessionsEnvelope['properties'])['data']));
     expect(asRecord(listSessionData['properties'])['items']).toBeDefined();
 
     const uploadOp = operation(doc, '/api/v1/files', 'post');
@@ -165,6 +168,21 @@ describe('Swagger / OpenAPI', () => {
     expect(asRecord(questionOp['requestBody'])['required']).toBe(false);
     const questionResponse = responseJsonSchema(doc, '/api/v1/sessions/{session_id}/questions/{tail}', 'post');
     expect(Array.isArray(questionResponse['oneOf'])).toBe(true);
+
+    // Prompts submit route (defineRoute) — response should be a oneOf union
+    // covering success (code:0) and declared error codes.
+    const promptsResponse = responseJsonSchema(doc, '/api/v1/sessions/{session_id}/prompts', 'post');
+    expect(Array.isArray(promptsResponse['oneOf'])).toBe(true);
+    const promptVariants = promptsResponse['oneOf'] as Array<Record<string, unknown>>;
+    expect(promptVariants.length).toBeGreaterThanOrEqual(2);
+    const promptCodes = promptVariants.map((v) => {
+      const props = asRecord(v['properties']);
+      const code = asRecord(props['code']);
+      return (code['enum'] as number[] | undefined)?.[0] ?? code['const'];
+    });
+    expect(promptCodes[0]).toBe(0);
+    expect(promptCodes).toContain(40001);
+    expect(promptCodes).toContain(40401);
   });
 
   it('/documentation returns the Swagger UI HTML', async () => {

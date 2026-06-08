@@ -66,9 +66,8 @@ import { z } from 'zod';
 
 import type { IInstantiationService } from '@moonshot-ai/agent-core';
 
-import { errEnvelope, okEnvelope } from '../envelope.js';
-import { buildRouteSchema } from '../middleware/schema.js';
-import { validateParams } from '../middleware/validate.js';
+import { errEnvelope, okEnvelope } from '../envelope';
+import { defineRoute } from '../middleware/defineRoute';
 import {
   FsIsBinaryError,
   FsIsDirectoryError,
@@ -159,23 +158,30 @@ export function registerFsRoutes(
   // The tail's `fs:` prefix is enforced here; non-`fs:` tails 404 from
   // this route — sibling routes (`messages`, `prompts`, `tasks`, etc.)
   // claim the bare-segment paths.
-  app.post(
-    '/sessions/:session_id/:tail',
+  const fsActionRoute = defineRoute(
     {
-      preHandler: [validateParams(sessionIdAndTailParamSchema)],
-      schema: buildRouteSchema({
-        description:
-          'Filesystem action dispatcher. Supported actions: list, read, list_many, stat, stat_many, search, grep, git_status.',
-        tags: ['fs'],
-        operationId: 'fsAction',
-        params: sessionIdAndTailParamSchema,
-      }),
+      method: 'POST',
+      path: '/sessions/{session_id}/{tail}',
+      params: sessionIdAndTailParamSchema,
+      errors: {
+        [ErrorCode.VALIDATION_FAILED]: {},
+        [ErrorCode.SESSION_NOT_FOUND]: {},
+        [ErrorCode.FS_PATH_NOT_FOUND]: {},
+        [ErrorCode.FS_IS_DIRECTORY]: {},
+        [ErrorCode.FS_IS_BINARY]: {},
+        [ErrorCode.FS_TOO_LARGE]: {},
+        [ErrorCode.FS_TOO_MANY_RESULTS]: {},
+        [ErrorCode.FS_PATH_ESCAPES_SESSION]: {},
+        [ErrorCode.FS_GREP_TIMEOUT]: {},
+        [ErrorCode.FS_GIT_UNAVAILABLE]: {},
+      },
+      description:
+        'Filesystem action dispatcher. Supported actions: list, read, list_many, stat, stat_many, search, grep, git_status.',
+      tags: ['fs'],
+      operationId: 'fsAction',
     },
     async (req, reply) => {
-      const { session_id, tail } = req.params as {
-        session_id: string;
-        tail: string;
-      };
+      const { session_id, tail } = req.params;
 
       // Sibling routes use the same prefix; this handler is only valid for
       // `fs:<action>` tails. Forward all others by failing as 40001 — the
@@ -241,6 +247,11 @@ export function registerFsRoutes(
       }
     },
   );
+  app.post(
+    fsActionRoute.path,
+    fsActionRoute.options,
+    fsActionRoute.handler as unknown as Parameters<FsRouteHost['post']>[2],
+  );
 
   // ---------------------------------------------------------------------
   // GET /sessions/{sid}/fs/*  — streaming download.
@@ -267,126 +278,141 @@ export function registerFsRoutes(
   // Error paths return HTTP 200 + `application/json` envelope (the
   // documented one-way escape hatch per REST.md §3.9 line 571).
   // ---------------------------------------------------------------------
-  app.get(
-    '/sessions/:session_id/fs/*',
-    {
-      preHandler: [],
-      schema: buildRouteSchema({
-        description: 'Download a file from the session workspace',
-        tags: ['fs'],
-        operationId: 'downloadFile',
-      }),
-    },
-    async (req, reply) => {
-      const { session_id, '*': wildcard } = req.params as {
-        session_id: string;
-        '*': string;
-      };
+  const downloadHandler: Parameters<FsRouteHost['get']>[2] = async (
+    req,
+    reply,
+  ) => {
+    const { session_id } = req.params as { session_id: string };
+    const wildcard = (req.params as Record<string, unknown>)['*'] as string;
 
-      // Strip the `:download` suffix (the only verb we support on this
-      // route). Anything else is a 40001.
-      const DOWNLOAD_SUFFIX = ':download';
-      if (!wildcard.endsWith(DOWNLOAD_SUFFIX)) {
-        return reply.send(
-          errEnvelope(
-            ErrorCode.VALIDATION_FAILED,
-            `unsupported action: ${wildcard}`,
-            req.id,
-          ),
-        );
-      }
-      const relPath = wildcard.slice(0, -DOWNLOAD_SUFFIX.length);
-      if (relPath.length === 0) {
-        return reply.send(
-          errEnvelope(
-            ErrorCode.VALIDATION_FAILED,
-            'path is empty',
-            req.id,
-          ),
-        );
-      }
-
-      // Resolve through IFsService. Surfaced errors go through the
-      // central sendMappedError (which writes a JSON envelope per the
-      // download exception). Success path leaves the response body free
-      // for the stream.
-      let resolved: import('#/services/fs').FsDownloadResolved;
-      try {
-        resolved = await ix.invokeFunction((a) =>
-          a.get(IFsService).resolveDownload(session_id, relPath),
-        );
-      } catch (err) {
-        sendMappedError(reply, req.id, err);
-        return reply;
-      }
-
-      // If-None-Match negotiation (REST.md §3.9 line 567).
-      const ifNoneMatch = pickHeader(req.headers, 'if-none-match');
-      if (ifNoneMatch !== undefined && ifNoneMatch === resolved.etag) {
-        return reply.code(304).header('etag', resolved.etag).send('');
-      }
-
-      reply.header('etag', resolved.etag);
-      reply.header(
-        'last-modified',
-        resolved.modifiedAt.toUTCString(),
+    // Strip the `:download` suffix (the only verb we support on this
+    // route). Anything else is a 40001.
+    const DOWNLOAD_SUFFIX = ':download';
+    if (!wildcard.endsWith(DOWNLOAD_SUFFIX)) {
+      return reply.send(
+        errEnvelope(
+          ErrorCode.VALIDATION_FAILED,
+          `unsupported action: ${wildcard}`,
+          req.id,
+        ),
       );
-      reply.header(
-        'content-disposition',
-        `attachment; filename="${sanitizeFilename(resolved.relative)}"`,
+    }
+    const relPath = wildcard.slice(0, -DOWNLOAD_SUFFIX.length);
+    if (relPath.length === 0) {
+      return reply.send(
+        errEnvelope(
+          ErrorCode.VALIDATION_FAILED,
+          'path is empty',
+          req.id,
+        ),
       );
-      reply.type(resolved.mime);
+    }
 
-      // Range negotiation (REST.md §3.9 line 565).
-      const rangeHeader = pickHeader(req.headers, 'range');
-      const range = parseRangeHeader(rangeHeader, resolved.size);
-      if (range !== null) {
-        reply
-          .code(206)
-          .header('content-length', String(range.length))
-          .header(
-            'content-range',
-            `bytes ${range.start}-${range.end}/${resolved.size}`,
-          );
-        const stream = createReadStream(resolved.absolute, {
-          start: range.start,
-          end: range.end,
-        });
-        // Fastify's reply.send(stream) handles backpressure + client
-        // abort. We additionally attach an explicit error handler so a
-        // mid-stream EIO surfaces in daemon logs instead of crashing
-        // the worker.
-        stream.on('error', () => {
-          // Already-started stream can't be replaced with an envelope;
-          // best we can do is close cleanly.
-          try {
-            stream.destroy();
-          } catch {
-            // ignore
-          }
-        });
-        return reply.send(stream);
-      }
+    // Resolve through IFsService. Surfaced errors go through the
+    // central sendMappedError (which writes a JSON envelope per the
+    // download exception). Success path leaves the response body free
+    // for the stream.
+    let resolved: import('#/services/fs').FsDownloadResolved;
+    try {
+      resolved = await ix.invokeFunction((a) =>
+        a.get(IFsService).resolveDownload(session_id, relPath),
+      );
+    } catch (err) {
+      sendMappedError(reply, req.id, err);
+      return reply;
+    }
 
-      // Full-file path. Set content-length explicitly so HTTP keep-alive
-      // can frame the response without chunked encoding (Fastify would
-      // pick chunked otherwise for streams).
-      reply.code(200).header('content-length', String(resolved.size));
-      const stream = createReadStream(resolved.absolute);
+    // If-None-Match negotiation (REST.md §3.9 line 567).
+    const ifNoneMatch = pickHeader(req.headers, 'if-none-match');
+    if (ifNoneMatch !== undefined && ifNoneMatch === resolved.etag) {
+      return reply.code(304).header('etag', resolved.etag).send('');
+    }
+
+    reply.header('etag', resolved.etag);
+    reply.header(
+      'last-modified',
+      resolved.modifiedAt.toUTCString(),
+    );
+    reply.header(
+      'content-disposition',
+      `attachment; filename="${sanitizeFilename(resolved.relative)}"`,
+    );
+    reply.type(resolved.mime);
+
+    // Range negotiation (REST.md §3.9 line 565).
+    const rangeHeader = pickHeader(req.headers, 'range');
+    const range = parseRangeHeader(rangeHeader, resolved.size);
+    if (range !== null) {
+      reply
+        .code(206)
+        .header('content-length', String(range.length))
+        .header(
+          'content-range',
+          `bytes ${range.start}-${range.end}/${resolved.size}`,
+        );
+      const stream = createReadStream(resolved.absolute, {
+        start: range.start,
+        end: range.end,
+      });
+      // Fastify's reply.send(stream) handles backpressure + client
+      // abort. We additionally attach an explicit error handler so a
+      // mid-stream EIO surfaces in daemon logs instead of crashing
+      // the worker.
       stream.on('error', () => {
+        // Already-started stream can't be replaced with an envelope;
+        // best we can do is close cleanly.
         try {
           stream.destroy();
         } catch {
           // ignore
         }
       });
-      // CRITICAL: return reply.send(stream). Fastify v5 async handlers
-      // that fall off the end (returning undefined) will OVERWRITE the
-      // already-piped stream body with the undefined return — content-length
-      // collapses to 0. Returning the reply (after calling send) keeps the
-      // stream as the response body. Same pattern as Fastify docs §"Streams".
       return reply.send(stream);
+    }
+
+    // Full-file path. Set content-length explicitly so HTTP keep-alive
+    // can frame the response without chunked encoding (Fastify would
+    // pick chunked otherwise for streams).
+    reply.code(200).header('content-length', String(resolved.size));
+    const stream = createReadStream(resolved.absolute);
+    stream.on('error', () => {
+      try {
+        stream.destroy();
+      } catch {
+        // ignore
+      }
+    });
+    // CRITICAL: return reply.send(stream). Fastify v5 async handlers
+    // that fall off the end (returning undefined) will OVERWRITE the
+    // already-piped stream body with the undefined return — content-length
+    // collapses to 0. Returning the reply (after calling send) keeps the
+    // stream as the response body. Same pattern as Fastify docs §"Streams".
+    return reply.send(stream);
+  };
+
+  const downloadRoute = defineRoute(
+    {
+      method: 'GET',
+      path: '/sessions/{session_id}/fs/*',
+      rawResponse: {
+        200: { type: 'string', format: 'binary' },
+      },
+      errors: {
+        [ErrorCode.VALIDATION_FAILED]: {},
+        [ErrorCode.SESSION_NOT_FOUND]: {},
+        [ErrorCode.FS_PATH_NOT_FOUND]: {},
+        [ErrorCode.FS_PATH_ESCAPES_SESSION]: {},
+      },
+      description: 'Download a file from the session workspace',
+      tags: ['fs'],
+      operationId: 'downloadFile',
     },
+    downloadHandler as unknown as Parameters<typeof defineRoute>[1],
+  );
+  app.get(
+    downloadRoute.path,
+    downloadRoute.options,
+    downloadRoute.handler as unknown as Parameters<FsRouteHost['get']>[2],
   );
 }
 
