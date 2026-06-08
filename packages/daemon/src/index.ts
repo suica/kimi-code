@@ -13,10 +13,10 @@ export type { AcquireLockOptions, AcquireLockResult, LockContents } from './lock
 // WSGateway) stay internal — daemon owns its wiring choices; external consumers
 // see only the interfaces.
 export { ILogger } from './services/logger.js';
-export { IRestGateway } from './services/rest-gateway.js';
-export { IConnectionRegistry } from './services/connection-registry.js';
-export { ISessionClientsService } from './services/session-clients.js';
-export { IWSGateway } from './services/ws-gateway.js';
+export { IRestGateway } from './services/restGateway.js';
+export { IConnectionRegistry } from './services/connectionRegistry.js';
+export { ISessionClientsService } from './services/sessionClients.js';
+export { IWSGateway } from './services/wsGateway.js';
 // Re-export service decorators from `@moonshot-ai/services` so daemon
 // consumers don't have to take a direct dep on the services package just to
 // reach into the container.

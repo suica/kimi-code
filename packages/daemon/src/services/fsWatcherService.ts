@@ -18,7 +18,7 @@ import {
   type FsChangedFrame,
   type FsWatcherConnectionLookup,
   type FsWatcherServiceOptions,
-} from './fs-watcher.js';
+} from './fsWatcher.js';
 
 /** WS.md §4.9 — 200ms coalesce window. */
 const DEFAULT_DEBOUNCE_MS = 200;

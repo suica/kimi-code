@@ -73,30 +73,30 @@ import {
 } from '@moonshot-ai/services';
 import type { Logger as PinoLogger } from 'pino';
 
-import type { FastifyLike } from './rest-gateway.js';
+import type { FastifyLike } from './restGateway.js';
 import type { DaemonStartOptions } from '../start.js';
 
 import { ApprovalService } from './approvalService.js';
-import { IConnectionRegistry } from './connection-registry.js';
-import { ConnectionRegistry } from './connectionRegistry.js';
+import { IConnectionRegistry } from './connectionRegistry.js';
+import { ConnectionRegistry } from './connectionRegistryService.js';
 import { EventService } from './eventService.js';
 import { IFsService } from './fs.js';
 import { FsService } from './fsService.js';
-import { IFsGitService } from './fs-git.js';
+import { IFsGitService } from './fsGit.js';
 import { FsGitService } from './fsGitService.js';
-import { IFsSearchService } from './fs-search.js';
+import { IFsSearchService } from './fsSearch.js';
 import { FsSearchService } from './fsSearchService.js';
-import { IFileStore } from './file-store.js';
-import { FileStore } from './fileStore.js';
+import { IFileStore } from './fileStore.js';
+import { FileStore } from './fileStoreService.js';
 import { ILogger } from './logger.js';
 import { PinoLogger as PinoLoggerAdapter } from './loggerService.js';
 import { QuestionService } from './questionService.js';
-import { IRestGateway } from './rest-gateway.js';
-import { FastifyRestGateway } from './restGateway.js';
-import { ISessionClientsService } from './session-clients.js';
-import { SessionClientsService } from './sessionClients.js';
-import { IWSGateway } from './ws-gateway.js';
-import { WSGateway } from './wsGateway.js';
+import { IRestGateway } from './restGateway.js';
+import { FastifyRestGateway } from './restGatewayService.js';
+import { ISessionClientsService } from './sessionClients.js';
+import { SessionClientsService } from './sessionClientsService.js';
+import { IWSGateway } from './wsGateway.js';
+import { WSGateway } from './wsGatewayService.js';
 
 export interface DaemonServiceCollectionOptions {
   /** Original `startDaemon` options bag — carries the per-service tunables. */

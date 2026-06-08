@@ -44,7 +44,7 @@ import {
 } from '@moonshot-ai/protocol';
 
 import type { ILogger } from '../services/logger.js';
-import type { ISessionClientsService } from '../services/session-clients.js';
+import type { ISessionClientsService } from '../services/sessionClients.js';
 
 import {
   buildAck,

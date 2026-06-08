@@ -489,7 +489,7 @@ describe('FsSearchService direct: rg fallback + grep timeout (W11.1)', () => {
       ): Promise<import('@moonshot-ai/protocol').FsGrepResponse> {
         // Simulate the 30s deadline expiring with zero matches collected.
         throw new (
-          await import('../src/services/fs-search')
+          await import('../src/services/fsSearch')
         ).FsGrepTimeoutError(Date.now() - startedAt);
       }
       public override probeRg(): Promise<string | null> {

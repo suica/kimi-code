@@ -21,8 +21,8 @@ import ignore, { type Ignore } from 'ignore';
 import { ISessionService, SessionNotFoundError } from '@moonshot-ai/services';
 
 import { ILogger } from './logger.js';
-import { IFsSearchService, FsGrepTimeoutError } from './fs-search.js';
-import { FsPathEscapesError, resolveSafePath } from './fs-path-safety.js';
+import { IFsSearchService, FsGrepTimeoutError } from './fsSearch.js';
+import { FsPathEscapesError, resolveSafePath } from './fsPathSafety.js';
 
 /** Hard cap on `:search` items (ROADMAP Chain 11 AC #3). */
 const SEARCH_HARD_CAP = 500;

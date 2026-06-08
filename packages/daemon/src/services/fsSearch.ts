@@ -12,7 +12,7 @@
  *   grep(sessionId, request)          → FsGrepResponse     (W11.1)
  *
  * **Path safety**: every `path` input is funnelled through
- * `resolveSafePath(cwd, input)` from `fs-path-safety.ts` BEFORE any Node `fs`
+ * `resolveSafePath(cwd, input)` from `fsPathSafety.ts` BEFORE any Node `fs`
  * call. We never expose absolute paths to the wire; results carry POSIX
  * relative paths anchored at `session.metadata.cwd`.
  *
@@ -79,7 +79,7 @@ import { ILogger } from './logger.js';
 import {
   FsPathEscapesError,
   resolveSafePath,
-} from './fs-path-safety.js';
+} from './fsPathSafety.js';
 
 // ---------------------------------------------------------------------------
 // Error sentinels

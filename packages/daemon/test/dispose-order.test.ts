@@ -70,16 +70,16 @@ import {
   IToolService,
 } from '@moonshot-ai/services';
 
-import { IConnectionRegistry } from '../src/services/connection-registry';
-import { IFileStore } from '../src/services/file-store';
-import { IFsGitService } from '../src/services/fs-git';
-import { IFsSearchService } from '../src/services/fs-search';
+import { IConnectionRegistry } from '../src/services/connectionRegistry';
+import { IFileStore } from '../src/services/fileStore';
+import { IFsGitService } from '../src/services/fsGit';
+import { IFsSearchService } from '../src/services/fsSearch';
 import { IFsService } from '../src/services/fs';
-import { IFsWatcher } from '../src/services/fs-watcher';
+import { IFsWatcher } from '../src/services/fsWatcher';
 import { ILogger } from '../src/services/logger';
-import { IRestGateway } from '../src/services/rest-gateway';
-import { ISessionClientsService } from '../src/services/session-clients';
-import { IWSGateway } from '../src/services/ws-gateway';
+import { IRestGateway } from '../src/services/restGateway';
+import { ISessionClientsService } from '../src/services/sessionClients';
+import { IWSGateway } from '../src/services/wsGateway';
 
 /** Stub implementation whose `dispose()` records ordering. */
 function makeRecorder<T>(name: string, sink: string[]): T & IDisposable {

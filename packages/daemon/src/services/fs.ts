@@ -18,7 +18,7 @@
  *   statMany(sessionId, request)      → FsStatManyResponse    (W10.2)
  *
  * **Path safety**: every `path` input is funnelled through
- * `resolveSafePath(cwd, input)` from `fs-path-safety.ts` BEFORE any Node `fs`
+ * `resolveSafePath(cwd, input)` from `fsPathSafety.ts` BEFORE any Node `fs`
  * call. Bypassing the guard is a path-traversal bug.
  *
  * **Errors thrown** (all surface in `routes/fs.ts` as envelope shapes):
@@ -105,7 +105,7 @@ import ignore, { type Ignore } from 'ignore';
 import {
   FsPathEscapesError,
   resolveSafePath,
-} from './fs-path-safety.js';
+} from './fsPathSafety.js';
 
 // ---------------------------------------------------------------------------
 // Error sentinels (mapped 1:1 to envelope codes in routes/fs.ts)

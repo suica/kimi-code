@@ -42,7 +42,7 @@ import type { Event } from '@moonshot-ai/protocol';
 import { IEventReplayService, IEventService } from '@moonshot-ai/services';
 
 import { ILogger } from './logger.js';
-import { ISessionClientsService } from './session-clients.js';
+import { ISessionClientsService } from './sessionClients.js';
 
 import { buildEventEnvelope, type EventEnvelope } from '../ws/protocol.js';
 

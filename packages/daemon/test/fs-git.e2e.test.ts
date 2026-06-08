@@ -28,7 +28,7 @@ import { pino } from 'pino';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { IRestGateway, startDaemon, type RunningDaemon } from '../src';
-import { parsePorcelain } from '../src/services/fs-git';
+import { parsePorcelain } from '../src/services/fsGit';
 
 let tmpDir: string;
 let lockPath: string;

@@ -77,12 +77,12 @@ import {
 import {
   FsGrepTimeoutError,
   IFsSearchService,
-} from '../services/fs-search.js';
+} from '../services/fsSearch.js';
 import {
   FsGitUnavailableError,
   IFsGitService,
-} from '../services/fs-git.js';
-import { FsPathEscapesError } from '../services/fs-path-safety.js';
+} from '../services/fsGit.js';
+import { FsPathEscapesError } from '../services/fsPathSafety.js';
 
 interface FsRouteHost {
   post(

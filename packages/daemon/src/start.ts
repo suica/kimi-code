@@ -47,24 +47,24 @@ import { registerQuestionsRoutes } from './routes/questions.js';
 import { registerSessionsRoutes } from './routes/sessions.js';
 import { registerTasksRoutes } from './routes/tasks.js';
 import { registerToolsRoutes } from './routes/tools.js';
-import { IConnectionRegistry } from './services/connection-registry.js';
+import { IConnectionRegistry } from './services/connectionRegistry.js';
 import { type EventService } from './services/eventService.js';
 import { IFsService } from './services/fs.js';
-import { IFsGitService } from './services/fs-git.js';
-import { IFsSearchService } from './services/fs-search.js';
+import { IFsGitService } from './services/fsGit.js';
+import { IFsSearchService } from './services/fsSearch.js';
 import {
   IFsWatcher,
   FsWatchLimitError,
   createConnectionLookup,
-} from './services/fs-watcher.js';
+} from './services/fsWatcher.js';
 import { FsWatcherService } from './services/fsWatcherService.js';
-import { FsPathEscapesError, resolveSafePath } from './services/fs-path-safety.js';
-import { IFileStore } from './services/file-store.js';
+import { FsPathEscapesError, resolveSafePath } from './services/fsPathSafety.js';
+import { IFileStore } from './services/fileStore.js';
 import { ILogger } from './services/logger.js';
-import { IRestGateway } from './services/rest-gateway.js';
-import { ISessionClientsService } from './services/session-clients.js';
+import { IRestGateway } from './services/restGateway.js';
+import { ISessionClientsService } from './services/sessionClients.js';
 import { createDaemonServiceCollection } from './services/serviceCollection.js';
-import { IWSGateway, type WSGatewayOptions } from './services/ws-gateway.js';
+import { IWSGateway, type WSGatewayOptions } from './services/wsGateway.js';
 import { getDaemonVersion } from './version.js';
 
 export interface DaemonStartOptions {

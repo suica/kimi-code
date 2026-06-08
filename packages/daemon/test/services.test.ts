@@ -39,7 +39,7 @@ import { QuestionService } from '../src/services/questionService';
 import {
   ISessionClientsService,
   type ISessionClientsService as ISessionClientsServiceT,
-} from '../src/services/session-clients';
+} from '../src/services/sessionClients';
 import type { WsConnection } from '../src/ws/connection';
 
 /** No-op logger that satisfies `ILogger` without pulling pino. */
