@@ -1,14 +1,10 @@
 import {
   InstantiationService,
-  ServiceCollection,
-  SyncDescriptor,
   resolveConfigPath,
   resolveKimiHome,
   setUnexpectedErrorHandler,
 } from '@moonshot-ai/agent-core';
 import {
-  AuthSummaryService,
-  CoreProcessService,
   IApprovalService,
   IAuthSummaryService,
   IEnvironmentService,
@@ -23,14 +19,7 @@ import {
   ISessionService,
   ITaskService,
   IToolService,
-  McpService,
-  MessageService,
-  OAuthService,
-  PromptService,
   SessionNotFoundError,
-  SessionService,
-  TaskService,
-  ToolService,
   type CoreProcessServiceOptions,
 } from '@moonshot-ai/services';
 import { ErrorCode } from '@moonshot-ai/protocol';
@@ -58,16 +47,11 @@ import { registerQuestionsRoutes } from './routes/questions.js';
 import { registerSessionsRoutes } from './routes/sessions.js';
 import { registerTasksRoutes } from './routes/tasks.js';
 import { registerToolsRoutes } from './routes/tools.js';
-import { ApprovalService } from './services/approvalService.js';
 import { IConnectionRegistry } from './services/connection-registry.js';
-import { ConnectionRegistry } from './services/connectionRegistry.js';
-import { EventService } from './services/eventService.js';
+import { type EventService } from './services/eventService.js';
 import { IFsService } from './services/fs.js';
-import { FsService } from './services/fsService.js';
 import { IFsGitService } from './services/fs-git.js';
-import { FsGitService } from './services/fsGitService.js';
 import { IFsSearchService } from './services/fs-search.js';
-import { FsSearchService } from './services/fsSearchService.js';
 import {
   IFsWatcher,
   FsWatchLimitError,
@@ -76,16 +60,11 @@ import {
 import { FsWatcherService } from './services/fsWatcherService.js';
 import { FsPathEscapesError, resolveSafePath } from './services/fs-path-safety.js';
 import { IFileStore } from './services/file-store.js';
-import { FileStore } from './services/fileStore.js';
 import { ILogger } from './services/logger.js';
-import { PinoLogger } from './services/loggerService.js';
-import { QuestionService } from './services/questionService.js';
 import { IRestGateway } from './services/rest-gateway.js';
-import { FastifyRestGateway } from './services/restGateway.js';
 import { ISessionClientsService } from './services/session-clients.js';
-import { SessionClientsService } from './services/sessionClients.js';
+import { createDaemonServiceCollection } from './services/serviceCollection.js';
 import { IWSGateway, type WSGatewayOptions } from './services/ws-gateway.js';
-import { WSGateway } from './services/wsGateway.js';
 import { getDaemonVersion } from './version.js';
 
 export interface DaemonStartOptions {
@@ -149,22 +128,29 @@ export { DaemonLockedError };
  * means the bus has stopped publishing before its subscriber index goes
  * away.
  *
- * **CoreProcessService construction** (post-P2.5 migration): `CoreProcessService` ctor is
- * now decorated `(options, @IEventService, @IApprovalService, @IQuestionService)`
- * — services auto-inject. `defaultServicesModule()` still has no
- * `staticArguments` for the `options` slot, so direct
- * `accessor.get(ICoreProcessService)` against the module descriptor would
- * still construct with `undefined` options. We therefore
- * `ix.createInstance(CoreProcessService, opts.coreProcessOptions ?? {})` inside an
- * `invokeFunction`, then `services.set(ICoreProcessService, bridge)` so
- * subsequent `a.get(ICoreProcessService)` returns the same singleton and the
- * container records it in its construction-order list.
+ * **CoreProcessService construction** (Phase 4 descriptor-first): every
+ * non-runtime-handle singleton (including `ICoreProcessService`) is now
+ * a `SyncDescriptor` in `createDaemonServiceCollection()`, with options
+ * baked into the descriptor's `staticArguments`. The first
+ * `a.get(ICoreProcessService)` call below resolves the descriptor with
+ * `opts.coreProcessOptions ?? {}` already bound; no inline
+ * `ix.createInstance(CoreProcessService, ...)` is needed.
  *
- * **Post-P2 wire-up shape**: every `ix.createInstance(...)` rest-arg list
- * in this function carries ONLY non-service static args (options bags,
- * closures, external instances). The `a.get(IFoo)` calls that remain
- * are either (a) construction-order "touch" pins or (b) actual consumer
- * dispatch (e.g. `a.get(IRestGateway).listen(...)`).
+ * **Post-Phase-4 wire-up shape**: the `invokeFunction` block below is
+ * effectively a sequence of `a.get(IFoo)` "touch" calls that pin
+ * construction order for `_constructionOrder`. The two remaining
+ * non-`a.get` wirings are:
+ *
+ *   1. The `services.set(IEventReplayService, eventBus)` alias —
+ *      same singleton as `IEventService` under a different decorator
+ *      so `@IEventReplayService` consumers (e.g. `WSGateway`) resolve
+ *      against the live bus.
+ *   2. The inline `ix.createInstance(FsWatcherService, lookup, {})` —
+ *      its `lookup` closure over `IConnectionRegistry.get` isn't
+ *      serializable into a `SyncDescriptor.staticArguments` slot.
+ *
+ * Both exceptions are documented near their construction sites and in
+ * `services/serviceCollection.ts` header.
  *
  * **Anti-corruption invariant**: daemon source has zero direct SDK
  * (`packages/node-sdk`) imports — the bridge is the only path to
@@ -211,10 +197,22 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
     },
   });
 
-  // Seed the container with the two pre-built instances. They become "live"
-  // (= recorded in _constructionOrder) only when first accessed via the
-  // accessor below — so the order in the later `invokeFunction` block is
-  // what actually determines disposal order.
+  // Seed the container. Per Phase 4 §2.2 the collection is now a HYBRID:
+  //   - prebuilt instance for services that carry runtime handles (PinoLogger
+  //     wraps Fastify's shared `pino.Logger`; FastifyRestGateway wraps `app`;
+  //     `IEnvironmentService` carries CLI-resolved paths);
+  //   - SyncDescriptor for every other singleton (container drives
+  //     construction; `@I*` decorators auto-inject).
+  //
+  // Two singletons are NOT in `createDaemonServiceCollection()`, by design:
+  //   - IEventReplayService — alias of the same EventService singleton;
+  //     registered AFTER `a.get(IEventService)` resolves the live bus.
+  //   - IFsWatcher — needs a closure over `IConnectionRegistry.get`;
+  //     built inline inside the `invokeFunction` block below.
+  //
+  // The construction order recorded in `_constructionOrder` (which drives
+  // reverse-dispose) is pinned by the `a.get(IX)` touch sequence below,
+  // NOT by the order singletons appear in `createDaemonServiceCollection()`.
   //
   // We construct the container BEFORE `app.ready()` so route modules can
   // capture `ix` by reference and resolve services at REQUEST time. Fastify
@@ -232,16 +230,12 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
     }),
   };
 
-  const services = new ServiceCollection(
-    [ILogger, new PinoLogger(pinoLogger)],
-    [IEnvironmentService, envService],
-    // P2.2: RestGateway carries `app: FastifyLike` as the only ctor arg — a
-    // pure static dep. Switch from a pre-built instance to a descriptor with
-    // `app` as a static argument so the container drives construction. The
-    // FastifyLike instance is created above (Fastify needs the pino logger
-    // so it can't itself be DI-constructed); we hand it in as a static.
-    [IRestGateway, new SyncDescriptor(FastifyRestGateway, [app])],
-  );
+  const services = createDaemonServiceCollection({
+    daemon: opts,
+    app,
+    pinoLogger,
+    envService,
+  });
   const ix = new InstantiationService(services);
 
   // Register all REST routes under a single `/api/v1` prefix so individual
@@ -375,20 +369,19 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
     throw err;
   }
 
-  // Touch logger + gateway in the intended construction order so they're
-  // recorded for reverse-teardown. Then build the broker stubs (each takes
-  // a positional `ILogger` static arg — brokers aren't @IFoo-decorated yet;
-  // their direct-instance ctor is still the only construction path).
-  let coreProcess: CoreProcessService;
+  // Touch every descriptor in CONSTRUCTION order so `_constructionOrder`
+  // records them for reverse-dispose. The collection seeded above carries
+  // a `SyncDescriptor` for each singleton; the first `a.get(IX)` resolves
+  // it through `_createAndCacheServiceInstance`, auto-injecting any `@I*`
+  // decorated ctor params. Two non-descriptor wirings remain inline below
+  // (the `IEventReplayService` alias + the closure-based `IFsWatcher`);
+  // both are documented near their construction sites.
+  let coreProcess: ICoreProcessService;
   try {
     coreProcess = ix.invokeFunction((a) => {
-      // Force construction-order recording for the two seeded instances —
       // ILogger first so it disposes LAST.
-      a.get(ILogger);
-      a.get(IRestGateway);
-
-      // Build broker stubs against the resolved ILogger and register them.
       const log = a.get(ILogger);
+      a.get(IRestGateway);
 
       // Plan §4.5: wire `setUnexpectedErrorHandler` HERE — AFTER the
       // container has resolved `ILogger`, NOT at module load time. Doing it
@@ -410,33 +403,21 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
         );
       });
 
-      // W5.1 / P2.1: register IConnectionRegistry BEFORE event bus / brokers so the
+      // W5.1 / P2.1: IConnectionRegistry BEFORE event bus / brokers so the
       // reverse-dispose chain tears down WS connections (via IWSGateway, which
       // is constructed LATE → disposes EARLY) before brokers can emit on them.
-      //
-      // P2.1 migration: switch from `services.set(I, new C())` to a descriptor
-      // so the container drives construction through `_createAndCacheServiceInstance`
-      // and the @IFoo auto-injection path (ConnectionRegistry has 0 service deps,
-      // so the auto-inject step is a no-op — this is the smoke-test commit per
-      // Phase 1 handoff #1).
-      services.set(IConnectionRegistry, new SyncDescriptor(ConnectionRegistry));
-      // Touch BEFORE SessionClients to lock construction order:
-      // [..., IConnectionRegistry, ISessionClientsService, IEventService, ...]
       a.get(IConnectionRegistry);
 
-      // W5.2 / P2.2: register ISessionClientsService BEFORE IEventService so the bus
+      // W5.2 / P2.2: ISessionClientsService BEFORE IEventService so the bus
       // can hold a reference to it for broadcast fan-out. SessionClients
       // disposes AFTER IEventService (reverse-order) — by then the bus has
       // already stopped publishing, so dropping the subscriber index is safe.
-      //
-      // P2.2 migration: descriptor-based registration; @ILogger gets
-      // auto-injected.
-      services.set(ISessionClientsService, new SyncDescriptor(SessionClientsService));
       a.get(ISessionClientsService);
 
-      services.set(IEventService, new EventService({}, log, a.get(ISessionClientsService)));
-      // Touch the event bus BEFORE constructing brokers so brokers can hold a
-      // reference for broadcast (W8.1 / Chain 5).
+      // EventService — touching constructs it via the descriptor (auto-injects
+      // @ILogger + @ISessionClientsService). Cast to the concrete class so we
+      // can call `.currentSeq(...)` on it from the WS abort handler below
+      // (only the concrete class exposes that helper).
       const eventBus = a.get(IEventService) as EventService;
       // Alias the SAME singleton under the daemon-local `IEventReplayService`
       // contract (split from `IEventService` in Phase 2). `WSGateway` and
@@ -444,10 +425,12 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       // the concrete `EventService` class. No new instance is constructed;
       // the alias is recorded BEFORE WSGateway is built so its
       // `@IEventReplayService` ctor decoration resolves to the live bus.
+      //
+      // This is one of two non-descriptor `services.set()` calls retained
+      // post-Phase-4: an ALIAS, not a fresh registration. The collection
+      // helper intentionally skips it (see `serviceCollection.ts` header).
       services.set(IEventReplayService, eventBus);
       a.get(IEventReplayService);
-      services.set(IApprovalService, new ApprovalService({}, log, eventBus));
-      services.set(IQuestionService, new QuestionService({}, log, eventBus));
 
       // Touch the brokers in order so they're recorded for reverse teardown
       // (Question → Approval → EventBus dispose direction).
@@ -455,145 +438,55 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       a.get(IQuestionService);
 
       // W5.1 / P2.3: WSGateway constructed AFTER brokers but BEFORE CoreProcessService.
-      // Reverse-dispose order then runs: Bridge → WSGateway (closes WS conns
-      // via registry) → brokers → SessionClients → registry → RestGateway →
-      // Logger. That's safe because brokers no longer have active sockets
+      // Reverse-dispose order then runs: CoreProcessService → WSGateway (closes WS
+      // conns via registry) → brokers → SessionClients → registry → RestGateway
+      // → Logger. That's safe because brokers no longer have active sockets
       // to emit to.
-      //
-      // P2.3 migration: WSGateway ctor reordered to VSCode-style
-      // (options, @IEventReplayService, @IRestGateway, @IConnectionRegistry,
-      //  @ISessionClientsService, @ILogger). `IEventReplayService` is the
-      // daemon-local replay surface aliased to the same `EventService`
-      // singleton seeded above. createInstance now only supplies the static
-      // options prefix; the 5 `@I` services auto-inject.
-      const wsGateway = ix.createInstance(
-        WSGateway,
-        opts.wsGatewayOptions ?? {},
-      );
-      services.set(IWSGateway, wsGateway);
-      a.get(IWSGateway);
+      const wsGw = a.get(IWSGateway);
 
-      // P2.5: CoreProcessService ctor migrated to VSCode-style
-      // (options, @IEventService, @IApprovalService, @IQuestionService).
-      // createInstance now only supplies the static options prefix; the
-      // 3 service deps auto-inject. The descriptor in
-      // `defaultServicesModule()` has no staticArguments so direct
-      // `a.get(ICoreProcessService)` against it would still fail — we keep
-      // `services.set(ICoreProcessService, built)` so consumer call sites
-      // resolve through the same singleton.
-      const built = ix.createInstance(CoreProcessService, opts.coreProcessOptions ?? {});
-      services.set(ICoreProcessService, built);
-      // Touch ICoreProcessService so it's recorded for reverse-teardown.
-      a.get(ICoreProcessService);
+      // P2.5: CoreProcessService is now a descriptor with `coreProcessOptions`
+      // baked into the `staticArguments` of the `SyncDescriptor`. Touching
+      // the decorator constructs the singleton with the production options.
+      const built = a.get(ICoreProcessService);
 
-      // W6.2 / Chain 2 — ISessionService. Same wiring pattern as CoreProcessService:
-      // W6.2 / Chain 2 / P2.5 — ISessionService. @ICoreProcessService is now
-      // auto-injected; createInstance call shrinks to a single arg.
-      // construction-order trick: [..., ICoreProcessService, ISessionService].
-      // Reverse-dispose then runs ISessionService BEFORE ICoreProcessService —
-      // the service's dispose can't accidentally call back into a
-      // torn-down bridge.
-      const sessionService = ix.createInstance(SessionService);
-      services.set(ISessionService, sessionService);
+      // Construction order: [..., ICoreProcessService, ISessionService, ...]
       a.get(ISessionService);
-
-      // W7.1 / Chain 3 / P2.5 — IMessageService. Same wiring pattern; insert AFTER
-      // ISessionService so reverse-dispose order is
-      // [..., IMessageService, ISessionService, ICoreProcessService, ...].
-      // Both services depend on a live bridge during their dispose; bridge
-      // disposes LAST among them.
-      const messageService = ix.createInstance(MessageService);
-      services.set(IMessageService, messageService);
       a.get(IMessageService);
 
       // P2.1 / Chain P2.1.2 — IAuthSummaryService. Powers `GET /v1/auth` +
-      // the `ensureReady` gate consumed by IPromptService. Constructed
-      // BEFORE IPromptService so the prompt impl can @-inject it.
-      // Reverse-dispose order: IPromptService → IAuthSummaryService →
-      // IMessageService → ISessionService → ICoreProcessService.
-      //
-      // Paths are resolved once at bootstrap into `IEnvironmentService`;
-      // the service receives them via `@IEnvironmentService` DI.
-      const authSummaryService = ix.createInstance(AuthSummaryService);
-      services.set(IAuthSummaryService, authSummaryService);
+      // the `ensureReady` gate consumed by IPromptService.
       a.get(IAuthSummaryService);
 
-      // P2.7 — IOAuthService. Constructed BEFORE IPromptService so the auth
-      // gate sees a fully-wired oauth surface; reverse-dispose runs
-      // IOAuthService BEFORE IAuthSummaryService so any in-flight device
-      // flow gets aborted before the config readers go away.
-      const oauthService = ix.createInstance(OAuthService);
-      services.set(IOAuthService, oauthService);
+      // P2.7 — IOAuthService.
       a.get(IOAuthService);
 
-      // W7.2 / Chain 4 / P2.5 — IPromptService. Ctor takes ICoreProcessService + IEventService.
-      // Phase C: PromptService self-subscribes to the bus in its constructor
-      // (via IEventService.onDidPublish — VSCode-style accessor returning an
-      // IDisposable) for lifecycle synthesis, so no manual wiring is needed
-      // here. Construction order:
-      // [..., IMessageService, IPromptService] — reverse dispose runs
-      // IPromptService FIRST among the daemon-services (detaching its bus
-      // subscription), then IMessageService, then ISessionService, then
-      // ICoreProcessService. The bus disposes AFTER PromptService (IEventService is
-      // constructed before IPromptService in start.ts), so the detach happens
-      // before the bus tears down — correct order.
-      const promptService = ix.createInstance(PromptService);
-      services.set(IPromptService, promptService);
-      a.get(IPromptService);
+      // W7.2 / Chain 4 — IPromptService. Phase C: PromptService
+      // self-subscribes to the bus via @IEventService.onDidPublish.
+      const promptService = a.get(IPromptService);
 
       // W7.3 — wire the WS abort handler. Both REST and WS abort go through
       // `IPromptService.abort`; the WS connection needs an `AbortHandler`
       // adapter exposing `abort()` + `currentSeq()` so it can populate the
       // ack `at_seq` on idempotent calls. We compose one in-place.
-      const wsGw = a.get(IWSGateway);
       wsGw.setAbortHandler({
         abort: (sid, pid) => promptService.abort(sid, pid),
-        currentSeq: (sid) => (eventBus as EventService).currentSeq(sid),
+        currentSeq: (sid) => eventBus.currentSeq(sid),
       });
 
-      // W9.1 / Chain 7 / P2.5 — IToolService + IMcpService. Both depend only on the
-      // bridge. Construction order: [..., IPromptService, IToolService,
-      // IMcpService]. Reverse dispose runs IMcpService FIRST among the new
-      // services, then IToolService, then IPromptService — all BEFORE the
-      // bridge.
-      const toolService = ix.createInstance(ToolService);
-      services.set(IToolService, toolService);
+      // W9.1 / Chain 7 — IToolService + IMcpService.
       a.get(IToolService);
-      const mcpService = ix.createInstance(McpService);
-      services.set(IMcpService, mcpService);
       a.get(IMcpService);
 
-      // W9.2 / Chain 8 / P2.5 — ITaskService. Same wiring pattern; appended LAST
-      // so reverse-dispose closes it first among the W9 additions.
-      const taskService = ix.createInstance(TaskService);
-      services.set(ITaskService, taskService);
+      // W9.2 / Chain 8 — ITaskService.
       a.get(ITaskService);
 
-      // W10 / Chains 9 + 10 / P2.4 — IFsService. DAEMON-OWN service (not bridged
-      // via ICoreProcessService — fs operates on `session.metadata.cwd`
-      // directly). Depends only on ISessionService for the cwd lookup.
-      // Construction order: [..., ITaskService, IFsService]. Reverse
-      // dispose runs IFsService FIRST (clears its .gitignore matcher
-      // cache) so the session service is still live during its dispose.
-      const fsService = ix.createInstance(FsService);
-      services.set(IFsService, fsService);
+      // W10 / Chains 9 + 10 — IFsService (DAEMON-OWN).
       a.get(IFsService);
 
-      // W11 / Chain 11 / P2.4 — IFsSearchService. DAEMON-OWN like IFsService.
-      // Depends on ISessionService (for cwd) + ILogger (for the
-      // one-shot "rg missing" warning). Inserted AFTER IFsService so
-      // reverse-dispose runs IFsSearchService FIRST among the W11
-      // additions, then IFsService, then ISessionService.
-      const fsSearchService = ix.createInstance(FsSearchService);
-      services.set(IFsSearchService, fsSearchService);
+      // W11 / Chain 11 — IFsSearchService (DAEMON-OWN).
       a.get(IFsSearchService);
 
-      // W11 / Chain 12 / P2.4 — IFsGitService. DAEMON-OWN like IFsService.
-      // Depends only on ISessionService (for cwd). Inserted AFTER
-      // IFsSearchService so reverse-dispose runs IFsGitService FIRST
-      // among the W11 additions.
-      const fsGitService = ix.createInstance(FsGitService);
-      services.set(IFsGitService, fsGitService);
+      // W11 / Chain 12 — IFsGitService (DAEMON-OWN).
       a.get(IFsGitService);
 
       // W12 / Chain 14 — IFsWatcher. DAEMON-OWN. Wraps a per-session
@@ -602,17 +495,12 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       // broadcast) `event.fs.changed` frames to the connections whose
       // subscribed paths overlap the change.
       //
-      // The watcher needs a `connection-lookup` for the targeted push;
-      // we use `IConnectionRegistry.get` bound. We also wire the
-      // `FsWatchHandler` adapter onto `IWSGateway` so any NEW WS
-      // connection captures it at construction — same pattern as W7.3's
-      // abort handler. EXISTING connections (during graceful
-      // restart-in-place) won't have an fs handler; production wires
-      // this before any client can connect.
-      //
-      // Construction order: AFTER IFsGitService. Reverse-dispose runs
-      // IFsWatcher FIRST (closes every chokidar instance), then
-      // IFsGitService, etc.
+      // **Closure-exception wiring** (Phase 4 §2.2): the watcher needs a
+      // `connection-lookup` closure built from `IConnectionRegistry.get`.
+      // That closure isn't serializable into a `SyncDescriptor` static-arg,
+      // so we build it inline here and register the resulting instance.
+      // This is the documented descriptor-first exception per
+      // `serviceCollection.ts` header.
       //
       // P2.6: @ILogger + @ISessionService auto-injected; only `lookup`
       // (closure over the live registry) and `{}` options remain as
@@ -690,26 +578,10 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       };
       wsGw.setFsWatchHandler(fsWatchHandler);
 
-      // W12.2 / Chain 15 — IFileStore. DAEMON-OWN like IFsWatcher.
-      // Persists uploads under `<homeDir>/.kimi/files/` with a JSON
-      // index. Depends only on ILogger. Inserted AFTER IFsWatcher so
-      // reverse-dispose runs IFileStore FIRST among the W12 additions
-      // (drops the index cache + idle file handles).
-      //
-      // `homeDir` resolution: prefer `coreProcessOptions.homeDir` if the
-      // caller set one (tests do this to isolate the store under a
-      // tmpdir); fall back to `~/.kimi`. The bridge also lives under
-      // the same root so they co-exist (`<homeDir>/files/` vs.
-      // `<homeDir>/<other bridge subdirs>`).
-      //
-      // P2.6: @ILogger auto-injects; only the options bag remains as
-      // a positional static arg.
-      const fileStoreHomeDir = opts.coreProcessOptions?.homeDir;
-      const fileStore = ix.createInstance(
-        FileStore,
-        fileStoreHomeDir !== undefined ? { homeDir: fileStoreHomeDir } : {},
-      );
-      services.set(IFileStore, fileStore);
+      // W12.2 / Chain 15 — IFileStore. DAEMON-OWN. Persists uploads under
+      // `<homeDir>/files/` with a JSON index. The `homeDir` override is
+      // baked into the `SyncDescriptor`'s static args by
+      // `createDaemonServiceCollection()`.
       a.get(IFileStore);
 
       return built;
