@@ -434,7 +434,7 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       services.set(ISessionClientsService, new SyncDescriptor(SessionClientsService));
       a.get(ISessionClientsService);
 
-      services.set(IEventService, new EventService(log, a.get(ISessionClientsService)));
+      services.set(IEventService, new EventService({}, log, a.get(ISessionClientsService)));
       // Touch the event bus BEFORE constructing brokers so brokers can hold a
       // reference for broadcast (W8.1 / Chain 5).
       const eventBus = a.get(IEventService) as EventService;
@@ -446,8 +446,8 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       // `@IEventReplayService` ctor decoration resolves to the live bus.
       services.set(IEventReplayService, eventBus);
       a.get(IEventReplayService);
-      services.set(IApprovalService, new ApprovalService(log, eventBus));
-      services.set(IQuestionService, new QuestionService(log, eventBus));
+      services.set(IApprovalService, new ApprovalService({}, log, eventBus));
+      services.set(IQuestionService, new QuestionService({}, log, eventBus));
 
       // Touch the brokers in order so they're recorded for reverse teardown
       // (Question → Approval → EventBus dispose direction).

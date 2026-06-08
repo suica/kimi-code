@@ -43,7 +43,7 @@ import {
   type QuestionResult,
 } from '@moonshot-ai/services';
 
-import type { ILogger } from './logger.js';
+import { ILogger } from './logger.js';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const _typeAnchor: typeof IQuestionService = IQuestionService;
@@ -91,9 +91,11 @@ export class QuestionService extends Disposable implements IQuestionService {
   private readonly _recentlyResolvedCap: number;
 
   constructor(
-    private readonly logger: ILogger,
-    private readonly eventService: IEventService,
-    options: QuestionServiceOptions = {},
+    // P4.1: static-first / services-last with `@I*` decorators.
+    // `options` is required; call sites pass `{}` when no overrides apply.
+    options: QuestionServiceOptions,
+    @ILogger private readonly logger: ILogger,
+    @IEventService private readonly eventService: IEventService,
   ) {
     super();
     this._timeoutMs = options.timeoutMs ?? QUESTION_DEFAULT_TIMEOUT_MS;

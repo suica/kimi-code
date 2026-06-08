@@ -118,7 +118,7 @@ describe('EventService (W5.2 — WS broadcaster)', () => {
     clients.subscribe(c1, 'sid_test');
     clients.subscribe(c2, 'sid_test');
 
-    const bus = new EventService(testLogger, clients);
+    const bus = new EventService({}, testLogger, clients);
     bus.publish({ type: 'fake.x', sessionId: 'sid_test' } as unknown as Event);
     bus.publish({ type: 'fake.y', sessionId: 'sid_test' } as unknown as Event);
 
@@ -141,7 +141,7 @@ describe('EventService (W5.2 — WS broadcaster)', () => {
     clients.subscribe(cA, 'sid_a');
     clients.subscribe(cB, 'sid_b');
 
-    const bus = new EventService(testLogger, clients);
+    const bus = new EventService({}, testLogger, clients);
     bus.publish({ type: 'e1', sessionId: 'sid_a' } as unknown as Event);
     bus.publish({ type: 'e1', sessionId: 'sid_b' } as unknown as Event);
     bus.publish({ type: 'e2', sessionId: 'sid_a' } as unknown as Event);
@@ -162,7 +162,7 @@ describe('EventService (W5.2 — WS broadcaster)', () => {
     clients.subscribe(onA, 'sid_a');
     clients.subscribe(onOther, 'sid_other');
 
-    const bus = new EventService(testLogger, clients);
+    const bus = new EventService({}, testLogger, clients);
     bus.publish({ type: 'evt', sessionId: 'sid_a' } as unknown as Event);
     expect(onA.sent.length).toBe(1);
     expect(onOther.sent.length).toBe(0);
@@ -175,7 +175,7 @@ describe('EventService (W5.2 — WS broadcaster)', () => {
     clients.subscribe(c, 'sid_x');
     const warnSpy = vi.spyOn(testLogger, 'warn');
 
-    const bus = new EventService(testLogger, clients);
+    const bus = new EventService({}, testLogger, clients);
     bus.publish({ type: 'no_sid' } as unknown as Event);
 
     expect(c.sent.length).toBe(0);
@@ -187,7 +187,7 @@ describe('EventService (W5.2 — WS broadcaster)', () => {
     const clients = new FakeSessionClients();
     const c = fakeConn();
     clients.subscribe(c, 'sid_x');
-    const bus = new EventService(testLogger, clients);
+    const bus = new EventService({}, testLogger, clients);
     bus.dispose();
     bus.publish({ type: 'late', sessionId: 'sid_x' } as unknown as Event);
     expect(c.sent.length).toBe(0);
@@ -197,7 +197,7 @@ describe('EventService (W5.2 — WS broadcaster)', () => {
     const clients = new FakeSessionClients();
     const c = fakeConn();
     clients.subscribe(c, 'sid_test');
-    const bus = new EventService(testLogger, clients);
+    const bus = new EventService({}, testLogger, clients);
     for (let i = 0; i < 5; i++) {
       bus.publish({ type: `e${i}`, sessionId: 'sid_test' } as unknown as Event);
     }
@@ -209,7 +209,7 @@ describe('EventService (W5.2 — WS broadcaster)', () => {
   });
 
   it('getBufferedSince returns empty + currentSeq=0 for a never-seen session', () => {
-    const bus = new EventService(testLogger, new FakeSessionClients());
+    const bus = new EventService({}, testLogger, new FakeSessionClients());
     const replay = bus.getBufferedSince('sid_new', 5);
     expect(replay.events).toEqual([]);
     expect(replay.resyncRequired).toBe(false);
@@ -228,8 +228,8 @@ describe('ApprovalService (W8.1 / Chain 5 — broadcasts + resolve-by-approval_i
     const clients = new FakeSessionClients();
     const conn = fakeConn('conn_subscriber');
     clients.subscribe(conn, 'sess_1');
-    const bus = new EventService(testLogger, clients);
-    const broker = new ApprovalService(testLogger, bus, opts);
+    const bus = new EventService({}, testLogger, clients);
+    const broker = new ApprovalService(opts ?? {}, testLogger, bus);
     return { broker, bus, clients, conn };
   }
 
@@ -341,8 +341,8 @@ describe('QuestionService (W8.2 / Chain 6 — broadcasts + dismiss)', () => {
     const clients = new FakeSessionClients();
     const conn = fakeConn('conn_q_subscriber');
     clients.subscribe(conn, 's');
-    const bus = new EventService(testLogger, clients);
-    const broker = new QuestionService(testLogger, bus, opts);
+    const bus = new EventService({}, testLogger, clients);
+    const broker = new QuestionService(opts ?? {}, testLogger, bus);
     return { broker, bus, clients, conn };
   }
 
@@ -456,9 +456,9 @@ describe('QuestionService (W8.2 / Chain 6 — broadcasts + dismiss)', () => {
 describe('DI graph — broker resolution through the container', () => {
   it('resolves broker decorators against the same instances registered in the collection', () => {
     const clients = new FakeSessionClients();
-    const eventBus = new EventService(testLogger, clients);
-    const approval = new ApprovalService(testLogger, eventBus);
-    const question = new QuestionService(testLogger, eventBus);
+    const eventBus = new EventService({}, testLogger, clients);
+    const approval = new ApprovalService({}, testLogger, eventBus);
+    const question = new QuestionService({}, testLogger, eventBus);
 
     // We don't need a CoreProcessService for this — just check the wiring symmetry.
     const collection = new ServiceCollection(

@@ -59,7 +59,7 @@ import {
   type ApprovalResponse,
 } from '@moonshot-ai/services';
 
-import type { ILogger } from './logger.js';
+import { ILogger } from './logger.js';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const _typeAnchor: typeof IApprovalService = IApprovalService;
@@ -119,9 +119,11 @@ export class ApprovalService extends Disposable implements IApprovalService {
   private readonly _recentlyResolvedCap: number;
 
   constructor(
-    private readonly logger: ILogger,
-    private readonly eventService: IEventService,
-    options: ApprovalServiceOptions = {},
+    // P4.1: static-first / services-last with `@I*` decorators.
+    // `options` is required; call sites pass `{}` when no overrides apply.
+    options: ApprovalServiceOptions,
+    @ILogger private readonly logger: ILogger,
+    @IEventService private readonly eventService: IEventService,
   ) {
     super();
     this._timeoutMs = options.timeoutMs ?? APPROVAL_DEFAULT_TIMEOUT_MS;
