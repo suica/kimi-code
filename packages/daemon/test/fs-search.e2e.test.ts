@@ -37,7 +37,7 @@ import { ISessionService } from '@moonshot-ai/services';
 
 import { IRestGateway, startDaemon, type RunningDaemon } from '../src';
 import { FsSearchService } from '../src/services/fsSearchService';
-import { ILogger } from '../src/services/logger';
+import { ILogService } from '../src/services/logger';
 
 let tmpDir: string;
 let lockPath: string;
@@ -403,9 +403,9 @@ describe('FsSearchService direct: rg fallback + grep timeout (W11.1)', () => {
     } as unknown as ISessionService;
   }
 
-  function makeStubLogger(): ILogger & { warnings: string[] } {
+  function makeStubLogger(): ILogService & { warnings: string[] } {
     const warnings: string[] = [];
-    const logger: ILogger & { warnings: string[] } = {
+    const logger: ILogService & { warnings: string[] } = {
       warnings,
       info: (..._args: unknown[]) => undefined,
       warn: (...args: unknown[]) => {
@@ -418,7 +418,7 @@ describe('FsSearchService direct: rg fallback + grep timeout (W11.1)', () => {
       trace: (..._args: unknown[]) => undefined,
       child: () => logger,
       dispose: () => undefined,
-    } as unknown as ILogger & { warnings: string[] };
+    } as unknown as ILogService & { warnings: string[] };
     return logger;
   }
 

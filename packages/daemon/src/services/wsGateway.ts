@@ -8,7 +8,7 @@
  * heartbeat.
  *
  * **Construction order** (relative to W4 services):
- *   ILogger → IRestGateway → IConnectionRegistry → ISessionClientsService
+ *   ILogService → IRestGateway → IConnectionRegistry → ISessionClientsService
  *     → IEventService → IApprovalService → IQuestionService
  *     → IWSGateway   ← here, constructed LATE
  *     → ICoreProcessService
@@ -40,7 +40,7 @@ import { Disposable, createDecorator } from '@moonshot-ai/agent-core';
 import { WebSocketServer, type WebSocket } from 'ws';
 
 import { IConnectionRegistry } from './connectionRegistry.js';
-import { ILogger } from './logger.js';
+import { ILogService } from './logger.js';
 import { IRestGateway } from './restGateway.js';
 import { ISessionClientsService } from './sessionClients.js';
 import { WsConnection, type AbortHandler, type FsWatchHandler } from '../ws/connection.js';

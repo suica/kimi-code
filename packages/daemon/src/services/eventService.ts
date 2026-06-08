@@ -41,7 +41,7 @@ import { Disposable, Emitter } from '@moonshot-ai/agent-core';
 import type { Event } from '@moonshot-ai/protocol';
 import { IEventReplayService, IEventService } from '@moonshot-ai/services';
 
-import { ILogger } from './logger.js';
+import { ILogService } from './logger.js';
 import { ISessionClientsService } from './sessionClients.js';
 
 import { buildEventEnvelope, type EventEnvelope } from '../ws/protocol.js';
@@ -114,10 +114,10 @@ export class EventService
   constructor(
     // P4.1: VSCode-style ctor — static-first, services-last with
     // `@I*` decorators. `options` becomes REQUIRED (no default) so the
-    // following `@ILogger` / `@ISessionClientsService` params can be
+    // following `@ILogService` / `@ISessionClientsService` params can be
     // required too. Call sites that don't override pass `{}` explicitly.
     options: EventServiceOptions,
-    @ILogger private readonly logger: ILogger,
+    @ILogService private readonly logger: ILogService,
     @ISessionClientsService private readonly sessionClients: ISessionClientsService,
   ) {
     super();

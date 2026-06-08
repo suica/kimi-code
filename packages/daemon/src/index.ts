@@ -7,12 +7,12 @@ export type { CreateLoggerOptions, DaemonLogger, DaemonLogLevel } from './logger
 export { acquireLock, DEFAULT_LOCK_PATH, DEFAULT_LOCK_DIR } from './lock.js';
 export type { AcquireLockOptions, AcquireLockResult, LockContents } from './lock.js';
 
-// DI service decorators — re-exported so consumers / tests can `a.get(ILogger)` etc.
+// DI service decorators — re-exported so consumers / tests can `a.get(ILogService)` etc.
 // The concrete impls (PinoLogger, FastifyRestGateway, EventService,
 // ApprovalService / QuestionService, ConnectionRegistry, SessionClientsService,
 // WSGateway) stay internal — daemon owns its wiring choices; external consumers
 // see only the interfaces.
-export { ILogger } from './services/logger.js';
+export { ILogService } from './services/logger.js';
 export { IRestGateway } from './services/restGateway.js';
 export { IConnectionRegistry } from './services/connectionRegistry.js';
 export { ISessionClientsService } from './services/sessionClients.js';

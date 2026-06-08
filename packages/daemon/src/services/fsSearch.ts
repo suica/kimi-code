@@ -19,7 +19,7 @@
  * **rg detection** (ROADMAP Chain 11 AC #1+#2): we shell out `which rg` ONCE
  * at construction time and cache the result. If `rg` is missing, every grep
  * call falls back to a pure-Node implementation and the FIRST such call
- * emits a single WARN log line via `ILogger`. We don't re-warn on later
+ * emits a single WARN log line via `ILogService`. We don't re-warn on later
  * calls (the warning is informational, not actionable — repeating it would
  * just spam).
  *
@@ -46,7 +46,7 @@
  *
  * **Anti-corruption**: this module imports `node:fs/promises`,
  * `node:path`, `node:child_process`, `ignore`, `ISessionService` from
- * `@moonshot-ai/services`, and the daemon's `ILogger` decorator. ZERO
+ * `@moonshot-ai/services`, and the daemon's `ILogService` decorator. ZERO
  * imports from `@moonshot-ai/agent-core` other than the `createDecorator`
  * + `Disposable` DI primitives, and ZERO from the SDK package.
  */
@@ -75,7 +75,7 @@ import type {
 } from '@moonshot-ai/protocol';
 import ignore, { type Ignore } from 'ignore';
 
-import { ILogger } from './logger.js';
+import { ILogService } from './logger.js';
 import {
   FsPathEscapesError,
   resolveSafePath,

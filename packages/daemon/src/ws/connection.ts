@@ -43,7 +43,7 @@ import {
   type WatchFsRemoveMessage,
 } from '@moonshot-ai/protocol';
 
-import type { ILogger } from '../services/logger.js';
+import type { ILogService } from '../services/logger.js';
 import type { ISessionClientsService } from '../services/sessionClients.js';
 
 import {
@@ -144,7 +144,7 @@ export type FsWatchResult =
 
 export interface WsConnectionOptions {
   socket: WebSocket;
-  logger: ILogger;
+  logger: ILogService;
   /** Per-session subscriber index — populated by `subscribe` / `unsubscribe` (W5.2). */
   sessionClients: ISessionClientsService;
   /** Ring-buffer replay source — `EventService` in prod, stub in tests (W5.3). */
@@ -181,7 +181,7 @@ export class WsConnection {
   public readonly lastSeqBySession = new Map<string, number>();
 
   private readonly socket: WebSocket;
-  private readonly logger: ILogger;
+  private readonly logger: ILogService;
   private readonly sessionClients: ISessionClientsService;
   private readonly eventService: BufferReplaySource;
   private readonly abortHandler: AbortHandler | undefined;

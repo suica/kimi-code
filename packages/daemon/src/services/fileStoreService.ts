@@ -13,7 +13,7 @@ import { Disposable, resolveKimiHome } from '@moonshot-ai/agent-core';
 
 import type { FileMeta } from '@moonshot-ai/protocol';
 
-import { ILogger } from './logger.js';
+import { ILogService } from './logger.js';
 import { IFileStore, FileNotFoundError, FileTooLargeError, type FileStoreOptions } from './fileStore.js';
 
 interface IndexFile {
@@ -32,11 +32,11 @@ export class FileStore extends Disposable implements IFileStore {
 
   constructor(
     // P2.6: static-first / services-last. `options` carries `homeDir`
-    // + `maxUploadBytes`; @ILogger auto-injects. The inline default on
-    // options is dropped (required `@ILogger` can't follow an optional
+    // + `maxUploadBytes`; @ILogService auto-injects. The inline default on
+    // options is dropped (required `@ILogService` can't follow an optional
     // param); start.ts passes `{}` explicitly when no overrides apply.
     options: FileStoreOptions,
-    @ILogger private readonly logger: ILogger,
+    @ILogService private readonly logger: ILogService,
   ) {
     super();
     const home = options.homeDir ?? resolveKimiHome();

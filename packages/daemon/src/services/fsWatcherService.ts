@@ -11,7 +11,7 @@ import { ISessionService } from '@moonshot-ai/services';
 
 import type { FsChangeEntry, FsChangeAction, FsChangeKind } from '@moonshot-ai/protocol';
 
-import { ILogger } from './logger.js';
+import { ILogService } from './logger.js';
 import {
   IFsWatcher,
   FsWatchLimitError,
@@ -78,14 +78,14 @@ export class FsWatcherService extends Disposable implements IFsWatcher {
     // P2.6: VSCode-style static-first / services-last. `lookup` is a
     // closure built at start.ts so it stays a positional static dep;
     // `options` is the config bag. `logger` + `_sessionService` are
-    // auto-injected via @ILogger / @ISessionService. The
+    // auto-injected via @ILogService / @ISessionService. The
     // `_sessionService` parameter is intentionally unused (reserved to
     // lock construction order so IFsWatcher disposes BEFORE
     // ISessionService — see field doc above) — the leading underscore
     // keeps the linter quiet.
     private readonly lookup: FsWatcherConnectionLookup,
     options: FsWatcherServiceOptions,
-    @ILogger private readonly logger: ILogger,
+    @ILogService private readonly logger: ILogService,
     @ISessionService _sessionService: ISessionService,
   ) {
     super();

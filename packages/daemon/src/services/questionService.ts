@@ -43,7 +43,7 @@ import {
   type QuestionResult,
 } from '@moonshot-ai/services';
 
-import { ILogger } from './logger.js';
+import { ILogService } from './logger.js';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const _typeAnchor: typeof IQuestionService = IQuestionService;
@@ -94,7 +94,7 @@ export class QuestionService extends Disposable implements IQuestionService {
     // P4.1: static-first / services-last with `@I*` decorators.
     // `options` is required; call sites pass `{}` when no overrides apply.
     options: QuestionServiceOptions,
-    @ILogger private readonly logger: ILogger,
+    @ILogService private readonly logger: ILogService,
     @IEventService private readonly eventService: IEventService,
   ) {
     super();

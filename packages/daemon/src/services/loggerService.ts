@@ -1,19 +1,19 @@
 /**
- * `PinoLogger` — implementation of `ILogger`.
+ * `PinoLogger` — implementation of `ILogService`.
  */
 
 import { Disposable } from '@moonshot-ai/agent-core';
 
 import type { DaemonLogger } from '../logger.js';
-import { ILogger } from './logger.js';
+import { ILogService } from './logger.js';
 
 /**
- * Adapter that satisfies `ILogger` by delegating to a `DaemonLogger` (pino).
+ * Adapter that satisfies `ILogService` by delegating to a `DaemonLogger` (pino).
  * No-op `dispose()`: pino's lifetime is managed by Fastify / the host process,
  * NOT by the DI container. Disposing here would close stdout writer streams
  * that other components still need during teardown.
  */
-export class PinoLogger extends Disposable implements ILogger {
+export class PinoLogger extends Disposable implements ILogService {
   readonly _serviceBrand: undefined;
 
   constructor(private readonly logger: DaemonLogger) {
@@ -48,7 +48,7 @@ export class PinoLogger extends Disposable implements ILogger {
     }
     this.logger.debug(obj, msg);
   }
-  child(bindings: object): ILogger {
+  child(bindings: object): ILogService {
     return new PinoLogger(this.logger.child(bindings));
   }
 }

@@ -10,7 +10,7 @@ import { IEventReplayService } from '@moonshot-ai/services';
 import { WebSocketServer, type WebSocket } from 'ws';
 
 import { IConnectionRegistry } from './connectionRegistry.js';
-import { ILogger } from './logger.js';
+import { ILogService } from './logger.js';
 import { IRestGateway } from './restGateway.js';
 import { ISessionClientsService } from './sessionClients.js';
 import { IWSGateway, type WSGatewayOptions, WS_PATH } from './wsGateway.js';
@@ -38,7 +38,7 @@ export class WSGateway extends Disposable implements IWSGateway {
     @IRestGateway private readonly restGateway: IRestGateway,
     @IConnectionRegistry private readonly registry: IConnectionRegistry,
     @ISessionClientsService private readonly sessionClients: ISessionClientsService,
-    @ILogger private readonly logger: ILogger,
+    @ILogService private readonly logger: ILogService,
   ) {
     super();
     this.wss = new WebSocketServer({ noServer: true });

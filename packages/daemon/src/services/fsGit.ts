@@ -27,7 +27,7 @@
  * raise 41304 batch-wide (same posture as `:stat_many` from W10).
  *
  * **Anti-corruption**: imports `node:child_process`, `node:path`,
- * `ISessionService`, `ILogger`. ZERO SDK imports.
+ * `ISessionService`, `ILogService`. ZERO SDK imports.
  */
 
 import { spawn } from 'node:child_process';

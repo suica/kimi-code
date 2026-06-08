@@ -20,7 +20,7 @@ import ignore, { type Ignore } from 'ignore';
 
 import { ISessionService, SessionNotFoundError } from '@moonshot-ai/services';
 
-import { ILogger } from './logger.js';
+import { ILogService } from './logger.js';
 import { IFsSearchService, FsGrepTimeoutError } from './fsSearch.js';
 import { FsPathEscapesError, resolveSafePath } from './fsPathSafety.js';
 
@@ -56,7 +56,7 @@ export class FsSearchService
 
   constructor(
     @ISessionService protected readonly sessions: ISessionService,
-    @ILogger protected readonly logger: ILogger,
+    @ILogService protected readonly logger: ILogService,
   ) {
     super();
   }
@@ -365,7 +365,7 @@ export class FsSearchService
       // Cap-driven abort: keep accumulated state, set truncated.
       truncated = true;
     }
-    void stderrBuf; // available for logging via ILogger if needed
+    void stderrBuf; // available for logging via ILogService if needed
 
     return {
       files,

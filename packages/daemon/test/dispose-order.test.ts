@@ -13,7 +13,7 @@
  * call `ix.dispose()`. Assert the recorded array is REVERSE of construction.
  *
  * Construction order under W12 (Chains 14 + 15 add IFsWatcher + IFileStore):
- *   ILogger → IRestGateway → IConnectionRegistry → ISessionClientsService →
+ *   ILogService → IRestGateway → IConnectionRegistry → ISessionClientsService →
  *   IEventService → IApprovalService → IQuestionService → IWSGateway →
  *   ICoreProcessService → ISessionService → IMessageService → IPromptService →
  *   IToolService → IMcpService → ITaskService → IFsService →
@@ -24,7 +24,7 @@
  *   IFsService → ITaskService → IMcpService → IToolService →
  *   IPromptService → IMessageService → ISessionService → ICoreProcessService →
  *   IWSGateway → IQuestionService → IApprovalService → IEventService →
- *   ISessionClientsService → IConnectionRegistry → IRestGateway → ILogger
+ *   ISessionClientsService → IConnectionRegistry → IRestGateway → ILogService
  *
  * Focused invariants:
  *   - WSGateway disposes BEFORE brokers (W5.1)
@@ -76,7 +76,7 @@ import { IFsGitService } from '../src/services/fsGit';
 import { IFsSearchService } from '../src/services/fsSearch';
 import { IFsService } from '../src/services/fs';
 import { IFsWatcher } from '../src/services/fsWatcher';
-import { ILogger } from '../src/services/logger';
+import { ILogService } from '../src/services/logger';
 import { IRestGateway } from '../src/services/restGateway';
 import { ISessionClientsService } from '../src/services/sessionClients';
 import { IWSGateway } from '../src/services/wsGateway';
@@ -95,7 +95,7 @@ describe('Dispose order is reverse-of-construction (W5.1 closes W4 gap; W6.2 add
     const order: string[] = [];
 
     const services = new ServiceCollection(
-      [ILogger, makeRecorder('ILogger', order)],
+      [ILogService, makeRecorder('ILogService', order)],
       [IRestGateway, makeRecorder('IRestGateway', order)],
       [IConnectionRegistry, makeRecorder('IConnectionRegistry', order)],
       [ISessionClientsService, makeRecorder('ISessionClientsService', order)],
@@ -120,7 +120,7 @@ describe('Dispose order is reverse-of-construction (W5.1 closes W4 gap; W6.2 add
 
     // Touch in CONSTRUCTION order so _constructionOrder reflects start.ts.
     ix.invokeFunction((a) => {
-      a.get(ILogger);
+      a.get(ILogService);
       a.get(IRestGateway);
       a.get(IConnectionRegistry);
       a.get(ISessionClientsService);
@@ -164,26 +164,26 @@ describe('Dispose order is reverse-of-construction (W5.1 closes W4 gap; W6.2 add
       'ISessionClientsService',
       'IConnectionRegistry',
       'IRestGateway',
-      'ILogger',
+      'ILogService',
     ]);
   });
 
   it('logger disposes LAST so broker dispose() can still emit log lines', () => {
     const order: string[] = [];
     const services = new ServiceCollection(
-      [ILogger, makeRecorder('ILogger', order)],
+      [ILogService, makeRecorder('ILogService', order)],
       [IEventService, makeRecorder('IEventService', order)],
       [ICoreProcessService, makeRecorder('ICoreProcessService', order)],
     );
     const ix = new InstantiationService(services);
     ix.invokeFunction((a) => {
-      a.get(ILogger);
+      a.get(ILogService);
       a.get(IEventService);
       a.get(ICoreProcessService);
     });
     ix.dispose();
     // Verify logger is last regardless of order.
-    expect(order[order.length - 1]).toBe('ILogger');
+    expect(order[order.length - 1]).toBe('ILogService');
   });
 
   it('WSGateway disposes before brokers so brokers never emit on a live socket', () => {

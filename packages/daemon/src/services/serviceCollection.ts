@@ -88,7 +88,7 @@ import { IFsSearchService } from './fsSearch.js';
 import { FsSearchService } from './fsSearchService.js';
 import { IFileStore } from './fileStore.js';
 import { FileStore } from './fileStoreService.js';
-import { ILogger } from './logger.js';
+import { ILogService } from './logger.js';
 import { PinoLogger as PinoLoggerAdapter } from './loggerService.js';
 import { QuestionService } from './questionService.js';
 import { IRestGateway } from './restGateway.js';
@@ -133,7 +133,7 @@ export function createDaemonServiceCollection(
   // ctor takes a non-serializable handle (the pino logger; the Fastify
   // instance; the CLI-resolved path object) so the container can't drive
   // construction.
-  services.set(ILogger, new PinoLoggerAdapter(pinoLogger));
+  services.set(ILogService, new PinoLoggerAdapter(pinoLogger));
   services.set(IRestGateway, new FastifyRestGateway(app));
   services.set(IEnvironmentService, envService);
 

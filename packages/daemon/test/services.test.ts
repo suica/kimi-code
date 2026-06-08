@@ -2,7 +2,7 @@
  * Service stubs (W4.4 / P0.14, extended in W5.2 / P0.16) — peer service +
  * event-service unit tests.
  *
- * Hermetic: we wire a real `InstantiationService` with stub `ILogger` impl,
+ * Hermetic: we wire a real `InstantiationService` with stub `ILogService` impl,
  * exercise `request` / `resolve` / `dismiss` / `dispose` directly, and a
  * stub `ISessionClientsService` (no real sockets) for `EventService`.
  *
@@ -34,7 +34,7 @@ import {
 
 import { ApprovalService } from '../src/services/approvalService';
 import { EventService } from '../src/services/eventService';
-import { ILogger, type ILogger as ILoggerT } from '../src/services/logger';
+import { ILogService, type ILogService as ILoggerT } from '../src/services/logger';
 import { QuestionService } from '../src/services/questionService';
 import {
   ISessionClientsService,
@@ -42,7 +42,7 @@ import {
 } from '../src/services/sessionClients';
 import type { WsConnection } from '../src/ws/connection';
 
-/** No-op logger that satisfies `ILogger` without pulling pino. */
+/** No-op logger that satisfies `ILogService` without pulling pino. */
 class TestLogger implements ILoggerT {
   readonly _serviceBrand: undefined;
 
@@ -102,7 +102,7 @@ let testLogger: TestLogger;
 
 beforeEach(() => {
   testLogger = new TestLogger();
-  const collection = new ServiceCollection([ILogger, testLogger]);
+  const collection = new ServiceCollection([ILogService, testLogger]);
   ix = new InstantiationService(collection);
 });
 
@@ -462,7 +462,7 @@ describe('DI graph — broker resolution through the container', () => {
 
     // We don't need a CoreProcessService for this — just check the wiring symmetry.
     const collection = new ServiceCollection(
-      [ILogger, testLogger],
+      [ILogService, testLogger],
       [ISessionClientsService, clients],
       [IEventService, eventBus],
       [IApprovalService, approval],
@@ -474,7 +474,7 @@ describe('DI graph — broker resolution through the container', () => {
       expect(a.get(IEventService)).toBe(eventBus);
       expect(a.get(IApprovalService)).toBe(approval);
       expect(a.get(IQuestionService)).toBe(question);
-      expect(a.get(ILogger)).toBe(testLogger);
+      expect(a.get(ILogService)).toBe(testLogger);
     });
     localIx.dispose();
   });

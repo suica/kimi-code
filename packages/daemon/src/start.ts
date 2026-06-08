@@ -60,7 +60,7 @@ import {
 import { FsWatcherService } from './services/fsWatcherService.js';
 import { FsPathEscapesError, resolveSafePath } from './services/fsPathSafety.js';
 import { IFileStore } from './services/fileStore.js';
-import { ILogger } from './services/logger.js';
+import { ILogService } from './services/logger.js';
 import { IRestGateway } from './services/restGateway.js';
 import { ISessionClientsService } from './services/sessionClients.js';
 import { createDaemonServiceCollection } from './services/serviceCollection.js';
@@ -113,7 +113,7 @@ export { DaemonLockedError };
  * → Fastify → `app.ready()` → DI container → services → bridge.ready → listen.
  *
  * **Wiring order matters for teardown** (W3 handoff §Gotchas):
- *   construction order = [ILogger, IRestGateway, IConnectionRegistry,
+ *   construction order = [ILogService, IRestGateway, IConnectionRegistry,
  *                          ISessionClientsService, IEventService, IApprovalService,
  *                          IQuestionService, IWSGateway, ICoreProcessService]
  *   dispose order      = REVERSE of the above (per InstantiationService
@@ -379,12 +379,12 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
   let coreProcess: ICoreProcessService;
   try {
     coreProcess = ix.invokeFunction((a) => {
-      // ILogger first so it disposes LAST.
-      const log = a.get(ILogger);
+      // ILogService first so it disposes LAST.
+      const log = a.get(ILogService);
       a.get(IRestGateway);
 
       // Plan §4.5: wire `setUnexpectedErrorHandler` HERE — AFTER the
-      // container has resolved `ILogger`, NOT at module load time. Doing it
+      // container has resolved `ILogService`, NOT at module load time. Doing it
       // at module load risks a startup-time listener exception NPE'ing on
       // an unresolved logger (the handler closure would capture an
       // undefined `log`). Routing unexpected errors to the daemon logger
@@ -392,7 +392,7 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       // to `onUnexpectedError`) surface as structured `[unexpected]` log
       // lines instead of being silently dropped.
       //
-      // Argument order matches the daemon's `ILogger.error(obj, msg)`
+      // Argument order matches the daemon's `ILogService.error(obj, msg)`
       // signature (= pino's `error({...}, '[unexpected]')` form) — the
       // structured payload comes FIRST so pino attaches it to the line, and
       // the `[unexpected]` tag is the human-readable message.
@@ -415,7 +415,7 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       a.get(ISessionClientsService);
 
       // EventService — touching constructs it via the descriptor (auto-injects
-      // @ILogger + @ISessionClientsService). Cast to the concrete class so we
+      // @ILogService + @ISessionClientsService). Cast to the concrete class so we
       // can call `.currentSeq(...)` on it from the WS abort handler below
       // (only the concrete class exposes that helper).
       const eventBus = a.get(IEventService) as EventService;
@@ -502,7 +502,7 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       // This is the documented descriptor-first exception per
       // `serviceCollection.ts` header.
       //
-      // P2.6: @ILogger + @ISessionService auto-injected; only `lookup`
+      // P2.6: @ILogService + @ISessionService auto-injected; only `lookup`
       // (closure over the live registry) and `{}` options remain as
       // positional static args.
       const registry = a.get(IConnectionRegistry);

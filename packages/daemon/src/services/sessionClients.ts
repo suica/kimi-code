@@ -24,7 +24,7 @@
 
 import { Disposable, createDecorator } from '@moonshot-ai/agent-core';
 
-import { ILogger } from './logger.js';
+import { ILogService } from './logger.js';
 import type { WsConnection } from '../ws/connection.js';
 
 export interface ISessionClientsService {

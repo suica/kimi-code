@@ -4,7 +4,7 @@
 
 import { Disposable } from '@moonshot-ai/agent-core';
 
-import { ILogger } from './logger.js';
+import { ILogService } from './logger.js';
 import { ISessionClientsService } from './sessionClients.js';
 import type { WsConnection } from '../ws/connection.js';
 
@@ -14,12 +14,12 @@ export class SessionClientsService extends Disposable implements ISessionClients
   private readonly _bySession = new Map<string, Set<WsConnection>>();
 
   /**
-   * P2.2: `@ILogger` is auto-injected by the container. The service does
+   * P2.2: `@ILogService` is auto-injected by the container. The service does
    * not currently emit log lines (the subscription model is silent by
    * design — service / event-publish call sites do the logging) but the dep is
    * declared so future diagnostic work doesn't need a ctor reshuffle.
    */
-  constructor(@ILogger private readonly _logger: ILogger) {
+  constructor(@ILogService private readonly _logger: ILogService) {
     super();
     void this._logger;
   }

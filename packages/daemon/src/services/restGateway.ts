@@ -7,7 +7,7 @@
  * `app.close()` — Fastify drains in-flight requests then shuts down the HTTP
  * server.
  *
- * Construction-order positioning: registered SECOND (right after ILogger).
+ * Construction-order positioning: registered SECOND (right after ILogService).
  * Dispose order then runs gateway BEFORE logger, which is the safe ordering —
  * Fastify's drain logs through the still-alive pino instance.
  *

@@ -64,7 +64,7 @@ import {
 
 import type { FileMeta } from '@moonshot-ai/protocol';
 
-import { ILogger } from './logger.js';
+import { ILogService } from './logger.js';
 
 /* -------------------------------------------------------------------------
  * Tunable constants

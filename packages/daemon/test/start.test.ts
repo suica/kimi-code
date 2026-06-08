@@ -6,7 +6,7 @@
  * and vanishes on close, and that a second startDaemon raises DaemonLockedError.
  *
  * The DI graph end-to-end is exercised implicitly: every startDaemon call
- * constructs ILogger, IRestGateway, IEventService, IApprovalService,
+ * constructs ILogService, IRestGateway, IEventService, IApprovalService,
  * IQuestionService, and ICoreProcessService in order. Failure modes there (missing
  * service, wrong ctor args) would surface as a startDaemon reject.
  */
@@ -25,7 +25,7 @@ import {
   IConnectionRegistry,
   IEventService,
   ICoreProcessService,
-  ILogger,
+  ILogService,
   IQuestionService,
   IRestGateway,
   ISessionClientsService,
@@ -110,7 +110,7 @@ describe('startDaemon — DI container wiring', () => {
     // Every decorator should resolve. .get() would throw "No service registered"
     // if any were missing.
     r.services.invokeFunction((a) => {
-      expect(a.get(ILogger)).toBeDefined();
+      expect(a.get(ILogService)).toBeDefined();
       expect(a.get(IRestGateway)).toBeDefined();
       expect(a.get(IConnectionRegistry)).toBeDefined();
       expect(a.get(ISessionClientsService)).toBeDefined();
