@@ -23,7 +23,7 @@
 
 import { Disposable, createDecorator } from '@moonshot-ai/agent-core';
 
-import type { WsConnection } from '#ws/connection';
+import type { WsConnection } from '#/ws/connection';
 
 export interface IConnectionRegistry {
   readonly _serviceBrand: undefined;

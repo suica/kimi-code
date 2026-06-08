@@ -36,14 +36,14 @@ import {
   IQuestionService,
 } from '@moonshot-ai/services';
 
-import { ApprovalService } from '#services/approval/approvalService';
-import { ILogService, type ILogService as ILoggerT } from '#services/logger';
-import { QuestionService } from '#services/question/questionService';
+import { ApprovalService } from '#/services/approval/approvalService';
+import { ILogService, type ILogService as ILoggerT } from '#/services/logger';
+import { QuestionService } from '#/services/question/questionService';
 import {
   ISessionClientsService,
   type ISessionClientsService as ISessionClientsServiceT,
-} from '#services/gateway';
-import { WSBroadcastService } from '#services/gateway/wsBroadcastService';
+} from '#/services/gateway';
+import { WSBroadcastService } from '#/services/gateway/wsBroadcastService';
 import type { WsConnection } from '../src/ws/connection';
 
 /** No-op logger that satisfies `ILogService` without pulling pino. */

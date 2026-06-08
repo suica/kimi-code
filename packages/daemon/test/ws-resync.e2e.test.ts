@@ -42,7 +42,7 @@ import {
   startDaemon,
   type RunningDaemon,
 } from '../src';
-import { WSBroadcastService } from '#services/gateway/wsBroadcastService';
+import { WSBroadcastService } from '#/services/gateway/wsBroadcastService';
 
 let tmpDir: string;
 let lockPath: string;

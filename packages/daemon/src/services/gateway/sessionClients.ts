@@ -23,8 +23,8 @@
 
 import { Disposable, createDecorator } from '@moonshot-ai/agent-core';
 
-import { ILogService } from '#services/logger';
-import type { WsConnection } from '#ws/connection';
+import { ILogService } from '#/services/logger';
+import type { WsConnection } from '#/ws/connection';
 
 export interface ISessionClientsService {
   readonly _serviceBrand: undefined;

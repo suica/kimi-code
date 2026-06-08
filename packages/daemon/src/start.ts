@@ -31,6 +31,7 @@ import { sep as nodePathSep, relative as nodePathRelativeNative } from 'node:pat
 
 import { okEnvelope } from './envelope.js';
 import { installErrorHandler } from './error-handler.js';
+import { transformOpenApiDocument } from './openapi/transforms.js';
 import { acquireLock, DaemonLockedError } from './lock.js';
 import { createDaemonLogger, type DaemonLogLevel, type DaemonLogger } from './logger.js';
 import { resolveRequestId } from './request-id.js';
@@ -47,24 +48,24 @@ import { registerSessionsRoutes } from './routes/sessions.js';
 import { registerTasksRoutes } from './routes/tasks.js';
 import { registerToolsRoutes } from './routes/tools.js';
 import { registerDebugRoutes } from './routes/debug.js';
-import { IConnectionRegistry } from '#services/gateway';
-import { IFsService } from '#services/fs';
-import { IFsGitService } from '#services/fs';
-import { IFsSearchService } from '#services/fs';
+import { IConnectionRegistry } from '#/services/gateway';
+import { IFsService } from '#/services/fs';
+import { IFsGitService } from '#/services/fs';
+import { IFsSearchService } from '#/services/fs';
 import {
   IFsWatcher,
   FsWatchLimitError,
   createConnectionLookup,
-} from '#services/fs';
-import { FsWatcherService } from '#services/fs/fsWatcherService';
-import { FsPathEscapesError, resolveSafePath } from '#services/fs';
-import { IFileStore } from '#services/fileStore';
-import { ILogService } from '#services/logger';
-import { IRestGateway } from '#services/gateway';
-import { ISessionClientsService } from '#services/gateway';
-import { createDaemonServiceCollection } from '#services/serviceCollection';
-import { IWSGateway, type WSGatewayOptions } from '#services/gateway';
-import { IWSBroadcastService } from '#services/gateway';
+} from '#/services/fs';
+import { FsWatcherService } from '#/services/fs/fsWatcherService';
+import { FsPathEscapesError, resolveSafePath } from '#/services/fs';
+import { IFileStore } from '#/services/fileStore';
+import { ILogService } from '#/services/logger';
+import { IRestGateway } from '#/services/gateway';
+import { ISessionClientsService } from '#/services/gateway';
+import { createDaemonServiceCollection } from '#/services/serviceCollection';
+import { IWSGateway, type WSGatewayOptions } from '#/services/gateway';
+import { IWSBroadcastService } from '#/services/gateway';
 import { getDaemonVersion } from './version.js';
 
 export interface DaemonStartOptions {
@@ -171,6 +172,21 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
     disableRequestLogging: false,
     genReqId: (req) => resolveRequestId(req.headers),
   });
+  // Schemas on routes (`body` / `querystring` / `params` / `response`) feed
+  // `@fastify/swagger` for OpenAPI docs. They are NOT the daemon's input
+  // validator (Zod `validateBody` / `validateQuery` / `validateParams`
+  // preHandlers in `middleware/validate.ts` are) and they are NOT the wire
+  // serializer either — the daemon's envelope contract puts the business
+  // outcome in `code` so the SAME HTTP-200 response carries both the
+  // success-shape `data` and the error-shape `data` (e.g.
+  // `{cancelled: false}` on `40904`). Fastify's defaults would reject the
+  // error-shape `data` against the success-shape `response[200]` schema
+  // (`fast-json-stringify` failure → `installErrorHandler` → `50001`).
+  // We install no-op validator and serializer compilers so the schemas
+  // remain purely documentation; runtime correctness is owned by Zod
+  // preHandlers (validation) and `JSON.stringify` (serialization).
+  app.setValidatorCompiler(() => () => true);
+  app.setSerializerCompiler(() => (data) => JSON.stringify(data));
   installErrorHandler(app);
 
   // Register @fastify/swagger BEFORE routes so it can collect schema
@@ -197,6 +213,12 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
         { name: 'fs', description: 'Filesystem operations' },
         { name: 'files', description: 'File upload & download' },
       ],
+    },
+    transformObject: (documentObject) => {
+      if (!('openapiObject' in documentObject)) {
+        return documentObject.swaggerObject;
+      }
+      return transformOpenApiDocument(documentObject.openapiObject as Record<string, unknown>);
     },
   });
 

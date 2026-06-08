@@ -28,7 +28,7 @@ import { Disposable } from '@moonshot-ai/agent-core';
 import type { Event } from '@moonshot-ai/protocol';
 import { IEventService } from '@moonshot-ai/services';
 
-import { ILogService } from '#services/logger';
+import { ILogService } from '#/services/logger';
 import { ISessionClientsService } from './sessionClients.js';
 import {
   DEFAULT_MAX_BUFFER_SIZE,
@@ -37,7 +37,7 @@ import {
   type WSBroadcastServiceOptions,
 } from './wsBroadcast.js';
 
-import { buildEventEnvelope, type EventEnvelope } from '#ws/protocol';
+import { buildEventEnvelope, type EventEnvelope } from '#/ws/protocol';
 
 interface BufferEntry {
   seq: number;

@@ -4,7 +4,7 @@
 
 import { Disposable } from '@moonshot-ai/agent-core';
 
-import type { WsConnection } from '#ws/connection';
+import type { WsConnection } from '#/ws/connection';
 import { IConnectionRegistry } from './connectionRegistry.js';
 
 export class ConnectionRegistry extends Disposable implements IConnectionRegistry {

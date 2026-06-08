@@ -28,7 +28,7 @@ import { IRestGateway, startDaemon, type RunningDaemon } from '../src';
 import {
   QuestionService,
   QuestionExpiredError,
-} from '#services/question/questionService';
+} from '#/services/question/questionService';
 
 let tmpDir: string;
 let lockPath: string;

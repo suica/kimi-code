@@ -186,7 +186,13 @@ describe('POST /api/v1/sessions/{sid}/prompts — submit validation (W7.2 / Chai
     const res = await appOf(r).inject({
       method: 'POST',
       url: '/api/v1/sessions/sess_missing/prompts',
-      payload: { content: [{ type: 'text', text: 'hello' }] },
+      payload: {
+        content: [{ type: 'text', text: 'hello' }],
+        model: 'x',
+        thinking: 'off',
+        permission_mode: 'manual',
+        plan_mode: false,
+      },
     });
     const env = envelopeOf<unknown>(res.json());
     expect(env.code).toBe(40401);

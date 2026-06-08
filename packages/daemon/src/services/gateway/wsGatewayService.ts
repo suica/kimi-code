@@ -9,12 +9,12 @@ import { Disposable } from '@moonshot-ai/agent-core';
 import { WebSocketServer, type WebSocket } from 'ws';
 
 import { IConnectionRegistry } from './connectionRegistry.js';
-import { ILogService } from '#services/logger';
+import { ILogService } from '#/services/logger';
 import { IRestGateway } from './restGateway.js';
 import { ISessionClientsService } from './sessionClients.js';
 import { IWSBroadcastService } from './wsBroadcast.js';
 import { IWSGateway, type WSGatewayOptions, WS_PATH } from './wsGateway.js';
-import { WsConnection, type AbortHandler, type FsWatchHandler } from '#ws/connection';
+import { WsConnection, type AbortHandler, type FsWatchHandler } from '#/ws/connection';
 
 export class WSGateway extends Disposable implements IWSGateway {
   readonly _serviceBrand: undefined;

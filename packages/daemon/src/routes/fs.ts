@@ -76,16 +76,16 @@ import {
   FsTooLargeError,
   FsTooManyResultsError,
   IFsService,
-} from '#services/fs';
+} from '#/services/fs';
 import {
   FsGrepTimeoutError,
   IFsSearchService,
-} from '#services/fs';
+} from '#/services/fs';
 import {
   FsGitUnavailableError,
   IFsGitService,
-} from '#services/fs';
-import { FsPathEscapesError } from '#services/fs';
+} from '#/services/fs';
+import { FsPathEscapesError } from '#/services/fs';
 
 interface FsRouteHost {
   post(
@@ -310,7 +310,7 @@ export function registerFsRoutes(
       // central sendMappedError (which writes a JSON envelope per the
       // download exception). Success path leaves the response body free
       // for the stream.
-      let resolved: import('#services/fs').FsDownloadResolved;
+      let resolved: import('#/services/fs').FsDownloadResolved;
       try {
         resolved = await ix.invokeFunction((a) =>
           a.get(IFsService).resolveDownload(session_id, relPath),

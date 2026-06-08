@@ -40,10 +40,10 @@ import { Disposable, createDecorator } from '@moonshot-ai/agent-core';
 import { WebSocketServer, type WebSocket } from 'ws';
 
 import { IConnectionRegistry } from './connectionRegistry.js';
-import { ILogService } from '#services/logger';
+import { ILogService } from '#/services/logger';
 import { IRestGateway } from './restGateway.js';
 import { ISessionClientsService } from './sessionClients.js';
-import { WsConnection, type AbortHandler, type FsWatchHandler } from '#ws/connection';
+import { WsConnection, type AbortHandler, type FsWatchHandler } from '#/ws/connection';
 
 /** WS endpoint path. WS.md §1.1. */
 export const WS_PATH = '/api/v1/ws';

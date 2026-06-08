@@ -64,31 +64,31 @@ import {
 } from '@moonshot-ai/services';
 import type { Logger as PinoLogger } from 'pino';
 
-import type { FastifyLike } from '#services/gateway/restGateway';
+import type { FastifyLike } from '#/services/gateway/restGateway';
 import type { DaemonStartOptions } from '../start.js';
 
-import { ApprovalService } from '#services/approval/approvalService';
-import { IConnectionRegistry } from '#services/gateway/connectionRegistry';
-import { ConnectionRegistry } from '#services/gateway/connectionRegistryService';
-import { IFsService } from '#services/fs/fs';
-import { FsService } from '#services/fs/fsService';
-import { IFsGitService } from '#services/fs/fsGit';
-import { FsGitService } from '#services/fs/fsGitService';
-import { IFsSearchService } from '#services/fs/fsSearch';
-import { FsSearchService } from '#services/fs/fsSearchService';
-import { IFileStore } from '#services/fileStore/fileStore';
-import { FileStore } from '#services/fileStore/fileStoreService';
-import { ILogService } from '#services/logger/logger';
-import { PinoLogger as PinoLoggerAdapter } from '#services/logger/loggerService';
-import { QuestionService } from '#services/question/questionService';
-import { IRestGateway } from '#services/gateway/restGateway';
-import { FastifyRestGateway } from '#services/gateway/restGatewayService';
-import { ISessionClientsService } from '#services/gateway/sessionClients';
-import { SessionClientsService } from '#services/gateway/sessionClientsService';
-import { IWSGateway } from '#services/gateway/wsGateway';
-import { WSGateway } from '#services/gateway/wsGatewayService';
-import { IWSBroadcastService } from '#services/gateway/wsBroadcast';
-import { WSBroadcastService } from '#services/gateway/wsBroadcastService';
+import { ApprovalService } from '#/services/approval/approvalService';
+import { IConnectionRegistry } from '#/services/gateway/connectionRegistry';
+import { ConnectionRegistry } from '#/services/gateway/connectionRegistryService';
+import { IFsService } from '#/services/fs/fs';
+import { FsService } from '#/services/fs/fsService';
+import { IFsGitService } from '#/services/fs/fsGit';
+import { FsGitService } from '#/services/fs/fsGitService';
+import { IFsSearchService } from '#/services/fs/fsSearch';
+import { FsSearchService } from '#/services/fs/fsSearchService';
+import { IFileStore } from '#/services/fileStore/fileStore';
+import { FileStore } from '#/services/fileStore/fileStoreService';
+import { ILogService } from '#/services/logger/logger';
+import { PinoLogger as PinoLoggerAdapter } from '#/services/logger/loggerService';
+import { QuestionService } from '#/services/question/questionService';
+import { IRestGateway } from '#/services/gateway/restGateway';
+import { FastifyRestGateway } from '#/services/gateway/restGatewayService';
+import { ISessionClientsService } from '#/services/gateway/sessionClients';
+import { SessionClientsService } from '#/services/gateway/sessionClientsService';
+import { IWSGateway } from '#/services/gateway/wsGateway';
+import { WSGateway } from '#/services/gateway/wsGatewayService';
+import { IWSBroadcastService } from '#/services/gateway/wsBroadcast';
+import { WSBroadcastService } from '#/services/gateway/wsBroadcastService';
 
 export interface DaemonServiceCollectionOptions {
   /** Original `startDaemon` options bag — carries the per-service tunables. */

@@ -58,7 +58,7 @@ import {
   type ApprovalResponse,
 } from '@moonshot-ai/services';
 
-import { ILogService } from '#services/logger';
+import { ILogService } from '#/services/logger';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const _typeAnchor: typeof IApprovalService = IApprovalService;

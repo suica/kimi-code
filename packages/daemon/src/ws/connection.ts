@@ -39,8 +39,8 @@ import {
   type WatchFsRemoveMessage,
 } from '@moonshot-ai/protocol';
 
-import type { ILogService } from '#services/logger';
-import type { ISessionClientsService } from '#services/gateway';
+import type { ILogService } from '#/services/logger';
+import type { ISessionClientsService } from '#/services/gateway';
 
 import {
   buildAck,

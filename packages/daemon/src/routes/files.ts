@@ -53,7 +53,7 @@ import {
   FileNotFoundError,
   FileTooLargeError,
   IFileStore,
-} from '#services/fileStore';
+} from '#/services/fileStore';
 
 /**
  * Structural Fastify-route host for the files family. Mirrors the

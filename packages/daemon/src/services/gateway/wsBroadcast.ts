@@ -36,7 +36,7 @@
 
 import { createDecorator } from '@moonshot-ai/agent-core';
 
-import type { EventEnvelope } from '#ws/protocol';
+import type { EventEnvelope } from '#/ws/protocol';
 
 export interface BufferedSinceResult {
   events: Array<{ seq: number; envelope: EventEnvelope }>;

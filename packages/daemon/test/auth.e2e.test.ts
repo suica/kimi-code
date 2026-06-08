@@ -223,7 +223,13 @@ describe('POST /api/v1/sessions/{sid}/prompts — readiness gate (P2.1 D1)', () 
     const res = await appOf(r).inject({
       method: 'POST',
       url: `/api/v1/sessions/${sid}/prompts`,
-      payload: { content: [{ type: 'text', text: 'hello' }] },
+      payload: {
+        content: [{ type: 'text', text: 'hello' }],
+        model: 'x',
+        thinking: 'off',
+        permission_mode: 'manual',
+        plan_mode: false,
+      },
     });
     const env = envelopeOf<unknown>(res.json());
     expect(env.code).toBe(40110);
@@ -252,7 +258,13 @@ describe('POST /api/v1/sessions/{sid}/prompts — readiness gate (P2.1 D1)', () 
     const res = await appOf(r).inject({
       method: 'POST',
       url: `/api/v1/sessions/${sid}/prompts`,
-      payload: { content: [{ type: 'text', text: 'hello' }] },
+      payload: {
+        content: [{ type: 'text', text: 'hello' }],
+        model: 'x',
+        thinking: 'off',
+        permission_mode: 'manual',
+        plan_mode: false,
+      },
     });
     const env = envelopeOf<unknown>(res.json());
     expect(env.code).toBe(40111);
@@ -281,7 +293,13 @@ describe('POST /api/v1/sessions/{sid}/prompts — readiness gate (P2.1 D1)', () 
     const res = await appOf(r).inject({
       method: 'POST',
       url: `/api/v1/sessions/${sid}/prompts`,
-      payload: { content: [{ type: 'text', text: 'hello' }] },
+      payload: {
+        content: [{ type: 'text', text: 'hello' }],
+        model: 'x',
+        thinking: 'off',
+        permission_mode: 'manual',
+        plan_mode: false,
+      },
     });
     const env = envelopeOf<unknown>(res.json());
     expect(env.code).toBe(40113);
@@ -308,7 +326,13 @@ describe('POST /api/v1/sessions/{sid}/prompts — readiness gate (P2.1 D1)', () 
     const res = await appOf(r).inject({
       method: 'POST',
       url: `/api/v1/sessions/${sid}/prompts`,
-      payload: { content: [{ type: 'text', text: 'hello' }] },
+      payload: {
+        content: [{ type: 'text', text: 'hello' }],
+        model: 'x',
+        thinking: 'off',
+        permission_mode: 'manual',
+        plan_mode: false,
+      },
     });
     const env = envelopeOf<unknown>(res.json());
     expect(env.code).toBe(40113);
@@ -338,7 +362,13 @@ describe('POST /api/v1/sessions/{sid}/prompts — readiness gate (P2.1 D1)', () 
     const res = await appOf(r).inject({
       method: 'POST',
       url: `/api/v1/sessions/${sid}/prompts`,
-      payload: { content: [{ type: 'text', text: 'hello' }] },
+      payload: {
+        content: [{ type: 'text', text: 'hello' }],
+        model: 'x',
+        thinking: 'off',
+        permission_mode: 'manual',
+        plan_mode: false,
+      },
     });
     const env = envelopeOf<unknown>(res.json());
     // The gate passes; bridge.rpc.prompt then runs against the test fixture

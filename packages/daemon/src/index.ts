@@ -12,12 +12,12 @@ export type { AcquireLockOptions, AcquireLockResult, LockContents } from './lock
 // ApprovalService / QuestionService, ConnectionRegistry, SessionClientsService,
 // WSGateway) stay internal — daemon owns its wiring choices; external consumers
 // see only the interfaces.
-export { ILogService } from '#services/logger';
-export { IRestGateway } from '#services/gateway';
-export { IConnectionRegistry } from '#services/gateway';
-export { ISessionClientsService } from '#services/gateway';
-export { IWSGateway } from '#services/gateway';
-export { IWSBroadcastService } from '#services/gateway';
+export { ILogService } from '#/services/logger';
+export { IRestGateway } from '#/services/gateway';
+export { IConnectionRegistry } from '#/services/gateway';
+export { ISessionClientsService } from '#/services/gateway';
+export { IWSGateway } from '#/services/gateway';
+export { IWSBroadcastService } from '#/services/gateway';
 // Re-export service decorators from `@moonshot-ai/services` so daemon
 // consumers don't have to take a direct dep on the services package just to
 // reach into the container.

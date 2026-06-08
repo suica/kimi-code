@@ -14,6 +14,13 @@ import { z } from 'zod';
  *
  * Note: `data` is nullable because error envelopes always set `data: null`
  * (SCHEMAS.md §1.1 "EnvelopeErr").
+ *
+ * `details` is an optional structured carrier for error contexts (REST.md
+ * §1.4). On `40001 validation.failed` it's the `Array<{path, message}>`
+ * shape; on other error codes (`40111`, `40113`, ...) it's a
+ * code-specific record. Declared here so Fastify's response serializer
+ * (`fast-json-stringify`) preserves the field — without it the serializer
+ * silently strips `details` from every error envelope.
  */
 export const envelopeSchema = <T extends z.ZodTypeAny>(data: T) =>
   z.object({
@@ -21,6 +28,7 @@ export const envelopeSchema = <T extends z.ZodTypeAny>(data: T) =>
     msg: z.string(),
     data: data.nullable(),
     request_id: z.string(),
+    details: z.unknown().optional(),
   });
 
 /**
@@ -32,6 +40,7 @@ export interface Envelope<T> {
   msg: string;
   data: T | null;
   request_id: string;
+  details?: unknown;
 }
 
 /**
