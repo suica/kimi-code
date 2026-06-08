@@ -11,7 +11,7 @@ import { ISessionService } from '@moonshot-ai/services';
 
 import type { FsChangeEntry, FsChangeAction, FsChangeKind } from '@moonshot-ai/protocol';
 
-import { ILogService } from './logger.js';
+import { ILogService } from '#services/logger';
 import {
   IFsWatcher,
   FsWatchLimitError,

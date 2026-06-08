@@ -4,9 +4,9 @@
 
 import { Disposable } from '@moonshot-ai/agent-core';
 
-import { ILogService } from './logger.js';
+import { ILogService } from '#services/logger';
 import { ISessionClientsService } from './sessionClients.js';
-import type { WsConnection } from '../ws/connection.js';
+import type { WsConnection } from '#ws/connection';
 
 export class SessionClientsService extends Disposable implements ISessionClientsService {
   readonly _serviceBrand: undefined;

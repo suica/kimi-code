@@ -75,7 +75,7 @@ import type {
 } from '@moonshot-ai/protocol';
 import ignore, { type Ignore } from 'ignore';
 
-import { ILogService } from './logger.js';
+import { ILogService } from '#services/logger';
 import {
   FsPathEscapesError,
   resolveSafePath,

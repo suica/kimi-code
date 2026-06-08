@@ -12,23 +12,30 @@
  * array. Touch each service in CONSTRUCTION order (matches `start.ts`), then
  * call `ix.dispose()`. Assert the recorded array is REVERSE of construction.
  *
- * Construction order under W12 (Chains 14 + 15 add IFsWatcher + IFileStore):
+ * Construction order under the current wiring (the split adds
+ * IWSBroadcastService between IEventService and IApprovalService):
  *   ILogService → IRestGateway → IConnectionRegistry → ISessionClientsService →
- *   IEventService → IApprovalService → IQuestionService → IWSGateway →
- *   ICoreProcessService → ISessionService → IMessageService → IPromptService →
- *   IToolService → IMcpService → ITaskService → IFsService →
+ *   IEventService → IWSBroadcastService → IApprovalService → IQuestionService →
+ *   IWSGateway → ICoreProcessService → ISessionService → IMessageService →
+ *   IPromptService → IToolService → IMcpService → ITaskService → IFsService →
  *   IFsSearchService → IFsGitService → IFsWatcher → IFileStore
  *
  * Expected dispose order (reverse):
  *   IFileStore → IFsWatcher → IFsGitService → IFsSearchService →
  *   IFsService → ITaskService → IMcpService → IToolService →
  *   IPromptService → IMessageService → ISessionService → ICoreProcessService →
- *   IWSGateway → IQuestionService → IApprovalService → IEventService →
- *   ISessionClientsService → IConnectionRegistry → IRestGateway → ILogService
+ *   IWSGateway → IQuestionService → IApprovalService → IWSBroadcastService →
+ *   IEventService → ISessionClientsService → IConnectionRegistry →
+ *   IRestGateway → ILogService
  *
  * Focused invariants:
- *   - WSGateway disposes BEFORE brokers (W5.1)
- *   - SessionClients disposes AFTER EventBus (W5.2)
+ *   - WSGateway disposes BEFORE brokers
+ *   - IWSBroadcastService disposes BEFORE IEventService (so the broadcast
+ *     subscription on `bus.onDidPublish` detaches before the emitter
+ *     tears down)
+ *   - SessionClients disposes AFTER IWSBroadcastService (so fan-out's
+ *     subscriber lookup is still valid while the broadcast is publishing
+ *     its final events)
  *   - ISessionService disposes BEFORE ICoreProcessService (W6.2)
  *   - IMessageService disposes BEFORE ICoreProcessService (W7.1)
  *   - IPromptService disposes BEFORE ICoreProcessService AND BEFORE IEventService
@@ -70,16 +77,17 @@ import {
   IToolService,
 } from '@moonshot-ai/services';
 
-import { IConnectionRegistry } from '../src/services/connectionRegistry';
-import { IFileStore } from '../src/services/fileStore';
-import { IFsGitService } from '../src/services/fsGit';
-import { IFsSearchService } from '../src/services/fsSearch';
-import { IFsService } from '../src/services/fs';
-import { IFsWatcher } from '../src/services/fsWatcher';
-import { ILogService } from '../src/services/logger';
-import { IRestGateway } from '../src/services/restGateway';
-import { ISessionClientsService } from '../src/services/sessionClients';
-import { IWSGateway } from '../src/services/wsGateway';
+import { IConnectionRegistry } from '#services/gateway';
+import { IFileStore } from '#services/fileStore';
+import { IFsGitService } from '#services/fs/fsGit';
+import { IFsSearchService } from '#services/fs';
+import { IFsService } from '#services/fs';
+import { IFsWatcher } from '#services/fs';
+import { ILogService } from '#services/logger';
+import { IRestGateway } from '#services/gateway';
+import { ISessionClientsService } from '#services/gateway';
+import { IWSBroadcastService } from '#services/gateway';
+import { IWSGateway } from '#services/gateway';
 
 /** Stub implementation whose `dispose()` records ordering. */
 function makeRecorder<T>(name: string, sink: string[]): T & IDisposable {
@@ -90,8 +98,8 @@ function makeRecorder<T>(name: string, sink: string[]): T & IDisposable {
   } as T & IDisposable;
 }
 
-describe('Dispose order is reverse-of-construction (W5.1 closes W4 gap; W6.2 added ISessionService; W7 adds IMessageService + IPromptService; W9.1 adds IToolService + IMcpService; W9.2 adds ITaskService; W10 adds IFsService; W11 Chain 11 adds IFsSearchService; W11 Chain 12 adds IFsGitService; W12 Chain 14 adds IFsWatcher; W12 Chain 15 adds IFileStore)', () => {
-  it('records 20 services in exact reverse order', () => {
+describe('Dispose order is reverse-of-construction (across the full DI graph; includes IEventService → IWSBroadcastService split)', () => {
+  it('records 21 services in exact reverse order', () => {
     const order: string[] = [];
 
     const services = new ServiceCollection(
@@ -100,6 +108,7 @@ describe('Dispose order is reverse-of-construction (W5.1 closes W4 gap; W6.2 add
       [IConnectionRegistry, makeRecorder('IConnectionRegistry', order)],
       [ISessionClientsService, makeRecorder('ISessionClientsService', order)],
       [IEventService, makeRecorder('IEventService', order)],
+      [IWSBroadcastService, makeRecorder('IWSBroadcastService', order)],
       [IApprovalService, makeRecorder('IApprovalService', order)],
       [IQuestionService, makeRecorder('IQuestionService', order)],
       [IWSGateway, makeRecorder('IWSGateway', order)],
@@ -125,6 +134,7 @@ describe('Dispose order is reverse-of-construction (W5.1 closes W4 gap; W6.2 add
       a.get(IConnectionRegistry);
       a.get(ISessionClientsService);
       a.get(IEventService);
+      a.get(IWSBroadcastService);
       a.get(IApprovalService);
       a.get(IQuestionService);
       a.get(IWSGateway);
@@ -160,6 +170,7 @@ describe('Dispose order is reverse-of-construction (W5.1 closes W4 gap; W6.2 add
       'IWSGateway',
       'IQuestionService',
       'IApprovalService',
+      'IWSBroadcastService',
       'IEventService',
       'ISessionClientsService',
       'IConnectionRegistry',
@@ -207,20 +218,41 @@ describe('Dispose order is reverse-of-construction (W5.1 closes W4 gap; W6.2 add
     expect(order.indexOf('IWSGateway')).toBeLessThan(order.indexOf('IQuestionService'));
   });
 
-  it('SessionClients disposes AFTER EventBus so the bus stops publishing before subscriber index drops', () => {
+  it('IWSBroadcastService disposes BEFORE IEventService so the broadcast detaches its onDidPublish subscription before the bus tears down its emitter', () => {
+    const order: string[] = [];
+    const services = new ServiceCollection(
+      [IEventService, makeRecorder('IEventService', order)],
+      [IWSBroadcastService, makeRecorder('IWSBroadcastService', order)],
+    );
+    const ix = new InstantiationService(services);
+    ix.invokeFunction((a) => {
+      a.get(IEventService);
+      a.get(IWSBroadcastService);
+    });
+    ix.dispose();
+    expect(order.indexOf('IWSBroadcastService')).toBeLessThan(
+      order.indexOf('IEventService'),
+    );
+  });
+
+  it('SessionClients disposes AFTER IWSBroadcastService so fan-out can resolve subscribers until the transport pump stops', () => {
     const order: string[] = [];
     const services = new ServiceCollection(
       [ISessionClientsService, makeRecorder('ISessionClientsService', order)],
       [IEventService, makeRecorder('IEventService', order)],
+      [IWSBroadcastService, makeRecorder('IWSBroadcastService', order)],
     );
     const ix = new InstantiationService(services);
     ix.invokeFunction((a) => {
       a.get(ISessionClientsService);
       a.get(IEventService);
+      a.get(IWSBroadcastService);
     });
     ix.dispose();
-    // EventBus disposes BEFORE SessionClients (reverse-of-construction):
-    expect(order.indexOf('IEventService')).toBeLessThan(order.indexOf('ISessionClientsService'));
+    // Broadcast disposes BEFORE SessionClients (reverse-of-construction):
+    expect(order.indexOf('IWSBroadcastService')).toBeLessThan(
+      order.indexOf('ISessionClientsService'),
+    );
   });
 
   it('ISessionService disposes BEFORE ICoreProcessService so the service can rely on a live bridge during its own teardown (W6.2)', () => {

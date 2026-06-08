@@ -114,12 +114,12 @@ import { ISessionService } from '@moonshot-ai/services';
 
 import type { FsChangeEntry, FsChangeAction, FsChangeKind } from '@moonshot-ai/protocol';
 
-import { ILogService } from './logger.js';
+import { ILogService } from '#services/logger';
 // `FsPathEscapesError` and `resolveSafePath` are used by the WS adapter
 // in `start.ts` BEFORE calling into this service; we don't import them
 // here. The watcher only sees pre-validated absolute paths.
 
-import type { WsConnection } from '../ws/connection.js';
+import type { WsConnection } from '#ws/connection';
 
 /* -------------------------------------------------------------------------
  * Tunable constants

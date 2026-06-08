@@ -316,14 +316,15 @@ describe('defaultServicesModule() composition', () => {
     expect(moduleEntries[0]![1]).toBeInstanceOf(SyncDescriptor);
 
     const services = new ServiceCollection(
+      // Spread module entries first so the test's explicit per-decorator
+      // overrides below win (last-write-wins in ServiceCollection). The
+      // module now self-registers `IEventService` too, so we need the
+      // fake `eventService` to land AFTER that descriptor entry.
+      ...moduleEntries.map(([id, desc]) => [id, desc] as const),
       [IEventService, eventService],
       [IApprovalService, approvalService],
       [IQuestionService, questionService],
       [IEnvironmentService, makeEnv(tmpHome)],
-      // Spread module entries — the ServiceCollection ctor accepts
-      // `ReadonlyArray<readonly [id, value]>`. We use the descriptor as the
-      // "value" so the container constructs it lazily.
-      ...moduleEntries.map(([id, desc]) => [id, desc] as const),
     );
     const ix = new InstantiationService(services);
 

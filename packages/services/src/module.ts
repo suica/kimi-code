@@ -52,6 +52,7 @@ import {
 // `packages/daemon/src/start.ts` assumes the bridge is the first
 // service-package entry into the construction-order list.
 import './coreProcess/coreProcessService';
+import './event/eventService';
 import './session/sessionService';
 import './message/messageService';
 import './prompt/promptService';

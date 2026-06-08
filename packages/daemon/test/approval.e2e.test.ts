@@ -37,7 +37,7 @@ import { IRestGateway, startDaemon, type RunningDaemon } from '../src';
 import {
   ApprovalExpiredError,
   ApprovalService,
-} from '../src/services/approvalService';
+} from '#services/approval/approvalService';
 
 let tmpDir: string;
 let lockPath: string;

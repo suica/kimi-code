@@ -39,8 +39,8 @@ import {
   type WatchFsRemoveMessage,
 } from '@moonshot-ai/protocol';
 
-import type { ILogService } from '../services/logger.js';
-import type { ISessionClientsService } from '../services/sessionClients.js';
+import type { ILogService } from '#services/logger';
+import type { ISessionClientsService } from '#services/gateway';
 
 import {
   buildAck,
@@ -51,11 +51,11 @@ import {
 } from './protocol.js';
 
 /**
- * Subset of `EventService` consumed by `WsConnection` for the replay path.
- * Keeping it as a structural interface lets tests pass a stub without
- * a full event service, and prevents `WsConnection` from circular-importing
- * `EventService` (which itself imports types from this file via
- * `protocol.ts`).
+ * Subset of `IWSBroadcastService` consumed by `WsConnection` for the replay
+ * path. Keeping it as a structural interface lets tests pass a stub without
+ * a full broadcast service, and prevents `WsConnection` from circular-
+ * importing `WSBroadcastService` (which itself imports types from this file
+ * via `protocol.ts`).
  *
  * `events`: list of buffered envelopes with `seq > lastSeq`, in order.
  * `resyncRequired`: true iff the buffer evicted past the client's gap.
@@ -143,8 +143,8 @@ export interface WsConnectionOptions {
   logger: ILogService;
   /** Per-session subscriber index — populated by `subscribe` / `unsubscribe`. */
   sessionClients: ISessionClientsService;
-  /** Ring-buffer replay source — `EventService` in prod, stub in tests. */
-  eventService: BufferReplaySource;
+  /** Ring-buffer replay source — `WSBroadcastService` in prod, stub in tests. */
+  wsBroadcast: BufferReplaySource;
   /** Abort handler — `IPromptService.abort` in prod, stub in tests. */
   abortHandler?: AbortHandler;
   /** Watch_fs handler — `IFsWatcher` adapter in prod, stub in tests. */
@@ -177,7 +177,7 @@ export class WsConnection {
   private readonly socket: WebSocket;
   private readonly logger: ILogService;
   private readonly sessionClients: ISessionClientsService;
-  private readonly eventService: BufferReplaySource;
+  private readonly wsBroadcast: BufferReplaySource;
   private readonly abortHandler: AbortHandler | undefined;
   private readonly fsWatchHandler: FsWatchHandler | undefined;
   private readonly pingIntervalMs: number;
@@ -194,7 +194,7 @@ export class WsConnection {
     this.socket = opts.socket;
     this.logger = opts.logger.child({ connId: this.id });
     this.sessionClients = opts.sessionClients;
-    this.eventService = opts.eventService;
+    this.wsBroadcast = opts.wsBroadcast;
     this.abortHandler = opts.abortHandler;
     this.fsWatchHandler = opts.fsWatchHandler;
     this.pingIntervalMs = opts.pingIntervalMs ?? DEFAULT_PING_INTERVAL_MS;
@@ -292,7 +292,7 @@ export class WsConnection {
           this.subscribe(sid);
           accepted.push(sid);
         }
-        const result = this.eventService.getBufferedSince(sid, lastSeq);
+        const result = this.wsBroadcast.getBufferedSince(sid, lastSeq);
         if (result.resyncRequired) {
           this.send(buildResyncRequired(sid, 'buffer_overflow', result.currentSeq));
           resyncRequired.push(sid);
@@ -339,7 +339,7 @@ export class WsConnection {
     if (last_seq_by_session) {
       for (const [sid, lastSeq] of Object.entries(last_seq_by_session)) {
         this.lastSeqBySession.set(sid, lastSeq);
-        const result = this.eventService.getBufferedSince(sid, lastSeq);
+        const result = this.wsBroadcast.getBufferedSince(sid, lastSeq);
         if (result.resyncRequired) {
           this.send(buildResyncRequired(sid, 'buffer_overflow', result.currentSeq));
           resyncRequired.push(sid);
@@ -650,7 +650,7 @@ export class WsConnection {
 
   /**
    * Outbound send. Used both for system frames and for per-session event
-   * envelopes pushed by `EventService`. Drops silently if the socket is closed
+   * envelopes pushed by `WSBroadcastService`. Drops silently if the socket is closed
    * or not yet OPEN.
    */
   public send(message: unknown): void {

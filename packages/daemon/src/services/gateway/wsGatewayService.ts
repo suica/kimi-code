@@ -6,15 +6,15 @@ import type { IncomingMessage, Server as HttpServer } from 'node:http';
 import type { Socket } from 'node:net';
 
 import { Disposable } from '@moonshot-ai/agent-core';
-import { IEventReplayService } from '@moonshot-ai/services';
 import { WebSocketServer, type WebSocket } from 'ws';
 
 import { IConnectionRegistry } from './connectionRegistry.js';
-import { ILogService } from './logger.js';
+import { ILogService } from '#services/logger';
 import { IRestGateway } from './restGateway.js';
 import { ISessionClientsService } from './sessionClients.js';
+import { IWSBroadcastService } from './wsBroadcast.js';
 import { IWSGateway, type WSGatewayOptions, WS_PATH } from './wsGateway.js';
-import { WsConnection, type AbortHandler, type FsWatchHandler } from '../ws/connection.js';
+import { WsConnection, type AbortHandler, type FsWatchHandler } from '#ws/connection';
 
 export class WSGateway extends Disposable implements IWSGateway {
   readonly _serviceBrand: undefined;
@@ -29,12 +29,12 @@ export class WSGateway extends Disposable implements IWSGateway {
   constructor(
     // VSCode-style ctor ordering — static-first, services-last with
     // `@I*` decorators. `options` follows the static prefix; the four
-    // injected services trail. `@IEventReplayService` is the daemon-local
-    // replay contract (split from `IEventService` for this exact reason:
-    // letting WSGateway take a typed dep instead of the concrete
-    // `EventService` class).
+    // injected services trail. `@IWSBroadcastService` is the daemon-local
+    // transport service that holds the ring buffer + replay queries used
+    // by `WsConnection` during `client_hello.last_seq_by_session` replay
+    // and by the WS abort ack to populate `at_seq`.
     private readonly options: WSGatewayOptions,
-    @IEventReplayService private readonly eventService: IEventReplayService,
+    @IWSBroadcastService private readonly wsBroadcast: IWSBroadcastService,
     @IRestGateway private readonly restGateway: IRestGateway,
     @IConnectionRegistry private readonly registry: IConnectionRegistry,
     @ISessionClientsService private readonly sessionClients: ISessionClientsService,
@@ -73,7 +73,7 @@ export class WSGateway extends Disposable implements IWSGateway {
       socket,
       logger: this.logger,
       sessionClients: this.sessionClients,
-      eventService: this.eventService,
+      wsBroadcast: this.wsBroadcast,
       ...(this.abortHandler !== undefined ? { abortHandler: this.abortHandler } : {}),
       ...(this.fsWatchHandler !== undefined ? { fsWatchHandler: this.fsWatchHandler } : {}),
       ...(this.options.pingIntervalMs !== undefined

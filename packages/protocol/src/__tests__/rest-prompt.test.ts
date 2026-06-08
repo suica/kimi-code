@@ -12,18 +12,31 @@ import {
   promptSubmitResultSchema,
 } from '../rest/prompt';
 
+const REQUIRED_CONTROLS = {
+  model: 'kimi-code/k2',
+  thinking: 'off' as const,
+  permission_mode: 'manual' as const,
+  plan_mode: false,
+};
+
 describe('promptSubmissionSchema', () => {
   it('accepts a minimal text submission', () => {
     const parsed = promptSubmissionSchema.parse({
       content: [{ type: 'text', text: 'hi' }],
+      ...REQUIRED_CONTROLS,
     });
     expect(parsed.content[0]?.type).toBe('text');
+    expect(parsed.model).toBe('kimi-code/k2');
+    expect(parsed.thinking).toBe('off');
+    expect(parsed.permission_mode).toBe('manual');
+    expect(parsed.plan_mode).toBe(false);
   });
 
   it('accepts metadata', () => {
     const parsed = promptSubmissionSchema.parse({
       content: [{ type: 'text', text: 'hi' }],
       metadata: { source: 'cli' },
+      ...REQUIRED_CONTROLS,
     });
     expect(parsed.metadata).toEqual({ source: 'cli' });
   });
@@ -34,18 +47,60 @@ describe('promptSubmissionSchema', () => {
         { type: 'text', text: 'see attached' },
         { type: 'image', source: { kind: 'url', url: 'https://a.png' } },
       ],
+      ...REQUIRED_CONTROLS,
     });
     expect(parsed.content).toHaveLength(2);
   });
 
   it('rejects empty content array', () => {
     expect(
-      promptSubmissionSchema.safeParse({ content: [] }).success,
+      promptSubmissionSchema.safeParse({
+        content: [],
+        ...REQUIRED_CONTROLS,
+      }).success,
     ).toBe(false);
   });
 
   it('rejects missing content', () => {
     expect(promptSubmissionSchema.safeParse({} as unknown).success).toBe(false);
+  });
+
+  it('rejects missing required controls', () => {
+    expect(
+      promptSubmissionSchema.safeParse({
+        content: [{ type: 'text', text: 'hi' }],
+      } as unknown).success,
+    ).toBe(false);
+  });
+
+  it('rejects unknown thinking level', () => {
+    expect(
+      promptSubmissionSchema.safeParse({
+        content: [{ type: 'text', text: 'hi' }],
+        ...REQUIRED_CONTROLS,
+        thinking: 'mega' as unknown,
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects unknown permission_mode', () => {
+    expect(
+      promptSubmissionSchema.safeParse({
+        content: [{ type: 'text', text: 'hi' }],
+        ...REQUIRED_CONTROLS,
+        permission_mode: 'unrestricted' as unknown,
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects empty model string', () => {
+    expect(
+      promptSubmissionSchema.safeParse({
+        content: [{ type: 'text', text: 'hi' }],
+        ...REQUIRED_CONTROLS,
+        model: '',
+      }).success,
+    ).toBe(false);
   });
 });
 

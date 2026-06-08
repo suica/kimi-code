@@ -13,7 +13,7 @@ import { Disposable, resolveKimiHome } from '@moonshot-ai/agent-core';
 
 import type { FileMeta } from '@moonshot-ai/protocol';
 
-import { ILogService } from './logger.js';
+import { ILogService } from '#services/logger';
 import { IFileStore, FileNotFoundError, FileTooLargeError, type FileStoreOptions } from './fileStore.js';
 
 interface IndexFile {

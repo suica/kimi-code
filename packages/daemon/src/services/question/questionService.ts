@@ -42,7 +42,7 @@ import {
   type QuestionResult,
 } from '@moonshot-ai/services';
 
-import { ILogService } from './logger.js';
+import { ILogService } from '#services/logger';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const _typeAnchor: typeof IQuestionService = IQuestionService;

@@ -36,8 +36,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ISessionService } from '@moonshot-ai/services';
 
 import { IRestGateway, startDaemon, type RunningDaemon } from '../src';
-import { FsSearchService } from '../src/services/fsSearchService';
-import { ILogService } from '../src/services/logger';
+import { FsSearchService } from '#services/fs/fsSearchService';
+import { ILogService } from '#services/logger';
 
 let tmpDir: string;
 let lockPath: string;
@@ -489,7 +489,7 @@ describe('FsSearchService direct: rg fallback + grep timeout (W11.1)', () => {
       ): Promise<import('@moonshot-ai/protocol').FsGrepResponse> {
         // Simulate the 30s deadline expiring with zero matches collected.
         throw new (
-          await import('../src/services/fsSearch')
+          await import('#services/fs/fsSearch')
         ).FsGrepTimeoutError(Date.now() - startedAt);
       }
       public override probeRg(): Promise<string | null> {

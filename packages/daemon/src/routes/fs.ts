@@ -26,7 +26,7 @@
  * would have 404'd otherwise (which is fine; either path tells the client
  * the route is wrong).
  *
- * **Error mapping** (see also `services/fs.ts`):
+ * **Error mapping** (see also `services/fs/fs.ts`):
  *
  *   FsPathEscapesError      → 41304 fs.path_escapes_session
  *   FsPathNotFoundError     → 40409 fs.path_not_found
@@ -76,16 +76,16 @@ import {
   FsTooLargeError,
   FsTooManyResultsError,
   IFsService,
-} from '../services/fs.js';
+} from '#services/fs';
 import {
   FsGrepTimeoutError,
   IFsSearchService,
-} from '../services/fsSearch.js';
+} from '#services/fs';
 import {
   FsGitUnavailableError,
   IFsGitService,
-} from '../services/fsGit.js';
-import { FsPathEscapesError } from '../services/fsPathSafety.js';
+} from '#services/fs';
+import { FsPathEscapesError } from '#services/fs';
 
 interface FsRouteHost {
   post(
@@ -310,7 +310,7 @@ export function registerFsRoutes(
       // central sendMappedError (which writes a JSON envelope per the
       // download exception). Success path leaves the response body free
       // for the stream.
-      let resolved: import('../services/fs.js').FsDownloadResolved;
+      let resolved: import('#services/fs').FsDownloadResolved;
       try {
         resolved = await ix.invokeFunction((a) =>
           a.get(IFsService).resolveDownload(session_id, relPath),

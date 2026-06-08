@@ -235,7 +235,7 @@ async function main() {
     // ── Phase 5: steady state — issue a new prompt over the live socket ──
     // The third socket (`replay.ws`) is still open and subscribed; we drive
     // a follow-up prompt via REST and assert events arrive on this WS.
-    const followUp = await initial.http.submitPrompt(sid, {
+    const followUp = await initial.submitPrompt(sid, {
       content: [{ type: 'text', text: 'Reply with the single word "DONE" and nothing else.' }],
     });
     const completed = await replay.ws.waitForFrame(

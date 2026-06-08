@@ -29,6 +29,7 @@ import {
   IQuestionService,
   IRestGateway,
   ISessionClientsService,
+  IWSBroadcastService,
   IWSGateway,
   startDaemon,
   type LockContents,
@@ -105,7 +106,7 @@ describe('startDaemon — lock + healthz smoke', () => {
 });
 
 describe('startDaemon — DI container wiring', () => {
-  it('exposes all 9 DI services through running.services', async () => {
+  it('exposes all DI services through running.services', async () => {
     const r = await spawn();
     // Every decorator should resolve. .get() would throw "No service registered"
     // if any were missing.
@@ -115,6 +116,7 @@ describe('startDaemon — DI container wiring', () => {
       expect(a.get(IConnectionRegistry)).toBeDefined();
       expect(a.get(ISessionClientsService)).toBeDefined();
       expect(a.get(IEventService)).toBeDefined();
+      expect(a.get(IWSBroadcastService)).toBeDefined();
       expect(a.get(IApprovalService)).toBeDefined();
       expect(a.get(IQuestionService)).toBeDefined();
       expect(a.get(IWSGateway)).toBeDefined();

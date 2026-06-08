@@ -18,8 +18,10 @@ import type {
   ApprovalResponse,
   Message,
   PromptAbortResponse,
+  PromptPermissionMode,
   PromptSubmission,
   PromptSubmitResult,
+  PromptThinking,
   QuestionRequest,
   QuestionResolveResult,
   QuestionResponse,
@@ -61,6 +63,37 @@ export interface SubmitAndWaitOptions {
 const DEFAULT_BASE_URL = 'http://127.0.0.1:7878';
 const DEFAULT_API_PREFIX = '/api/v1';
 const DEFAULT_CONTROL_ACK_TIMEOUT_MS = 5_000;
+
+/**
+ * Per-request stateless session controls that the daemon REST surface
+ * requires on every prompt submission. Scenarios that don't care about
+ * these can leave them at the defaults; tests that exercise switching
+ * model / thinking / permission / plan mode override only the field
+ * they need.
+ *
+ * `model` matches what the existing daemon-e2e scenarios assume (the
+ * default provider exposes `kimi-code/kimi-for-coding`).
+ */
+export const DEFAULT_PROMPT_CONTROLS = {
+  model: 'kimi-code/kimi-for-coding',
+  thinking: 'off' as PromptThinking,
+  permission_mode: 'manual' as PromptPermissionMode,
+  plan_mode: false,
+} as const;
+
+/**
+ * Looser input shape for `submitPrompt` / `submitAndWait`. `content` is
+ * required; the four stateless controls fall back to
+ * `DEFAULT_PROMPT_CONTROLS` when omitted. `metadata` carries through
+ * verbatim.
+ */
+export type PromptSubmitInput =
+  Pick<PromptSubmission, 'content'>
+  & Partial<Pick<PromptSubmission, 'metadata' | 'model' | 'thinking' | 'permission_mode' | 'plan_mode'>>;
+
+function fillPromptDefaults(input: PromptSubmitInput): PromptSubmission {
+  return { ...DEFAULT_PROMPT_CONTROLS, ...input };
+}
 
 export class DaemonClient {
   readonly baseUrl: string;
@@ -118,8 +151,8 @@ export class DaemonClient {
   ): Promise<{ items: Message[]; has_more: boolean }> {
     return this.http.listMessages(sid, query);
   }
-  submitPrompt(sid: string, body: PromptSubmission): Promise<PromptSubmitResult> {
-    return this.http.submitPrompt(sid, body);
+  submitPrompt(sid: string, input: PromptSubmitInput): Promise<PromptSubmitResult> {
+    return this.http.submitPrompt(sid, fillPromptDefaults(input));
   }
   abortPrompt(sid: string, pid: string): Promise<PromptAbortResponse> {
     return this.http.abortPrompt(sid, pid);
@@ -308,7 +341,7 @@ export class DaemonClient {
    */
   async submitAndWait(
     sid: string,
-    body: PromptSubmission,
+    input: PromptSubmitInput,
     opts: SubmitAndWaitOptions = {},
   ): Promise<{ prompt_id: string; user_message_id: string; finalFrame: AnyFrame }> {
     const ws = this._requireWs();
@@ -319,7 +352,7 @@ export class DaemonClient {
     // The WS layer queues every frame from the moment we open, so any events
     // that arrive between this POST and the `waitForFrame` below are still
     // there to be matched (they're drained from the queue, not dropped).
-    const submit = await this.http.submitPrompt(sid, body);
+    const submit = await this.http.submitPrompt(sid, fillPromptDefaults(input));
 
     const finalFrame = await ws.waitForFrame((f) => {
       if (f.type !== waitFor) return false;

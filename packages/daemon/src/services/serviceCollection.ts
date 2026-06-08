@@ -22,7 +22,7 @@
  * Centralizing all `services.set(... new SyncDescriptor(...))` in one place
  * keeps the wiring shape auditable in a single file while `start.ts` retains
  * the construction-order touch list + post-collection adapters
- * (`IEventReplayService` alias, `IFsWatcher` closure construction,
+ * (`IFsWatcher` closure construction,
  * `setUnexpectedErrorHandler`, WS abort + fs-watch handler wiring).
  *
  * # Why `IFsWatcher` stays in start.ts
@@ -31,14 +31,6 @@
  * `IConnectionRegistry.get` at runtime. That closure isn't serializable
  * into a `SyncDescriptor` static-arg slot, so we keep its construction
  * inside the `ix.invokeFunction` block in `start.ts` post-collection.
- *
- * # Why `IEventReplayService` stays in start.ts
- *
- * It's an **alias** — same singleton as `IEventService`, registered under
- * a different decorator so `WSGateway` can `@IEventReplayService` without
- * importing the concrete `EventService` class. The alias must be set
- * AFTER the first `a.get(IEventService)` so the container has the live
- * bus instance. That post-construction wiring stays in start.ts.
  */
 
 import {
@@ -48,6 +40,7 @@ import {
 import {
   AuthSummaryService,
   CoreProcessService,
+  EventService,
   IApprovalService,
   IAuthSummaryService,
   IEnvironmentService,
@@ -71,30 +64,31 @@ import {
 } from '@moonshot-ai/services';
 import type { Logger as PinoLogger } from 'pino';
 
-import type { FastifyLike } from './restGateway.js';
+import type { FastifyLike } from '#services/gateway/restGateway';
 import type { DaemonStartOptions } from '../start.js';
 
-import { ApprovalService } from './approvalService.js';
-import { IConnectionRegistry } from './connectionRegistry.js';
-import { ConnectionRegistry } from './connectionRegistryService.js';
-import { EventService } from './eventService.js';
-import { IFsService } from './fs.js';
-import { FsService } from './fsService.js';
-import { IFsGitService } from './fsGit.js';
-import { FsGitService } from './fsGitService.js';
-import { IFsSearchService } from './fsSearch.js';
-import { FsSearchService } from './fsSearchService.js';
-import { IFileStore } from './fileStore.js';
-import { FileStore } from './fileStoreService.js';
-import { ILogService } from './logger.js';
-import { PinoLogger as PinoLoggerAdapter } from './loggerService.js';
-import { QuestionService } from './questionService.js';
-import { IRestGateway } from './restGateway.js';
-import { FastifyRestGateway } from './restGatewayService.js';
-import { ISessionClientsService } from './sessionClients.js';
-import { SessionClientsService } from './sessionClientsService.js';
-import { IWSGateway } from './wsGateway.js';
-import { WSGateway } from './wsGatewayService.js';
+import { ApprovalService } from '#services/approval/approvalService';
+import { IConnectionRegistry } from '#services/gateway/connectionRegistry';
+import { ConnectionRegistry } from '#services/gateway/connectionRegistryService';
+import { IFsService } from '#services/fs/fs';
+import { FsService } from '#services/fs/fsService';
+import { IFsGitService } from '#services/fs/fsGit';
+import { FsGitService } from '#services/fs/fsGitService';
+import { IFsSearchService } from '#services/fs/fsSearch';
+import { FsSearchService } from '#services/fs/fsSearchService';
+import { IFileStore } from '#services/fileStore/fileStore';
+import { FileStore } from '#services/fileStore/fileStoreService';
+import { ILogService } from '#services/logger/logger';
+import { PinoLogger as PinoLoggerAdapter } from '#services/logger/loggerService';
+import { QuestionService } from '#services/question/questionService';
+import { IRestGateway } from '#services/gateway/restGateway';
+import { FastifyRestGateway } from '#services/gateway/restGatewayService';
+import { ISessionClientsService } from '#services/gateway/sessionClients';
+import { SessionClientsService } from '#services/gateway/sessionClientsService';
+import { IWSGateway } from '#services/gateway/wsGateway';
+import { WSGateway } from '#services/gateway/wsGatewayService';
+import { IWSBroadcastService } from '#services/gateway/wsBroadcast';
+import { WSBroadcastService } from '#services/gateway/wsBroadcastService';
 
 export interface DaemonServiceCollectionOptions {
   /** Original `startDaemon` options bag — carries the per-service tunables. */
@@ -112,9 +106,7 @@ export interface DaemonServiceCollectionOptions {
  * EVERY singleton seeded — either as a prebuilt instance (runtime-handle
  * services) or as a `SyncDescriptor` (descriptor-first singletons).
  *
- * Two singletons NOT registered here, by design:
- *   - `IEventReplayService` — same instance as `IEventService`; aliased
- *     post-construction in `start.ts` (see file header).
+ * One singleton NOT registered here, by design:
  *   - `IFsWatcher` — needs a closure over `IConnectionRegistry.get` at
  *     construction time; built inline in `start.ts` (see file header).
  */
@@ -142,7 +134,11 @@ export function createDaemonServiceCollection(
   // `ix.invokeFunction` block.
   services.set(IConnectionRegistry, new SyncDescriptor(ConnectionRegistry, [], false));
   services.set(ISessionClientsService, new SyncDescriptor(SessionClientsService, [], false));
-  services.set(IEventService, new SyncDescriptor(EventService, [{}], false));
+  services.set(IEventService, new SyncDescriptor(EventService, [], false));
+  services.set(
+    IWSBroadcastService,
+    new SyncDescriptor(WSBroadcastService, [{}], false),
+  );
   services.set(IApprovalService, new SyncDescriptor(ApprovalService, [{}], false));
   services.set(IQuestionService, new SyncDescriptor(QuestionService, [{}], false));
   services.set(

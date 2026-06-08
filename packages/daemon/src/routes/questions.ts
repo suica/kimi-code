@@ -47,7 +47,7 @@ import { errEnvelope, okEnvelope } from '../envelope.js';
 import { buildRouteSchema } from '../middleware/schema.js';
 import { validateParams } from '../middleware/validate.js';
 import { parseActionSuffix } from './action-suffix.js';
-import { QuestionService } from '../services/questionService.js';
+import { QuestionService } from '#services/question';
 
 interface QuestionRouteHost {
   post(

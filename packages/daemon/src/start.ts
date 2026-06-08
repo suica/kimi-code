@@ -8,7 +8,6 @@ import {
   IApprovalService,
   IAuthSummaryService,
   IEnvironmentService,
-  IEventReplayService,
   IEventService,
   ICoreProcessService,
   IMcpService,
@@ -47,24 +46,25 @@ import { registerQuestionsRoutes } from './routes/questions.js';
 import { registerSessionsRoutes } from './routes/sessions.js';
 import { registerTasksRoutes } from './routes/tasks.js';
 import { registerToolsRoutes } from './routes/tools.js';
-import { IConnectionRegistry } from './services/connectionRegistry.js';
-import { type EventService } from './services/eventService.js';
-import { IFsService } from './services/fs.js';
-import { IFsGitService } from './services/fsGit.js';
-import { IFsSearchService } from './services/fsSearch.js';
+import { registerDebugRoutes } from './routes/debug.js';
+import { IConnectionRegistry } from '#services/gateway';
+import { IFsService } from '#services/fs';
+import { IFsGitService } from '#services/fs';
+import { IFsSearchService } from '#services/fs';
 import {
   IFsWatcher,
   FsWatchLimitError,
   createConnectionLookup,
-} from './services/fsWatcher.js';
-import { FsWatcherService } from './services/fsWatcherService.js';
-import { FsPathEscapesError, resolveSafePath } from './services/fsPathSafety.js';
-import { IFileStore } from './services/fileStore.js';
-import { ILogService } from './services/logger.js';
-import { IRestGateway } from './services/restGateway.js';
-import { ISessionClientsService } from './services/sessionClients.js';
-import { createDaemonServiceCollection } from './services/serviceCollection.js';
-import { IWSGateway, type WSGatewayOptions } from './services/wsGateway.js';
+} from '#services/fs';
+import { FsWatcherService } from '#services/fs/fsWatcherService';
+import { FsPathEscapesError, resolveSafePath } from '#services/fs';
+import { IFileStore } from '#services/fileStore';
+import { ILogService } from '#services/logger';
+import { IRestGateway } from '#services/gateway';
+import { ISessionClientsService } from '#services/gateway';
+import { createDaemonServiceCollection } from '#services/serviceCollection';
+import { IWSGateway, type WSGatewayOptions } from '#services/gateway';
+import { IWSBroadcastService } from '#services/gateway';
 import { getDaemonVersion } from './version.js';
 
 export interface DaemonStartOptions {
@@ -89,6 +89,14 @@ export interface DaemonStartOptions {
    * defaults (30s ping, 10s pong deadline, 1000-event ring buffer).
    */
   wsGatewayOptions?: WSGatewayOptions;
+  /**
+   * Mount the `/debug/*` route group (off by default). Production CLI
+   * never sets this; tests and `daemon-e2e` scenarios flip it on so they
+   * can read the per-session stateless-controls shadow and the
+   * dispatch-log ring buffer directly — properties the user-facing WS /
+   * REST surface cannot reveal.
+   */
+  debugEndpoints?: boolean;
 }
 
 export interface RunningDaemon {
@@ -137,18 +145,14 @@ export { DaemonLockedError };
  *
  * **Wire-up shape**: the `invokeFunction` block below is effectively a
  * sequence of `a.get(IFoo)` "touch" calls that pin
- * construction order for `_constructionOrder`. The two remaining
- * non-`a.get` wirings are:
+ * construction order for `_constructionOrder`. The one remaining
+ * non-`a.get` wiring is:
  *
- *   1. The `services.set(IEventReplayService, eventBus)` alias —
- *      same singleton as `IEventService` under a different decorator
- *      so `@IEventReplayService` consumers (e.g. `WSGateway`) resolve
- *      against the live bus.
- *   2. The inline `ix.createInstance(FsWatcherService, lookup, {})` —
+ *   1. The inline `ix.createInstance(FsWatcherService, lookup, {})` —
  *      its `lookup` closure over `IConnectionRegistry.get` isn't
  *      serializable into a `SyncDescriptor.staticArguments` slot.
  *
- * Both exceptions are documented near their construction sites and in
+ * Documented near the construction site and in
  * `services/serviceCollection.ts` header.
  *
  * **Anti-corruption invariant**: daemon source has zero direct SDK
@@ -203,9 +207,7 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
   //   - SyncDescriptor for every other singleton (container drives
   //     construction; `@I*` decorators auto-inject).
   //
-  // Two singletons are NOT in `createDaemonServiceCollection()`, by design:
-  //   - IEventReplayService — alias of the same EventService singleton;
-  //     registered AFTER `a.get(IEventService)` resolves the live bus.
+  // One singleton is NOT in `createDaemonServiceCollection()`, by design:
   //   - IFsWatcher — needs a closure over `IConnectionRegistry.get`;
   //     built inline inside the `invokeFunction` block below.
   //
@@ -346,6 +348,19 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       apiV1 as unknown as Parameters<typeof registerFilesRoutes>[0],
       ix,
     );
+
+    // Optional `/debug/*` routes — only when the caller explicitly opts
+    // in via `startDaemon({debugEndpoints: true})`. CLI defaults off, so
+    // production daemons never expose this surface. Used by daemon-e2e
+    // scenarios and in-process tests to assert internal state the
+    // user-facing surface can't reveal (e.g. per-session shadow snapshot,
+    // dispatch-log ring buffer).
+    if (opts.debugEndpoints === true) {
+      registerDebugRoutes(
+        apiV1 as unknown as Parameters<typeof registerDebugRoutes>[0],
+        ix,
+      );
+    }
   }, { prefix: '/api/v1' });
 
   // Register Swagger UI AFTER all routes are collected.
@@ -371,9 +386,9 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
   // records them for reverse-dispose. The collection seeded above carries
   // a `SyncDescriptor` for each singleton; the first `a.get(IX)` resolves
   // it through `_createAndCacheServiceInstance`, auto-injecting any `@I*`
-  // decorated ctor params. Two non-descriptor wirings remain inline below
-  // (the `IEventReplayService` alias + the closure-based `IFsWatcher`);
-  // both are documented near their construction sites.
+  // decorated ctor params. One non-descriptor wiring remains inline below
+  // (the closure-based `IFsWatcher`); it is documented near its
+  // construction site.
   let coreProcess: ICoreProcessService;
   try {
     coreProcess = ix.invokeFunction((a) => {
@@ -406,32 +421,27 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       // is constructed LATE → disposes EARLY) before brokers can emit on them.
       a.get(IConnectionRegistry);
 
-      // ISessionClientsService BEFORE IEventService so the bus
-      // can hold a reference to it for broadcast fan-out. SessionClients
-      // disposes AFTER IEventService (reverse-order) — by then the bus has
-      // already stopped publishing, so dropping the subscriber index is safe.
+      // ISessionClientsService BEFORE IWSBroadcastService so the broadcast
+      // service can resolve subscriber fan-out at construction time.
+      // SessionClients disposes AFTER the broadcast service (reverse-order) —
+      // by then fan-out has stopped so dropping the subscriber index is safe.
       a.get(ISessionClientsService);
 
-      // EventService — touching constructs it via the descriptor (auto-injects
-      // @ILogService + @ISessionClientsService). Cast to the concrete class so we
-      // can call `.currentSeq(...)` on it from the WS abort handler below
-      // (only the concrete class exposes that helper).
-      const eventBus = a.get(IEventService) as EventService;
-      // Alias the SAME singleton under the daemon-local `IEventReplayService`
-      // contract. `WSGateway` and (later) `WsConnection` use this typed
-      // accessor instead of importing the concrete `EventService` class. No new
-      // instance is constructed; the alias is recorded BEFORE WSGateway is
-      // built so its `@IEventReplayService` ctor decoration resolves to the
-      // live bus.
-      //
-      // This is one of two non-descriptor `services.set()` calls retained: an
-      // ALIAS, not a fresh registration. The collection helper intentionally
-      // skips it (see `serviceCollection.ts` header).
-      services.set(IEventReplayService, eventBus);
-      a.get(IEventReplayService);
+      // IEventService — pure in-process pub-sub bus. Constructed BEFORE
+      // IWSBroadcastService so the latter can `@IEventService` inject the
+      // bus and subscribe to `onDidPublish` in its constructor. Reverse-
+      // dispose then runs broadcast → bus, which detaches the subscription
+      // before the emitter tears down.
+      a.get(IEventService);
+
+      // IWSBroadcastService — daemon-local transport pump. Subscribes to
+      // IEventService.onDidPublish in ctor; owns the per-session seq,
+      // ring buffer, WS fan-out via ISessionClientsService, and the
+      // replay surface consumed by WSGateway / WsConnection.
+      const wsBroadcast = a.get(IWSBroadcastService);
 
       // Touch the brokers in order so they're recorded for reverse teardown
-      // (Question → Approval → EventBus dispose direction).
+      // (Question → Approval → broadcast → bus dispose direction).
       a.get(IApprovalService);
       a.get(IQuestionService);
 
@@ -468,7 +478,7 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       // ack `at_seq` on idempotent calls. We compose one in-place.
       wsGw.setAbortHandler({
         abort: (sid, pid) => promptService.abort(sid, pid),
-        currentSeq: (sid) => eventBus.currentSeq(sid),
+        currentSeq: (sid) => wsBroadcast.currentSeq(sid),
       });
 
       // IToolService + IMcpService.

@@ -28,6 +28,7 @@ interface DaemonCliOptions {
   host?: string;
   port?: string;
   logLevel?: string;
+  debugEndpoints?: boolean;
 }
 
 export function registerDaemonCommand(parent: Command): void {
@@ -41,6 +42,11 @@ export function registerDaemonCommand(parent: Command): void {
       `Log level: ${VALID_LOG_LEVELS.join('|')} (default ${DEFAULT_LOG_LEVEL})`,
       DEFAULT_LOG_LEVEL,
     )
+    .option(
+      '--debug-endpoints',
+      'Mount /api/v1/debug/* routes for test introspection (per-session shadow + dispatch log). OFF by default; production callers leave this unset.',
+      false,
+    )
     .action(async (opts: DaemonCliOptions) => {
       const host = opts.host ?? DEFAULT_HOST;
       const port = parsePort(opts.port);
@@ -51,6 +57,7 @@ export function registerDaemonCommand(parent: Command): void {
         host,
         port,
         logLevel,
+        debugEndpoints: opts.debugEndpoints === true,
         coreProcessOptions: {
           identity: createKimiCodeHostIdentity(version),
         },

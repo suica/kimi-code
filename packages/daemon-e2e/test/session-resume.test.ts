@@ -122,7 +122,7 @@ describe('session resume + status (live daemon required)', () => {
       await client.subscribe(session.id);
 
       // Fire-and-forget submit so we can poll while the prompt is mid-flight.
-      const submit = await client.http.submitPrompt(session.id, {
+      const submit = await client.submitPrompt(session.id, {
         content: [{ type: 'text', text: 'Reply with "OK".' }],
       });
 

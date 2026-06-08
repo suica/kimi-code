@@ -202,3 +202,39 @@ export interface SyntheticPromptAbortedEvent {
   readonly promptId: string;
   readonly abortedAt: string;
 }
+
+/**
+ * Per-session shadow of the four stateless prompt controls. Exposed
+ * via `PromptService._agentStateForTest(sid)` for debug-only routes
+ * and unit tests; not part of the day-to-day surface.
+ */
+export interface AgentStateSnapshot {
+  model?: string;
+  thinking?: string;
+  permissionMode?: string;
+  planMode?: boolean;
+}
+
+/**
+ * One dispatch record appended to the per-session ring buffer whenever
+ * `PromptService._applyAgentState` actually issues a setter RPC against
+ * `core.rpc.*`. Absence of an entry between two prompts proves the
+ * shadow suppressed a redundant call — which is the property
+ * `daemon-e2e` scenarios need to assert directly, since WS frames
+ * alone can't distinguish "state held" from "setter re-dispatched".
+ */
+export interface PromptDispatchLogEntry {
+  /** ISO-8601 timestamp captured immediately after the setter resolves. */
+  readonly ts: string;
+  /** Which setter ran. */
+  readonly kind: 'setModel' | 'setThinking' | 'setPermission' | 'enterPlan' | 'cancelPlan';
+  /** Verbatim payload passed to the setter (sessionId redacted by caller if needed). */
+  readonly payload: Record<string, unknown>;
+  /**
+   * Prompt id this dispatch was made on behalf of. Minted at the top of
+   * `submit()` so setter RPCs and the eventual `core.rpc.prompt(...)`
+   * carry the same id. Empty string only on the (currently unreachable)
+   * path where bootstrap setters fire without a prompt context.
+   */
+  readonly promptId: string;
+}

@@ -26,7 +26,7 @@ and the **interface shape**, not the suffix. Patterns:
 |---|---|---|
 | Business facade | mostly `Promise<T>` returns | `IPromptService.submit(...)` |
 | One-shot broker | `request(req): Promise<resp>` + `resolve(id, resp)` | `IApprovalService` |
-| Pub-sub bus | `publish(e)` + `subscribe(h): () => void` OR `readonly onXxx: Event<T>` | `IEventService` |
+| Pub-sub bus | `publish(e)` + `readonly onDidXxx: Event<T>` | `IEventService` |
 | Cross-process adapter | `readonly rpc: ...` + `ready(): Promise<void>` | `ICoreProcessService` |
 
 ## File / folder convention (normative)
@@ -61,9 +61,14 @@ covered by this convention today; they would be follow-up refactors:
    us boundary discipline + test ergonomics without the IPC-channel
    cost.
 2. **Dissolve `IEventService`** into per-service typed `Event<T>`
-   properties wired off a single core stream. Today `IEventService`
-   stays as the central pub-sub; per-service `onDidXxx: Event<T>`
-   accessors layer **on top** of it.
+   properties wired off a single core stream. The first step is done:
+   `IEventService` is now a transport-agnostic pure pub-sub bus
+   (`publish` + `onDidPublish`) and the daemon's WS-specific concerns
+   (per-session seq, ring buffer, WS fan-out, replay) live on a separate
+   daemon-only `IWSBroadcastService` that subscribes to the bus. The
+   remaining step is folding the central stream into per-domain typed
+   emitters on each `IXxxService` so consumers can subscribe to a
+   narrow `Event<T>` rather than the full firehose.
 3. **Real channel registry** (`getChannel(name) / registerChannel(...)`
    on `ICoreProcessService`) mirroring VSCode's `IMainProcessService`.
    Requires `agent-core` RPC layer changes.
@@ -76,7 +81,7 @@ no new suffixes get reintroduced.
 | Folder | Contracts | Impl | Decorator |
 |---|---|---|---|
 | `coreProcess/` | `coreProcess.ts` | `coreProcessService.ts` | `ICoreProcessService` |
-| `event/` | `event.ts` | (impl lives in daemon) | `IEventService` |
+| `event/` | `event.ts` | `eventService.ts` | `IEventService` |
 | `approval/` | `approval.ts` | (impl lives in daemon) | `IApprovalService` |
 | `question/` | `question.ts` | (impl lives in daemon) | `IQuestionService` |
 | `environment/` | `environment.ts` | (impl lives in daemon) | `IEnvironmentService` |

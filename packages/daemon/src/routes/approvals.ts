@@ -44,7 +44,7 @@ import { buildRouteSchema } from '../middleware/schema.js';
 import { validateBody, validateParams } from '../middleware/validate.js';
 import {
   ApprovalService,
-} from '../services/approvalService.js';
+} from '#services/approval';
 
 interface ApprovalRouteHost {
   post(

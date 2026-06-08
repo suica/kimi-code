@@ -13,6 +13,7 @@
  *   coreProcess/coreProcessService.ts   — CoreProcessService (self-registers via registerSingleton)
  *   coreProcess/coreProcessClient.ts    — BridgeClientAPI (SDK-side of the RPC pair)
  *   event/event.ts                      — IEventService
+ *   event/eventService.ts               — EventService (pure in-process Emitter wrapper)
  *   approval/approval.ts                — IApprovalService + protocol adapter
  *   question/question.ts                — IQuestionService + protocol adapter
  *   environment/environment.ts          — IEnvironmentService
@@ -49,8 +50,8 @@ export {
 // --- per-domain exports ---------------------------------------------------
 
 // event service
-export { IEventService, IEventReplayService } from './event/event';
-export type { EventReplayEnvelope } from './event/event';
+export { IEventService } from './event/event';
+export { EventService } from './event/eventService';
 
 // approval service + adapter
 export { IApprovalService } from './approval/approval';
@@ -116,7 +117,9 @@ export {
   SessionBusyError,
 } from './prompt/prompt';
 export type {
+  AgentStateSnapshot,
   PromptAbortResult,
+  PromptDispatchLogEntry,
   SyntheticPromptAbortedEvent,
   SyntheticPromptCompletedEvent,
 } from './prompt/prompt';

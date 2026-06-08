@@ -10,26 +10,34 @@ import {
 } from '@moonshot-ai/agent-core';
 import type {
   Event,
+  PromptPermissionMode,
   PromptSubmission,
   PromptSubmitResult,
+  PromptThinking,
 } from '@moonshot-ai/protocol';
+import type { PermissionMode } from '@moonshot-ai/agent-core';
 import { ulid } from 'ulid';
 
 import { ICoreProcessService } from '../coreProcess/coreProcess';
 import { IAuthSummaryService } from '../authSummary/authSummary';
 import { IEventService } from '../event/event';
-import { SessionNotFoundError } from '../session/session';
+import { ISessionService, SessionNotFoundError } from '../session/session';
 import {
   IPromptService,
   SessionBusyError,
   PromptNotFoundError,
   PromptAlreadyCompletedError,
+  type AgentStateSnapshot,
   type PromptAbortResult,
+  type PromptDispatchLogEntry,
   type SyntheticPromptCompletedEvent,
   type SyntheticPromptAbortedEvent,
 } from './prompt';
 
 const MAIN_AGENT_ID = 'main';
+
+/** Cap per-session dispatch-log entries; ring-buffer drops oldest on overflow. */
+const DISPATCH_LOG_CAP = 100;
 
 /**
  * Per-session "active prompt" state. Cleared on completion/abort.
@@ -68,6 +76,30 @@ function isTurnEnded(e: Event): e is Event & {
   return (e as { type?: string }).type === 'turn.ended';
 }
 
+/**
+ * Type guard for `agent.status.updated` agent-core events. Carries the
+ * subset of fields we mirror into the per-session shadow on every live
+ * change (model / permission / planMode). `thinkingLevel` is NOT on this
+ * event — bootstrap seeds it from `getConfig` and per-request diff dispatch
+ * keeps it in sync from there.
+ */
+function isAgentStatusUpdated(e: Event): e is Event & {
+  type: 'agent.status.updated';
+  model?: string;
+  permission?: PermissionMode;
+  planMode?: boolean;
+} {
+  return (e as { type?: string }).type === 'agent.status.updated';
+}
+
+/**
+ * Per-session shadow of `model` / `thinking` / `permissionMode` /
+ * `planMode`. Type re-exported from `./prompt` so the daemon debug route
+ * can consume it without reaching into `PromptService` internals.
+ * Absent until first `submit` bootstraps. See `_bootstrapAgentState` +
+ * `_applyAgentState`.
+ */
+
 export class PromptService
   extends Disposable
   implements IPromptService
@@ -76,6 +108,25 @@ export class PromptService
 
   /** Active prompt per session. Cleared on completion / abort emission. */
   private readonly _active = new Map<string, PromptState>();
+
+  /**
+   * Per-session shadow of `model` / `thinking` / `permissionMode` /
+   * `planMode`. Absent until first `submit` bootstraps. See
+   * `_bootstrapAgentState` + `_applyAgentState`.
+   */
+  private readonly _agentState = new Map<string, AgentStateSnapshot>();
+
+  /**
+   * Per-session ring buffer of stateless-control setter dispatches.
+   * Each entry records `{ts, kind, payload, promptId}` immediately after
+   * the underlying `core.rpc.*` setter resolves inside `_applyAgentState`.
+   * The buffer is capped at `DISPATCH_LOG_CAP`; on overflow the oldest
+   * entry is dropped. Cleared on `ISessionService.onDidClose` together
+   * with the shadow. Exposed via `_dispatchLogForTest` for the daemon's
+   * `/debug/prompts/{sid}/dispatch-log` route + unit tests — never read
+   * on the hot path.
+   */
+  private readonly _dispatchLog = new Map<string, PromptDispatchLogEntry[]>();
 
   /**
    * VSCode-style Emitter for `prompt.completed` synthetic events. Listener
@@ -99,6 +150,7 @@ export class PromptService
     @ICoreProcessService private readonly core: ICoreProcessService,
     @IEventService private readonly eventService: IEventService,
     @IAuthSummaryService private readonly auth: IAuthSummaryService,
+    @ISessionService private readonly sessionService: ISessionService,
   ) {
     super();
     // Self-subscribe to the event stream for lifecycle synthesis.
@@ -111,6 +163,14 @@ export class PromptService
     // predicates below.
     this._register(
       this.eventService.onDidPublish(this._handleBusEvent.bind(this)),
+    );
+    // Drop the per-session shadow when a session closes so the next
+    // submit for a freshly-recreated session re-bootstraps cleanly.
+    this._register(
+      this.sessionService.onDidClose(({ sessionId }) => {
+        this._agentState.delete(sessionId);
+        this._dispatchLog.delete(sessionId);
+      }),
     );
   }
 
@@ -130,7 +190,21 @@ export class PromptService
       throw new SessionBusyError(sid, existing.promptId);
     }
 
+    // Mint the prompt id BEFORE the diff-dispatch so each dispatch-log
+    // entry can be attributed to the prompt that triggered it. The id is
+    // not yet recorded in `_active`; if a setter throws below we surface
+    // the error to the caller and leak only the unused ulid string.
     const promptId = `prompt_${ulid()}`;
+
+    // Bootstrap the per-session shadow on first prompt so subsequent
+    // diff-dispatch has a precise starting point. After bootstrap, run the
+    // diff against the body — only changed fields incur a setter RPC. Both
+    // happen BEFORE we record an active prompt / call `core.rpc.prompt`, so a
+    // setter failure surfaces to the caller and we don't leak an active
+    // prompt record.
+    await this._ensureAgentStateBootstrapped(sid);
+    await this._applyAgentState(sid, body, promptId);
+
     const userMessageId = `msg_${sid}_pending_${promptId}`;
 
     this._active.set(sid, {
@@ -245,11 +319,149 @@ export class PromptService
   // IDisposable) and own the detach lifetime through
   // `Disposable._register(...)`.
 
+  // --- Stateless session controls (per-request diff dispatch) ---------------
+
+  /**
+   * Seed the per-session shadow from `getConfig` / `getPermission` /
+   * `getPlan` if not yet bootstrapped. Idempotent across submits within a
+   * session lifetime; cleared on `ISessionService.onDidClose`.
+   *
+   * The three RPCs run in parallel — they share no preconditions.
+   */
+  private async _ensureAgentStateBootstrapped(sid: string): Promise<void> {
+    if (this._agentState.has(sid)) return;
+    const [config, permission, plan] = await Promise.all([
+      this.core.rpc.getConfig({ sessionId: sid, agentId: MAIN_AGENT_ID }),
+      this.core.rpc.getPermission({ sessionId: sid, agentId: MAIN_AGENT_ID }),
+      this.core.rpc.getPlan({ sessionId: sid, agentId: MAIN_AGENT_ID }),
+    ]);
+    const snapshot: AgentStateSnapshot = {};
+    if (config.modelAlias !== undefined) snapshot.model = config.modelAlias;
+    // `AgentConfigData.thinkingLevel` is typed `string` but in practice
+    // takes one of the `PromptThinking` literals (`off|low|...|max`); the
+    // narrow cast lets diff comparisons stay typed without forcing
+    // protocol to import from agent-core.
+    snapshot.thinking = config.thinkingLevel as PromptThinking;
+    snapshot.permissionMode = permission.mode;
+    snapshot.planMode = plan !== null;
+    this._agentState.set(sid, snapshot);
+  }
+
+  /**
+   * Diff-dispatch: for each of the four controls, call the matching
+   * `core.rpc.*` setter ONLY when `body.<field>` differs from the shadow.
+   * Each setter runs serially before `core.rpc.prompt` so any failure
+   * surfaces to the caller without recording an active prompt. Each
+   * successful setter also appends to the per-session dispatch-log ring
+   * buffer; absence of an entry between two prompts is the proof that
+   * the shadow suppressed a redundant dispatch.
+   */
+  private async _applyAgentState(
+    sid: string,
+    body: PromptSubmission,
+    promptId: string,
+  ): Promise<void> {
+    const shadow = this._agentState.get(sid);
+    if (shadow === undefined) {
+      // Bootstrap is a precondition of submit(); a missing shadow is a bug,
+      // not a recoverable state.
+      throw new Error(
+        `PromptService._applyAgentState: shadow not bootstrapped for sid=${sid}`,
+      );
+    }
+    const agentId = MAIN_AGENT_ID;
+
+    if (body.model !== shadow.model) {
+      const payload = { sessionId: sid, agentId, model: body.model };
+      await this.core.rpc.setModel(payload);
+      shadow.model = body.model;
+      this._recordDispatch(sid, 'setModel', payload, promptId);
+    }
+    if (body.thinking !== shadow.thinking) {
+      const payload = { sessionId: sid, agentId, level: body.thinking };
+      await this.core.rpc.setThinking(payload);
+      shadow.thinking = body.thinking;
+      this._recordDispatch(sid, 'setThinking', payload, promptId);
+    }
+    if (body.permission_mode !== shadow.permissionMode) {
+      const payload = {
+        sessionId: sid,
+        agentId,
+        mode: body.permission_mode as PermissionMode,
+      };
+      await this.core.rpc.setPermission(payload);
+      shadow.permissionMode = body.permission_mode as PermissionMode;
+      this._recordDispatch(sid, 'setPermission', payload, promptId);
+    }
+    if (body.plan_mode !== shadow.planMode) {
+      const payload = { sessionId: sid, agentId };
+      if (body.plan_mode) {
+        await this.core.rpc.enterPlan(payload);
+        this._recordDispatch(sid, 'enterPlan', payload, promptId);
+      } else {
+        // `cancelPlan({id?})` accepts an omitted id — `PlanMode.cancel`
+        // clears whatever id is currently active. Shadow doesn't track
+        // ids, so we always omit.
+        await this.core.rpc.cancelPlan(payload);
+        this._recordDispatch(sid, 'cancelPlan', payload, promptId);
+      }
+      shadow.planMode = body.plan_mode;
+    }
+  }
+
+  /**
+   * Append a dispatch entry to the per-session ring buffer, evicting the
+   * oldest entry when the cap is hit. Called only from `_applyAgentState`
+   * after the underlying setter resolves successfully.
+   */
+  private _recordDispatch(
+    sid: string,
+    kind: PromptDispatchLogEntry['kind'],
+    payload: Record<string, unknown>,
+    promptId: string,
+  ): void {
+    let buf = this._dispatchLog.get(sid);
+    if (buf === undefined) {
+      buf = [];
+      this._dispatchLog.set(sid, buf);
+    }
+    buf.push({
+      ts: new Date().toISOString(),
+      kind,
+      // Shallow copy so future shadow mutations / callers can't mutate
+      // the recorded payload retroactively.
+      payload: { ...payload },
+      promptId,
+    });
+    if (buf.length > DISPATCH_LOG_CAP) {
+      buf.splice(0, buf.length - DISPATCH_LOG_CAP);
+    }
+  }
+
   // --- Private event handler (replaces IPromptLifecycleObserver) ----------
 
   private _handleBusEvent(event: Event): void {
     const sid = (event as { sessionId?: string }).sessionId;
     if (sid === undefined || sid === '') return;
+
+    // Mirror live `agent.status.updated` into the per-session shadow. This
+    // keeps the shadow honest when out-of-band callers (TUI / SDK / agent
+    // itself) mutate `model` / `permission` / `planMode` between prompts.
+    // Only fields present on the event update the shadow — `thinking` is
+    // not carried here and stays whatever the last `setThinking` (or
+    // bootstrap getConfig) put there.
+    if (isAgentStatusUpdated(event)) {
+      const shadow = this._agentState.get(sid);
+      if (shadow !== undefined) {
+        if (event.model !== undefined) shadow.model = event.model;
+        if (event.permission !== undefined) shadow.permissionMode = event.permission;
+        if (event.planMode !== undefined) shadow.planMode = event.planMode;
+      }
+      // status events are also published normally; fall through to allow
+      // other event-type handlers below — but there's no overlap today.
+      return;
+    }
+
     const state = this._active.get(sid);
     if (state === undefined) return;
 
@@ -320,6 +532,30 @@ export class PromptService
   }
 
   /**
+   * Test helper — peek at the per-session stateless-controls shadow.
+   * Undefined before first submit on a session.
+   */
+  _agentStateForTest(sid: string): Readonly<AgentStateSnapshot> | undefined {
+    const snap = this._agentState.get(sid);
+    return snap === undefined ? undefined : { ...snap };
+  }
+
+  /**
+   * Test / debug helper — return the per-session dispatch-log ring buffer
+   * (newest-last). Returns `undefined` when the session has never
+   * triggered a setter; an empty array means "saw submits but every
+   * field matched the shadow". The daemon's `/debug/prompts/{sid}/dispatch-log`
+   * route consumes this; unit tests assert against it directly.
+   */
+  _dispatchLogForTest(sid: string): readonly PromptDispatchLogEntry[] | undefined {
+    const buf = this._dispatchLog.get(sid);
+    if (buf === undefined) return undefined;
+    // Defensive copy — callers may iterate while a parallel submit
+    // pushes new entries.
+    return buf.slice();
+  }
+
+  /**
    * Test helper — inject an active prompt record. Used by daemon e2e tests
    * that need to exercise the lifecycle-synthesis path WITHOUT driving a
    * real `core.rpc.prompt(...)` call (which would require an in-memory
@@ -347,6 +583,8 @@ export class PromptService
   override dispose(): void {
     if (this._isDisposed) return;
     this._active.clear();
+    this._agentState.clear();
+    this._dispatchLog.clear();
     // `_onDidComplete` and `_onDidAbort` are registered via `this._register(...)`,
     // so `super.dispose()` flushes their listeners.
     super.dispose();
