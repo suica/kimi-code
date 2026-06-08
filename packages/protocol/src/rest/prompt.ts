@@ -1,6 +1,5 @@
 /**
- * Prompt submission + lifecycle event payload schemas (SCHEMAS.md §5 / §3,
- * W7.2 / Chain 4).
+ * Prompt submission + lifecycle event payload schemas (SCHEMAS.md §5 / §3).
  *
  * **Wire shapes** (REST.md §3.5):
  *
@@ -13,7 +12,7 @@
  *     Reply: { aborted: true, at_seq: number }   (envelope code 0)
  *            { aborted: false, at_seq: number }  (envelope code 40903, idempotent)
  *
- * **Synthesized lifecycle events** (W7 §critical discovery point #2):
+ * **Synthesized lifecycle events**:
  * agent-core's event union has no `prompt.completed` / `prompt.aborted`
  * types. The daemon synthesizes them at the IEventService layer when a
  * top-level `turn.ended` fires for a prompt — see

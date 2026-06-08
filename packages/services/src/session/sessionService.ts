@@ -169,8 +169,8 @@ export class SessionService extends Disposable implements ISessionService {
     }
 
     // 3) agent_config + permission_rules: no CoreAPI surface yet — we accept
-    //    the input (schema-validated) but the daemon doesn't persist them
-    //    in this chain. W7+ wires this. Documented in W6 STATUS.
+    //    the input (schema-validated) but no CoreAPI surface exists to persist
+    //    them yet.
 
     // Re-fetch to return the post-update Session.
     const allAfter = await this.core.rpc.listSessions({});
@@ -225,5 +225,5 @@ export class SessionService extends Disposable implements ISessionService {
 // projects this through `defaultServicesModule()` /
 // `getSingletonServiceDescriptors()`. All ctor deps are `@I…`-injected, so
 // `staticArguments` is `[]`. `supportsDelayedInstantiation = false` preserves
-// current reverse-dispose semantics (plan §540).
+// current reverse-dispose semantics.
 registerSingleton(ISessionService, new SyncDescriptor(SessionService, [], false));

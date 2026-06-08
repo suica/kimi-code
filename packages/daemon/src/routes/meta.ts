@@ -1,18 +1,18 @@
 /**
- * `GET /meta` route handler — Chain 1 / P1.1.
+ * `GET /meta` route handler.
  *
  * Returns the daemon's `daemon_version`, declared `capabilities` literal map,
  * a per-process `daemon_id` (ULID minted at boot — reset on every restart so
  * clients can detect a daemon restart and resync), and `started_at` ISO time.
  *
- * **No DI**: this route doesn't touch services — it's pure daemon-self info
- * per ROADMAP Chain 1 ("不经过 services 包"). The `MetaRouteOptions` payload
+ * **No DI**: this route doesn't touch services — it's pure daemon-self info.
+ * The `MetaRouteOptions` payload
  * is provided by `start.ts` at registration time and frozen for the daemon's
  * lifetime.
  *
  * **Wire shape**: matches `metaResponseSchema` (REST.md §3.1) exactly. The
  * envelope wrap is `okEnvelope(data, req.id)` — `req.id` is the bare 26-char
- * ULID set by Fastify's `genReqId` via `resolveRequestId` (W4.3).
+ * ULID set by Fastify's `genReqId` via `resolveRequestId`.
  *
  * **Anti-corruption**: no SDK package import, no broker / bridge access. The
  * version source is the daemon's own `package.json` read via

@@ -1,5 +1,5 @@
 /**
- * Tool + MCP entity schemas (SCHEMAS.md §8 / Chain 7 / P1.7, W9.1).
+ * Tool + MCP entity schemas (SCHEMAS.md §8).
  *
  * Wire shape: snake_case, lower_case enum literals; ISO 8601 `Z`-suffix
  * timestamps via `isoDateTimeSchema` (no timestamps in §8 today — kept here

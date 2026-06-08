@@ -1,7 +1,6 @@
 /**
- * `PromptService` (Chain 4 / P1.4, W7.2; abort logic for Chain 4b / W7.3) —
- * adapter between protocol-shaped REST surface and agent-core's `prompt` /
- * `cancel` RPC.
+ * `PromptService` — adapter between the protocol-shaped REST surface and
+ * agent-core's `prompt` / `cancel` RPC.
  *
  * **Three responsibilities**:
  *
@@ -11,8 +10,8 @@
  *      streams events synchronously from inside; they reach WS subscribers
  *      via the event service.
  *
- *   2. **Lifecycle observation (W7.2 / Phase C)**: subscribes to the event
- *      service via `IEventService.onDidPublish(handler)` (VSCode-style
+ *   2. **Lifecycle observation**: subscribes to the event service via
+ *      `IEventService.onDidPublish(handler)` (VSCode-style
  *      accessor returning an `IDisposable`) in its constructor. We use this
  *      to:
  *      - capture `turn.started` → record `promptId ↔ turnId` mapping (so
@@ -22,18 +21,18 @@
  *        `prompt.completed` (reason='completed' or 'failed') or
  *        `prompt.aborted` (reason='cancelled') event. The event service then
  *        broadcasts these. agent-core's event union has no prompt-level
- *        types — see W7 §critical discovery point #2.
+ *        types.
  *      VSCode-style accessors `onDidComplete: Event<...>` /
  *      `onDidAbort: Event<...>` are also exposed so callers can observe the
  *      typed synthetic events without filtering the raw event stream.
  *
- *   3. **Abort (W7.3)**: existence-check the prompt id, dispatch
+ *   3. **Abort**: existence-check the prompt id, dispatch
  *      `core.rpc.cancel({sessionId, agentId:'main', turnId?})`. Idempotent:
  *      subsequent aborts on a completed/aborted prompt return
  *      `PromptAlreadyCompletedError` (→ envelope code 40903 with
  *      `data: {aborted: false}` per REST.md §3.5).
  *
- * **prompt_id ↔ turnId mapping** (W7 §critical discovery point #4):
+ * **prompt_id ↔ turnId mapping**:
  * - Daemon mints `prompt_<ULID>` on submit. This is a daemon-only id; agent-core
  *   knows nothing about it.
  * - `turn.started.turnId: number` is the agent-core counterpart. On the FIRST
@@ -44,20 +43,21 @@
  * - On `turn.ended` matching the top-level turn (turnId equal to the original
  *   mapping), we synthesize the lifecycle event and clear `activePromptId`.
  *
- * **session.busy detection** (W7 §critical discovery point #3): the impl
+ * **session.busy detection**: the impl
  * maintains `Map<sessionId, PromptState>` where `PromptState` carries
  * `promptId`, `turnId | null`, and a terminal flag. A second submit while a
  * non-terminal prompt exists for the same session throws
  * `SessionBusyError → 40901`.
  *
  * **`user_message_id` derivation**: SCHEMAS §5 mandates a `user_message_id`
- * in the submit response. Per W7.1's adapter, message ids are
- * `msg_{sessionId}_{6-digit-index}`. We don't yet know the index of the new
+ * in the submit response. When the full message history adapter is available,
+ * message ids are `msg_{sessionId}_{6-digit-index}`. We don't yet know the
+ * index of the new
  * user message (it'll be appended to the history during prompt execution).
  * Until agent-core surfaces "new message id" inline, we synthesize the id
- * from the prompt id itself — `msg_{sessionId}_pending_{promptId}` — and
- * note this in STATUS Decisions. Real per-message ids land when agent-core
- * exposes a per-message store (deferred to a later chain).
+ * from the prompt id itself — `msg_{sessionId}_pending_{promptId}`. Real
+ * per-message ids can replace this when agent-core exposes a per-message
+ * store.
  *
  * **Anti-corruption**: imports `@moonshot-ai/agent-core` only for type-only
  * `Event` / `TurnStartedEvent` etc. Runtime calls go through

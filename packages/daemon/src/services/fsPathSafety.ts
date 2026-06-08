@@ -1,6 +1,6 @@
 /**
- * Path-safety primitives (REST.md §4.4) — the central correctness piece of
- * Chain 9 / W10.1.
+ * Path-safety primitives (REST.md §4.4) — the central correctness piece for
+ * daemon filesystem access.
  *
  * Every `path` flowing into `/sessions/{sid}/fs:*` MUST pass through
  * `resolveSafePath(cwd, input)` BEFORE being touched by Node `fs.promises`.

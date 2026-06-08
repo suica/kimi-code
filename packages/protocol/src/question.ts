@@ -1,5 +1,5 @@
 /**
- * Question entity schemas (SCHEMAS.md §6.2 / §6.3, W8.2 / Chain 6).
+ * Question entity schemas (SCHEMAS.md §6.2 / §6.3).
  *
  * Question is the **data-collection reverse-RPC** primitive — agent-core asks
  * the user 1-4 questions, each with required `options[]` (multi-select +

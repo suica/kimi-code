@@ -1,11 +1,10 @@
 /**
- * `IToolService` — daemon-facing read-only tool surface (Chain 7 / P1.7, W9.1).
+ * `IToolService` — daemon-facing read-only tool surface.
  *
  * Wraps `ICoreProcessService.rpc.getTools` and translates agent-core's `ToolInfo`
  * (camelCase, includes `'user'` source literal) into SCHEMAS §8 `ToolDescriptor`
  * (snake_case, `'skill'` literal). Adapter helpers (`toProtocolTool`,
- * `AgentCoreToolInfoLike`) are co-located here (moved from `adapter/tool-adapter.ts`
- * in Phase B per-domain consolidation).
+ * `AgentCoreToolInfoLike`) are co-located here.
  *
  * **CoreAPI surface used**:
  *   - `bridge.rpc.getTools({}) => readonly ToolInfo[]` (packages/agent-core/src/rpc/core-api.ts:333).
@@ -13,7 +12,7 @@
  * **REST.md §3.8 ?session_id behavior**: when caller passes a session_id the
  * route currently returns the same global list — agent-core's `getTools`
  * doesn't differentiate per-session, and `setActiveTools` is the only
- * per-session knob (W7+ wires that). Documented gap in `ToolService`.
+ * per-session knob. Documented gap in `ToolService`.
  *
  * **Anti-corruption**: imports `@moonshot-ai/agent-core` only for the
  * `createDecorator` / `Disposable` values.

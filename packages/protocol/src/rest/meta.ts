@@ -22,17 +22,14 @@
  * }
  * ```
  *
- * Capabilities are FIXED `true` literals at this stage — the first daemon
- * version ships every advertised capability; once optional capabilities land
- * (auth, etc.) the schema becomes a `z.boolean()` per key. Clients are
- * documented as treating missing keys as `false`; bumping a capability from
- * `true` to "missing" is therefore a protocol-compatible cut.
+ * Capabilities are fixed `true` literals because the daemon ships every
+ * advertised capability. If optional capabilities land later (auth, etc.) the
+ * schema becomes a `z.boolean()` per key. Clients treat missing keys as
+ * `false`; bumping a capability from `true` to "missing" is therefore a
+ * protocol-compatible cut.
  *
- * Note on ROADMAP vs REST.md divergence: ROADMAP Chain 1 (P1.1) says
- * "daemon / sdk version + default cwd". REST.md §3.1 — which is the
- * authoritative wire contract — says `{daemon_version, capabilities,
- * daemon_id, started_at}`. We follow REST.md; `sdk_version` / `default_cwd`
- * are intentionally NOT exposed here (see STATUS.md §Decisions).
+ * REST.md §3.1 is the authoritative wire contract; `sdk_version` /
+ * `default_cwd` are intentionally not exposed here.
  */
 import { z } from 'zod';
 

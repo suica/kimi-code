@@ -1,5 +1,5 @@
 /**
- * `/v1/oauth/*` REST routes (P2.7).
+ * `/v1/oauth/*` REST routes.
  *
  *   POST   /v1/oauth/login   start a device-code flow → OAuthFlowStart
  *   GET    /v1/oauth/login   poll current flow state  → OAuthFlowSnapshot | null
@@ -11,7 +11,7 @@
  * returned in the start response. When `status` flips to `'authenticated'`,
  * stop polling and hit `GET /v1/auth` to see `ready: true`.
  *
- * **No bare flow_id in URL**: PLAN D6.4 says one in-flight per provider. The
+ * **No bare flow_id in URL**: only one flow is in-flight per provider. The
  * frontend has the flow_id from the start response — it uses it client-side
  * to detect "the flow I started got superseded" (matching the snapshot's
  * flow_id against its own captured value).

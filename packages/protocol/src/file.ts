@@ -1,5 +1,5 @@
 /**
- * File / Upload entity schema (SCHEMAS.md §9.1, Chain 15 / P1.15, W12.2).
+ * File / Upload entity schema (SCHEMAS.md §9.1).
  *
  * Wire shape: `FileMeta` — single canonical entity returned by `POST
  * /v1/files`, looked up by `GET /v1/files/{file_id}` (binary stream OR
@@ -9,10 +9,10 @@
  * implemented in `packages/daemon/src/services/file-store.ts` against the
  * local filesystem (`~/.kimi/files/<id>` blob + `~/.kimi/files/index.json`
  * metadata). Agent-core has no `file` surface — this is the second
- * daemon-OWN entity after `FsEntry` (W10) / `FsChangeEvent` (W12.1).
+ * daemon-OWN entity after `FsEntry` / `FsChangeEvent`.
  *
  * Field semantics (SCHEMAS §9.1 line 502-509):
- *   - `id`           daemon-minted ULID. Time-sortable (PLAN P2 / §564).
+ *   - `id`           daemon-minted ULID. Time-sortable.
  *   - `name`         filename as uploaded (preserved verbatim — useful
  *                    for `Content-Disposition: attachment` on download).
  *   - `media_type`   RFC 6838 media type. Defaults to the multipart

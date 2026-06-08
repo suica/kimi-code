@@ -150,8 +150,8 @@ export type { TaskListQuery } from './task/task';
 export { TaskService } from './task/taskService';
 
 // NOTE: every `<X>Service.ts` impl file self-registers via
-// `registerSingleton(IXxx, new SyncDescriptor(...))` at file bottom (plan
-// §535). `defaultServicesModule()` is a thin projection of that global
-// registry. Daemon-side `services.set(...)` may override individual
-// descriptors at the `ServiceCollection` stage when runtime static args
-// (e.g. `CoreProcessServiceOptions`) or external handles are needed.
+// `registerSingleton(IXxx, new SyncDescriptor(...))` at file bottom.
+// `defaultServicesModule()` is a thin projection of that global registry.
+// Daemon-side `services.set(...)` may override individual descriptors at the
+// ServiceCollection boundary when runtime static args (e.g.
+// `CoreProcessServiceOptions`) or external handles are needed.

@@ -5,8 +5,7 @@
  * time normalization, request_id helpers, WS control messages, and re-exports
  * event / approval / question types from `@moonshot-ai/kimi-code-sdk`.
  *
- * Wire format: see `/Users/moonshot/Projects/.code-workspace/kimi-code-plan/2026.06.04-daemon-di`
- * (PLAN.md / REST.md / WS.md / SCHEMAS.md).
+ * Wire format: see REST.md / WS.md / SCHEMAS.md.
  */
 export * from './envelope';
 export * from './error-codes';

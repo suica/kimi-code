@@ -1,5 +1,5 @@
 /**
- * `IRestGateway` DI surface (W4.4 / P0.14).
+ * `IRestGateway` DI surface.
  *
  * Wraps the Fastify instance the daemon constructs at boot so consumer
  * services can inject it without taking a direct `fastify` dependency. The
@@ -29,7 +29,7 @@ import { Disposable, createDecorator } from '@moonshot-ai/agent-core';
  * mismatch between `FastifyInstance<…, DaemonLogger>` and `FastifyInstance`'s
  * default generics that surfaces at the route-options level.
  *
- * W5.1: `server` (the raw Node `http.Server` Fastify wraps) is required so
+ * `server` (the raw Node `http.Server` Fastify wraps) is required so
  * `WSGateway` can attach a typed `'upgrade'` handler for `/api/v1/ws` without
  * pulling in `fastify-websocket`. Fastify exposes `app.server` after
  * `await app.ready()` (or after `listen()`); we add the typed property here

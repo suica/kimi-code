@@ -94,8 +94,8 @@ export class CoreProcessService extends Disposable implements ICoreProcessServic
     // does for the in-process TUI path (node-sdk's sdk-rpc-client.ts).
     // Caller-supplied `kimiRequestHeaders` always wins; absent that, we
     // synthesize from `options.identity`. Hosts that pass neither
-    // (no identity, no headers) still construct — preserves the W3
-    // contract — but their requests will trip the 40340 guard.
+    // (no identity, no headers) still construct — but their requests will
+    // trip the 40340 guard.
     const kimiRequestHeaders: Record<string, string> | undefined =
       options.kimiRequestHeaders ??
       CoreProcessService._defaultKimiRequestHeaders(env.homeDir, options.identity);
@@ -234,14 +234,13 @@ export class CoreProcessService extends Disposable implements ICoreProcessServic
 // Self-register under the global singleton registry. Ctor signature is
 // `(options, @IEnvironmentService, @IEventService, @IApprovalService,
 //  @IQuestionService)` — the leading `options` slot is a pure data bag so we
-// register with `[{}]` as a sane default. Daemon-side `start.ts` (Phase 4)
-// will override this descriptor via `services.set(ICoreProcessService, new
+// register with `[{}]` as a sane default. Daemon-side `start.ts` overrides
+// this descriptor via `services.set(ICoreProcessService, new
 // SyncDescriptor(CoreProcessService, [opts.coreProcessOptions ?? {}], false))`
-// when it has access to the real options bag. The duplicate-registration
-// throw was intentionally removed from `registerSingleton` (plan §158) so
-// later registrations win — both at registry level and at
-// `ServiceCollection` level. `supportsDelayedInstantiation = false` preserves
-// current reverse-dispose semantics (plan §540).
+// when it has access to the real options bag. Later registrations win — both
+// at registry level and at `ServiceCollection` level.
+// `supportsDelayedInstantiation = false` preserves current reverse-dispose
+// semantics.
 registerSingleton(
   ICoreProcessService,
   new SyncDescriptor(CoreProcessService, [{} as CoreProcessServiceOptions], false),

@@ -1,6 +1,6 @@
 /**
- * `createDaemonServiceCollection` (Phase 4 Step 4.2) — central wiring for
- * the daemon's DI graph. Mirrors the VSCode `electron-main/main.ts:162-233`
+ * `createDaemonServiceCollection` — central wiring for the daemon's DI graph.
+ * Mirrors the VSCode `electron-main/main.ts:162-233`
  * pattern: hybrid `ServiceCollection`, with:
  *
  *   - **Prebuilt** `services.set(I, new C(...))` for services that capture
@@ -13,17 +13,16 @@
  *     as a pure data bag. The container drives construction via
  *     `_createAndCacheServiceInstance` so `@I*` decorators auto-inject.
  *
- * `supportsDelayedInstantiation = false` for every descriptor here —
- * plan §4.1 keeps the entire first round eager to preserve the
- * `_constructionOrder` discipline that powers reverse-dispose order. The
+ * `supportsDelayedInstantiation = false` for every descriptor here to preserve
+ * the `_constructionOrder` discipline that powers reverse-dispose order. The
  * `a.get(IX)` touch sequence in `start.ts` still pins the ordering.
  *
  * # Why a helper (not inline in start.ts)?
  *
- * Phase 4 plan §2.2: "centralize all `services.set(... new SyncDescriptor(...))`
- * in one place" — keeps the wiring shape auditable in a single file while
- * `start.ts` retains the construction-order touch list + post-collection
- * adapters (`IEventReplayService` alias, `IFsWatcher` closure construction,
+ * Centralizing all `services.set(... new SyncDescriptor(...))` in one place
+ * keeps the wiring shape auditable in a single file while `start.ts` retains
+ * the construction-order touch list + post-collection adapters
+ * (`IEventReplayService` alias, `IFsWatcher` closure construction,
  * `setUnexpectedErrorHandler`, WS abort + fs-watch handler wiring).
  *
  * # Why `IFsWatcher` stays in start.ts
@@ -32,7 +31,6 @@
  * `IConnectionRegistry.get` at runtime. That closure isn't serializable
  * into a `SyncDescriptor` static-arg slot, so we keep its construction
  * inside the `ix.invokeFunction` block in `start.ts` post-collection.
- * This is the one documented exception per plan §2.2.
  *
  * # Why `IEventReplayService` stays in start.ts
  *
@@ -141,8 +139,7 @@ export function createDaemonServiceCollection(
   //
   // Order in this list is NOT load-bearing. The construction order is
   // pinned by the `a.get(IX)` touch sequence in `start.ts`'s
-  // `ix.invokeFunction` block. Grouping here mirrors the chain markers
-  // (W5.x / P2.x) used in start.ts for cross-reference.
+  // `ix.invokeFunction` block.
   services.set(IConnectionRegistry, new SyncDescriptor(ConnectionRegistry, [], false));
   services.set(ISessionClientsService, new SyncDescriptor(SessionClientsService, [], false));
   services.set(IEventService, new SyncDescriptor(EventService, [{}], false));

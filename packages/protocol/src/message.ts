@@ -1,5 +1,5 @@
 /**
- * Message entity schema (SCHEMAS.md §3, W7.1 / Chain 3).
+ * Message entity schema (SCHEMAS.md §3).
  *
  * Wire shape: snake_case fields, ISO 8601 `Z`-suffix timestamps, IDs are ULIDs
  * (time-sortable, supports `before_id` / `after_id` cursor pagination per
@@ -22,8 +22,8 @@
  *     metadata?: Record<string, unknown>;
  *   }
  *
- * **agent-core mapping (per W7 critical question #1)** — agent-core exposes a
- * message history shape via `getContext({sessionId}).history`, which is a
+ * **agent-core mapping** — agent-core exposes a message history shape via
+ * `getContext({sessionId}).history`, which is a
  * `readonly ContextMessage[]`. Each `ContextMessage` extends kosong's `Message`:
  *   - `role: 'system' | 'user' | 'assistant' | 'tool'`  (← maps 1:1)
  *   - `content: ContentPart[]` where `ContentPart` is
@@ -46,8 +46,7 @@
  * **Timestamps** — kosong's `Message` has no `created_at` either. We derive
  * `created_at` from the session's `createdAt` + the history index (1ms per
  * message) so id ordering stays monotonic with `created_at`. Real timestamps
- * are punted until agent-core surfaces per-message persistence (a known
- * deferred item; see STATUS.md §Decisions / §Deferred).
+ * are punted until agent-core surfaces per-message persistence.
  */
 
 import { z } from 'zod';

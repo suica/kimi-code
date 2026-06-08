@@ -27,9 +27,9 @@ export class FsGitService extends Disposable implements IFsGitService {
     const cwd = session.metadata.cwd;
     const realCwd = await fs.realpath(cwd);
 
-    // Resolve any client-supplied path filter through the W10 safety
+    // Resolve any client-supplied path filter through the shared safety
     // guard. Out-of-tree paths fail the whole call with 41304 (matches
-    // `:stat_many`'s posture from W10).
+    // `:stat_many`'s posture).
     let filterSet: Set<string> | undefined;
     if (req.paths !== undefined && req.paths.length > 0) {
       filterSet = new Set();

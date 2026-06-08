@@ -1,11 +1,10 @@
 /**
- * `/sessions/{sid}/questions/{qid}*` REST routes (Chain 6 / P1.6, W8.2).
+ * `/sessions/{sid}/questions/{qid}*` REST routes.
  *
  * 2 endpoints (REST.md §3.6), both serviced by a SINGLE Fastify route handler
  * because Fastify cannot disambiguate `:question_id` vs `:question_id:dismiss`
- * on the same path prefix (the W7 prompts `:abort` worked because it was the
- * sole tail; questions has both a bare resolve and a `:dismiss` so we MUST
- * use the tail-parser for both):
+ * on the same path prefix. Questions has both a bare resolve and a `:dismiss`,
+ * so we use the tail parser for both:
  *
  *   POST   /sessions/{sid}/questions/{qid}             (resolve)
  *     body: QuestionResponse (5-kind answers map + method?+ note?)
@@ -15,10 +14,9 @@
  *     body: empty                                          dismiss)
  *     envelope: code: 40909, data: { dismissed: true, dismissed_at }
  *
- * **Fastify `:dismiss` action-suffix workaround** (W7 `:abort` precedent):
- * we capture the tail segment as `:tail` and parse via `lastIndexOf(':')`.
- * The pattern is now in use by 3 callers (prompts:abort + questions:resolve +
- * questions:dismiss); W9 may want to extract a helper.
+ * **Fastify `:dismiss` action-suffix workaround**: we capture the tail segment
+ * as `:tail` and parse via `lastIndexOf(':')`. This keeps bare resolve and
+ * `:dismiss` on one route without ambiguous Fastify path syntax.
  *
  * Error mapping (REST.md §3.6):
  *   - 40404 (question.not_found)

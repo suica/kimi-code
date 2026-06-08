@@ -84,7 +84,7 @@ export interface DaemonStartOptions {
    */
   coreProcessOptions?: CoreProcessServiceOptions;
   /**
-   * W5.1: optional WS gateway tunables for tests (`pingIntervalMs`, etc.).
+   * Optional WS gateway tunables for tests (`pingIntervalMs`, etc.).
    * Production callers leave this undefined and pick up the WS.md §1.3 / §3.1
    * defaults (30s ping, 10s pong deadline, 1000-event ring buffer).
    */
@@ -97,8 +97,8 @@ export interface RunningDaemon {
   /** Logger shared with Fastify; use this for daemon-level events. */
   readonly logger: DaemonLogger;
   /**
-   * The DI container — exposed for tests and W5+ external consumers. The
-   * container holds the bridge, brokers, and gateway. `close()` disposes it.
+   * The DI container — exposed for tests and external consumers. The container
+   * holds the bridge, brokers, and gateway. `close()` disposes it.
    */
   readonly services: InstantiationService;
   /** Stop the listener, dispose the container, release the lock; idempotent. */
@@ -109,10 +109,10 @@ export interface RunningDaemon {
 export { DaemonLockedError };
 
 /**
- * Boot the daemon (W4.4 / P0.14, extended in W5.1+W5.2 / P0.15+P0.16): lock
- * → Fastify → `app.ready()` → DI container → services → bridge.ready → listen.
+ * Boot the daemon: lock → Fastify → `app.ready()` → DI container → services
+ * → bridge.ready → listen.
  *
- * **Wiring order matters for teardown** (W3 handoff §Gotchas):
+ * **Wiring order matters for teardown**:
  *   construction order = [ILogService, IRestGateway, IConnectionRegistry,
  *                          ISessionClientsService, IEventService, IApprovalService,
  *                          IQuestionService, IWSGateway, ICoreProcessService]
@@ -128,16 +128,15 @@ export { DaemonLockedError };
  * means the bus has stopped publishing before its subscriber index goes
  * away.
  *
- * **CoreProcessService construction** (Phase 4 descriptor-first): every
- * non-runtime-handle singleton (including `ICoreProcessService`) is now
- * a `SyncDescriptor` in `createDaemonServiceCollection()`, with options
- * baked into the descriptor's `staticArguments`. The first
- * `a.get(ICoreProcessService)` call below resolves the descriptor with
- * `opts.coreProcessOptions ?? {}` already bound; no inline
+ * **CoreProcessService construction**: every non-runtime-handle singleton
+ * (including `ICoreProcessService`) is a `SyncDescriptor` in
+ * `createDaemonServiceCollection()`, with options baked into the descriptor's
+ * `staticArguments`. The first `a.get(ICoreProcessService)` call below resolves
+ * the descriptor with `opts.coreProcessOptions ?? {}` already bound; no inline
  * `ix.createInstance(CoreProcessService, ...)` is needed.
  *
- * **Post-Phase-4 wire-up shape**: the `invokeFunction` block below is
- * effectively a sequence of `a.get(IFoo)` "touch" calls that pin
+ * **Wire-up shape**: the `invokeFunction` block below is effectively a
+ * sequence of `a.get(IFoo)` "touch" calls that pin
  * construction order for `_constructionOrder`. The two remaining
  * non-`a.get` wirings are:
  *
@@ -197,7 +196,7 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
     },
   });
 
-  // Seed the container. Per Phase 4 §2.2 the collection is now a HYBRID:
+  // Seed the container. The collection is a HYBRID:
   //   - prebuilt instance for services that carry runtime handles (PinoLogger
   //     wraps Fastify's shared `pino.Logger`; FastifyRestGateway wraps `app`;
   //     `IEnvironmentService` carries CLI-resolved paths);
@@ -263,9 +262,8 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       return reply.send(okEnvelope({ ok: true }, req.id));
     });
 
-    // W6.1 / Chain 1 — `/meta`. Pure daemon-self info, no DI needed. Mint
-    // the per-process daemon_id + boot timestamp once at registration time
-    // (ROADMAP P1.1; REST.md §3.1).
+    // `/meta`. Pure daemon-self info, no DI needed. Mint the per-process
+    // daemon_id + boot timestamp once at registration time (REST.md §3.1).
     const daemonId = ulid();
     const startedAt = new Date().toISOString();
     registerMetaRoute(apiV1, {
@@ -274,33 +272,33 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       startedAt,
     });
 
-    // P2.1 / Chain P2.1.1 — `GET /auth`. Readiness probe + onboarding gate
+    // `GET /auth`. Readiness probe + onboarding gate
     // signal. No body, no auth, always 200. Wired AFTER meta so reverse-
     // dispose order matters not (route registrations are not stateful).
     registerAuthRoute(apiV1 as unknown as Parameters<typeof registerAuthRoute>[0], ix);
 
-    // P2.7 / Chain P2.7.1 — `/oauth/*`. Device-code flow start / poll /
+    // `/oauth/*`. Device-code flow start / poll /
     // cancel + logout. Grouped under the `auth` swagger tag since they're
     // all login-related; the URL prefix `/oauth` keeps them out of
     // `/auth`'s pure-readout namespace.
     registerOAuthRoutes(apiV1 as unknown as Parameters<typeof registerOAuthRoutes>[0], ix);
 
-    // W6.2 / Chain 2 — register `/sessions/*` routes. The route module
+    // Register `/sessions/*` routes. The route module
     // captures `ix` by reference; per-request `accessor.get(ISessionService)`
     // dispatches against whatever's in the container at that moment. We
     // populate ISessionService below; by the time the first request lands the
     // container is fully wired (we await app.ready() + bridge.ready() before
     // listen() opens the socket).
     registerSessionsRoutes(apiV1 as unknown as Parameters<typeof registerSessionsRoutes>[0], ix);
-    // W7.1 / Chain 3 — register `/sessions/{sid}/messages*` routes. Same
+    // Register `/sessions/{sid}/messages*` routes. Same
     // wiring story: handlers resolve `IMessageService` per-request through ix.
     registerMessagesRoutes(apiV1 as unknown as Parameters<typeof registerMessagesRoutes>[0], ix);
-    // W7.2 / Chain 4 — register `/sessions/{sid}/prompts*` routes (submit +
-    // abort). Submit triggers `bridge.rpc.prompt(...)` whose synchronous event
-    // stream lands on `IEventService → WS broadcast`. Abort is the REST fallback
-    // for the WS abort message handled at `ws/connection.ts` (Chain 4b / W7.3).
+    // Register `/sessions/{sid}/prompts*` routes (submit + abort). Submit
+    // triggers `bridge.rpc.prompt(...)` whose synchronous event stream lands on
+    // `IEventService → WS broadcast`. Abort is the REST fallback for the WS abort
+    // message handled at `ws/connection.ts`.
     registerPromptsRoutes(apiV1 as unknown as Parameters<typeof registerPromptsRoutes>[0], ix);
-    // W8.1 / Chain 5 — register `/sessions/{sid}/approvals/{aid}` route.
+    // Register `/sessions/{sid}/approvals/{aid}` route.
     // The reverse-RPC path: agent-core → bridge → ApprovalService → WS
     // `event.approval.requested`. The REST handler completes the round-trip
     // by calling `IApprovalService.resolve(aid, body)`.
@@ -308,7 +306,7 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       apiV1 as unknown as Parameters<typeof registerApprovalsRoutes>[0],
       ix,
     );
-    // W8.2 / Chain 6 — register `/sessions/{sid}/questions/{qid}*` routes.
+    // Register `/sessions/{sid}/questions/{qid}*` routes.
     // Same reverse-RPC pattern as approval, with first-class `:dismiss`
     // (SCHEMAS §6.3) and 5-kind discriminated-union answer normalization
     // (SCHEMAS §6.4) done by the services adapter at REST-boundary time.
@@ -316,7 +314,7 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       apiV1 as unknown as Parameters<typeof registerQuestionsRoutes>[0],
       ix,
     );
-    // W9.1 / Chain 7 — register `/tools` + `/mcp/servers*` routes.
+    // Register `/tools` + `/mcp/servers*` routes.
     // Read-only `getTools` + `listMcpServers` plus `:restart` action — the 4th
     // call site of the `:tail` action-suffix pattern, now extracted into
     // `routes/action-suffix.ts`.
@@ -324,13 +322,13 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       apiV1 as unknown as Parameters<typeof registerToolsRoutes>[0],
       ix,
     );
-    // W9.2 / Chain 8 — register `/sessions/{sid}/tasks*` routes.
+    // Register `/sessions/{sid}/tasks*` routes.
     // list/get/cancel with 40406 + 40904 + the 5th `:tail` (action :cancel).
     registerTasksRoutes(
       apiV1 as unknown as Parameters<typeof registerTasksRoutes>[0],
       ix,
     );
-    // W10 / Chains 9 + 10 — register `/sessions/{sid}/fs:*` routes.
+    // Register `/sessions/{sid}/fs:*` routes.
     // POST :list / :read / :list_many / :stat / :stat_many — daemon-OWN
     // service, no agent-core bridge involved. Path safety is the central
     // correctness concern; every input path flows through
@@ -340,7 +338,7 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       ix,
     );
 
-    // W12.2 / Chain 15 — register `/files*` routes (upload / download /
+    // Register `/files*` routes (upload / download /
     // delete). Registers `@fastify/multipart` lazily on the captured
     // Fastify instance. Anti-corruption invariant: handlers resolve
     // `IFileStore` via the DI accessor; no SDK imports.
@@ -359,7 +357,7 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
     },
   });
 
-  // Fastify lazily creates the raw `http.Server`. `WSGateway` (W5.1) needs
+  // Fastify lazily creates the raw `http.Server`. `WSGateway` needs
   // `app.server` to attach an `'upgrade'` listener — `app.ready()` populates
   // it without binding to a port (that happens later in `IRestGateway.listen`).
   try {
@@ -383,14 +381,14 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       const log = a.get(ILogService);
       a.get(IRestGateway);
 
-      // Plan §4.5: wire `setUnexpectedErrorHandler` HERE — AFTER the
-      // container has resolved `ILogService`, NOT at module load time. Doing it
-      // at module load risks a startup-time listener exception NPE'ing on
-      // an unresolved logger (the handler closure would capture an
-      // undefined `log`). Routing unexpected errors to the daemon logger
-      // means Emitter listener exceptions (which `Emitter.fire()` forwards
-      // to `onUnexpectedError`) surface as structured `[unexpected]` log
-      // lines instead of being silently dropped.
+      // Wire `setUnexpectedErrorHandler` HERE — AFTER the container has
+      // resolved `ILogService`, NOT at module load time. Doing it at module
+      // load risks a startup-time listener exception NPE'ing on an unresolved
+      // logger (the handler closure would capture an undefined `log`). Routing
+      // unexpected errors to the daemon logger means Emitter listener
+      // exceptions (which `Emitter.fire()` forwards to `onUnexpectedError`)
+      // surface as structured `[unexpected]` log lines instead of being
+      // silently dropped.
       //
       // Argument order matches the daemon's `ILogService.error(obj, msg)`
       // signature (= pino's `error({...}, '[unexpected]')` form) — the
@@ -403,12 +401,12 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
         );
       });
 
-      // W5.1 / P2.1: IConnectionRegistry BEFORE event bus / brokers so the
+      // IConnectionRegistry BEFORE event bus / brokers so the
       // reverse-dispose chain tears down WS connections (via IWSGateway, which
       // is constructed LATE → disposes EARLY) before brokers can emit on them.
       a.get(IConnectionRegistry);
 
-      // W5.2 / P2.2: ISessionClientsService BEFORE IEventService so the bus
+      // ISessionClientsService BEFORE IEventService so the bus
       // can hold a reference to it for broadcast fan-out. SessionClients
       // disposes AFTER IEventService (reverse-order) — by then the bus has
       // already stopped publishing, so dropping the subscriber index is safe.
@@ -420,15 +418,15 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       // (only the concrete class exposes that helper).
       const eventBus = a.get(IEventService) as EventService;
       // Alias the SAME singleton under the daemon-local `IEventReplayService`
-      // contract (split from `IEventService` in Phase 2). `WSGateway` and
-      // (later) `WsConnection` use this typed accessor instead of importing
-      // the concrete `EventService` class. No new instance is constructed;
-      // the alias is recorded BEFORE WSGateway is built so its
-      // `@IEventReplayService` ctor decoration resolves to the live bus.
+      // contract. `WSGateway` and (later) `WsConnection` use this typed
+      // accessor instead of importing the concrete `EventService` class. No new
+      // instance is constructed; the alias is recorded BEFORE WSGateway is
+      // built so its `@IEventReplayService` ctor decoration resolves to the
+      // live bus.
       //
-      // This is one of two non-descriptor `services.set()` calls retained
-      // post-Phase-4: an ALIAS, not a fresh registration. The collection
-      // helper intentionally skips it (see `serviceCollection.ts` header).
+      // This is one of two non-descriptor `services.set()` calls retained: an
+      // ALIAS, not a fresh registration. The collection helper intentionally
+      // skips it (see `serviceCollection.ts` header).
       services.set(IEventReplayService, eventBus);
       a.get(IEventReplayService);
 
@@ -437,14 +435,14 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       a.get(IApprovalService);
       a.get(IQuestionService);
 
-      // W5.1 / P2.3: WSGateway constructed AFTER brokers but BEFORE CoreProcessService.
+      // WSGateway constructed AFTER brokers but BEFORE CoreProcessService.
       // Reverse-dispose order then runs: CoreProcessService → WSGateway (closes WS
       // conns via registry) → brokers → SessionClients → registry → RestGateway
       // → Logger. That's safe because brokers no longer have active sockets
       // to emit to.
       const wsGw = a.get(IWSGateway);
 
-      // P2.5: CoreProcessService is now a descriptor with `coreProcessOptions`
+      // CoreProcessService is now a descriptor with `coreProcessOptions`
       // baked into the `staticArguments` of the `SyncDescriptor`. Touching
       // the decorator constructs the singleton with the production options.
       const built = a.get(ICoreProcessService);
@@ -453,18 +451,18 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       a.get(ISessionService);
       a.get(IMessageService);
 
-      // P2.1 / Chain P2.1.2 — IAuthSummaryService. Powers `GET /v1/auth` +
+      // IAuthSummaryService. Powers `GET /v1/auth` +
       // the `ensureReady` gate consumed by IPromptService.
       a.get(IAuthSummaryService);
 
-      // P2.7 — IOAuthService.
+      // IOAuthService.
       a.get(IOAuthService);
 
-      // W7.2 / Chain 4 — IPromptService. Phase C: PromptService
-      // self-subscribes to the bus via @IEventService.onDidPublish.
+      // IPromptService. PromptService self-subscribes to the bus via
+      // @IEventService.onDidPublish.
       const promptService = a.get(IPromptService);
 
-      // W7.3 — wire the WS abort handler. Both REST and WS abort go through
+      // Wire the WS abort handler. Both REST and WS abort go through
       // `IPromptService.abort`; the WS connection needs an `AbortHandler`
       // adapter exposing `abort()` + `currentSeq()` so it can populate the
       // ack `at_seq` on idempotent calls. We compose one in-place.
@@ -473,36 +471,36 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
         currentSeq: (sid) => eventBus.currentSeq(sid),
       });
 
-      // W9.1 / Chain 7 — IToolService + IMcpService.
+      // IToolService + IMcpService.
       a.get(IToolService);
       a.get(IMcpService);
 
-      // W9.2 / Chain 8 — ITaskService.
+      // ITaskService.
       a.get(ITaskService);
 
-      // W10 / Chains 9 + 10 — IFsService (DAEMON-OWN).
+      // IFsService (DAEMON-OWN).
       a.get(IFsService);
 
-      // W11 / Chain 11 — IFsSearchService (DAEMON-OWN).
+      // IFsSearchService (DAEMON-OWN).
       a.get(IFsSearchService);
 
-      // W11 / Chain 12 — IFsGitService (DAEMON-OWN).
+      // IFsGitService (DAEMON-OWN).
       a.get(IFsGitService);
 
-      // W12 / Chain 14 — IFsWatcher. DAEMON-OWN. Wraps a per-session
+      // IFsWatcher. DAEMON-OWN. Wraps a per-session
       // chokidar `FSWatcher`, coalesces events over 200ms windows,
       // truncates at 500 raw events/window, and pushes targeted (NOT
       // broadcast) `event.fs.changed` frames to the connections whose
       // subscribed paths overlap the change.
       //
-      // **Closure-exception wiring** (Phase 4 §2.2): the watcher needs a
-      // `connection-lookup` closure built from `IConnectionRegistry.get`.
+      // **Closure-exception wiring**: the watcher needs a `connection-lookup`
+      // closure built from `IConnectionRegistry.get`.
       // That closure isn't serializable into a `SyncDescriptor` static-arg,
       // so we build it inline here and register the resulting instance.
       // This is the documented descriptor-first exception per
       // `serviceCollection.ts` header.
       //
-      // P2.6: @ILogService + @ISessionService auto-injected; only `lookup`
+      // @ILogService + @ISessionService auto-injected; only `lookup`
       // (closure over the live registry) and `{}` options remain as
       // positional static args.
       const registry = a.get(IConnectionRegistry);
@@ -578,7 +576,7 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
       };
       wsGw.setFsWatchHandler(fsWatchHandler);
 
-      // W12.2 / Chain 15 — IFileStore. DAEMON-OWN. Persists uploads under
+      // IFileStore. DAEMON-OWN. Persists uploads under
       // `<homeDir>/files/` with a JSON index. The `homeDir` override is
       // baked into the `SyncDescriptor`'s static args by
       // `createDaemonServiceCollection()`.
@@ -674,7 +672,7 @@ export async function startDaemon(opts: DaemonStartOptions): Promise<RunningDaem
 }
 
 /* -------------------------------------------------------------------------
- * Helpers for the FsWatchHandler adapter (W12 / Chain 14)
+ * Helpers for the FsWatchHandler adapter
  * ----------------------------------------------------------------------- */
 
 /**

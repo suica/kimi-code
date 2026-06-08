@@ -1,5 +1,5 @@
 /**
- * `ILogService` DI surface (W4.4 / P0.14).
+ * `ILogService` DI surface.
  *
  * Thin interface over the pino logger so consumer services don't take a
  * direct dependency on the `pino` package. The daemon registers a
@@ -8,7 +8,7 @@
  *
  * Registered FIRST in the DI container (= constructed first when consumers
  * dispatch `accessor.get(ILogService)`) so it disposes LAST in the
- * reverse-construction-order teardown chain (W3 handoff §Gotchas). Other
+ * reverse-construction-order teardown chain. Other
  * services log on their own `dispose()`; if the logger went first they'd NPE.
  */
 

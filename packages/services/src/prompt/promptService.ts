@@ -101,7 +101,7 @@ export class PromptService
     @IAuthSummaryService private readonly auth: IAuthSummaryService,
   ) {
     super();
-    // Phase C: self-subscribe to the event stream for lifecycle synthesis.
+    // Self-subscribe to the event stream for lifecycle synthesis.
     // `onDidPublish` is the VSCode-style accessor — calling it registers
     // `_handleBusEvent` and returns an `IDisposable` that detaches when
     // disposed. We register it through `this._register(...)` so the
@@ -119,7 +119,7 @@ export class PromptService
   async submit(sid: string, body: PromptSubmission): Promise<PromptSubmitResult> {
     await this._requireSession(sid);
 
-    // P2.1 D1 — readiness gate. Throws AuthProvisioningRequired /
+    // Readiness gate. Throws AuthProvisioningRequired /
     // AuthTokenMissing / AuthModelNotResolved before we mint a prompt_id and
     // hand off to agent-core. Daemon route layer maps to 40110/40111/40113.
     await this.auth.ensureReady();
@@ -229,9 +229,9 @@ export class PromptService
       promptId: pid,
       abortedAt: new Date().toISOString(),
     };
-    // Fire typed listeners BEFORE publishing the synth event. Plan §2 step 7:
-    // "PromptService must still trigger the typed event THEN call publish()
-    // for the synthetic event" — order preserved.
+    // Fire typed listeners BEFORE publishing the synth event: PromptService
+    // must still trigger the typed event THEN call publish() for the synthetic
+    // event.
     this._onDidAbort.fire(ev);
     this.eventService.publish(ev as unknown as Event);
     return { aborted: true };
@@ -244,7 +244,7 @@ export class PromptService
   // IDisposable) and own the detach lifetime through
   // `Disposable._register(...)`.
 
-  // --- Phase C: private event handler (replaces IPromptLifecycleObserver) --
+  // --- Private event handler (replaces IPromptLifecycleObserver) ----------
 
   private _handleBusEvent(event: Event): void {
     const sid = (event as { sessionId?: string }).sessionId;
@@ -288,7 +288,7 @@ export class PromptService
           abortedAt: new Date().toISOString(),
         };
         this._active.delete(sid);
-        // Fire typed listeners BEFORE publishing the synth event (plan §2 step 7).
+        // Fire typed listeners BEFORE publishing the synth event.
         this._onDidAbort.fire(synth);
         this.eventService.publish(synth as unknown as Event);
         return;
@@ -304,7 +304,7 @@ export class PromptService
         reason: reason === 'failed' ? 'failed' : 'completed',
       };
       this._active.delete(sid);
-      // Fire typed listeners BEFORE publishing the synth event (plan §2 step 7).
+      // Fire typed listeners BEFORE publishing the synth event.
       this._onDidComplete.fire(synth);
       this.eventService.publish(synth as unknown as Event);
     }
@@ -355,5 +355,5 @@ export class PromptService
 // Self-register under the global singleton registry. All ctor deps are
 // `@I…`-injected (@ICoreProcessService / @IEventService / @IAuthSummaryService);
 // `staticArguments = []`. `supportsDelayedInstantiation = false` preserves
-// current reverse-dispose semantics (plan §540).
+// current reverse-dispose semantics.
 registerSingleton(IPromptService, new SyncDescriptor(PromptService, [], false));

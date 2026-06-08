@@ -1,5 +1,5 @@
 /**
- * Approval entity schemas (SCHEMAS.md §6.1, W8.1 / Chain 5).
+ * Approval entity schemas (SCHEMAS.md §6.1).
  *
  * Approval is the **reverse-RPC** primitive — the daemon (via agent-core)
  * asks the user "may I run this tool?" and waits for a decision. The request

@@ -1,24 +1,20 @@
 /**
- * `EventService` (daemon-side `IEventService` impl, W5.2 / P0.16, extended
- * W7.2 with pub-sub API) — WS-broadcasting event service.
+ * `EventService` — WS-broadcasting event service.
  *
- * Replaces the W4 stub (queue + `_drainForTest`) entirely. `publish(event)`
- * now:
+ * `publish(event)`:
  *   1. Extracts `session_id` from the agent-core `Event` (which carries
  *      `sessionId` camelCase per `agent-core/src/rpc/events.ts:320`).
  *   2. Increments the per-session `seq` counter (monotonic, starts at 1).
- *   3. Appends `{seq, envelope}` to the per-session ring buffer (capacity
- *      enforced in W5.3 at 1000; W5.2 keeps the buffer unbounded as a
- *      transitional step).
+ *   3. Appends `{seq, envelope}` to the per-session ring buffer.
  *   4. Fans out to every WS connection subscribed via `ISessionClientsService`.
- *   5. **Phase C**: fires `onDidPublish` (agent-core `Emitter<Event>`)
- *      synchronously AFTER WS fan-out. Listeners may call `this.publish(...)`
- *      to synthesize derived events (re-entrance terminates because synthesized
- *      events don't match the synthesis predicates in PromptService's private
- *      handler). This is the mechanism that synthesizes `prompt.completed` /
- *      `prompt.aborted` from `turn.ended` (agent-core's event union has no
- *      prompt-lifecycle types; see W7 §critical discovery point #2). Listener
- *      exceptions route to `onUnexpectedError` inside `Emitter.fire()`.
+ *   5. Fires `onDidPublish` (agent-core `Emitter<Event>`) synchronously AFTER
+ *      WS fan-out. Listeners may call `this.publish(...)` to synthesize derived
+ *      events (re-entrance terminates because synthesized events don't match
+ *      the synthesis predicates in PromptService's private handler). This is
+ *      the mechanism that synthesizes `prompt.completed` / `prompt.aborted`
+ *      from `turn.ended` (agent-core's event union has no prompt-lifecycle
+ *      types). Listener exceptions route to `onUnexpectedError` inside
+ *      `Emitter.fire()`.
  *
  * Events without a `sessionId` (none are expected today — every agent-core
  * Event extends `AgentEvent & { agentId, sessionId }`) are dropped with a
@@ -29,9 +25,9 @@
  * `nextSeq` starting at 1.
  *
  * **`getBufferedSince(sid, lastSeq)`** is the replay primitive consumed by
- * `WsConnection` (W5.3) for `client_hello.last_seq_by_session`. W5.2 ships
- * the API but no cap enforcement; W5.3 enforces the 1000-event cap and
- * tracks `oldestSeq` for the `resync_required` decision.
+ * `WsConnection` for `client_hello.last_seq_by_session`. The ring buffer
+ * enforces a 1000-event cap and tracks `oldestSeq` for the `resync_required`
+ * decision.
  *
  * **Anti-corruption**: Event payload comes from `@moonshot-ai/protocol`'s
  * re-export of agent-core, NOT from the SDK package directly.
@@ -59,9 +55,9 @@ interface BufferEntry {
 interface SessionState {
   /** Highest `seq` dispatched. Starts at 0; first event gets `seq=1`. */
   seq: number;
-  /** Append-only ring buffer; W5.3 caps at `maxBufferSize`. */
+  /** Append-only ring buffer; capped at `maxBufferSize`. */
   buffer: BufferEntry[];
-  /** Lowest `seq` still in `buffer`. W5.3 increments when evicting. */
+  /** Lowest `seq` still in `buffer`; increments when evicting. */
   oldestSeq: number;
 }
 
@@ -78,7 +74,7 @@ export interface BufferedSinceResult {
 }
 
 export interface EventServiceOptions {
-  /** Ring buffer cap per session. W5.2 ignores this; W5.3 enforces it. */
+  /** Ring buffer cap per session. */
   maxBufferSize?: number;
 }
 
@@ -112,10 +108,10 @@ export class EventService
   readonly onDidPublish = this._onDidPublish.event;
 
   constructor(
-    // P4.1: VSCode-style ctor — static-first, services-last with
-    // `@I*` decorators. `options` becomes REQUIRED (no default) so the
-    // following `@ILogService` / `@ISessionClientsService` params can be
-    // required too. Call sites that don't override pass `{}` explicitly.
+    // Static-first, services-last constructor with `@I*` decorators.
+    // `options` becomes REQUIRED (no default) so the following `@ILogService`
+    // / `@ISessionClientsService` params can be required too. Call sites that
+    // don't override pass `{}` explicitly.
     options: EventServiceOptions,
     @ILogService private readonly logger: ILogService,
     @ISessionClientsService private readonly sessionClients: ISessionClientsService,
@@ -125,11 +121,11 @@ export class EventService
   }
 
   /**
-   * Phase C — listener fan-out is via `onDidPublish: Event<Event>`. Listener
-   * exceptions route to `onUnexpectedError` inside `Emitter.fire()`. Handlers
-   * may call `this.publish(...)` to synthesize derived events; re-entrance
-   * terminates naturally because synthesized `prompt.*` events don't match
-   * the `turn.*` predicates in PromptService's handler.
+   * Listener fan-out is via `onDidPublish: Event<Event>`. Listener exceptions
+   * route to `onUnexpectedError` inside `Emitter.fire()`. Handlers may call
+   * `this.publish(...)` to synthesize derived events; re-entrance terminates
+   * naturally because synthesized `prompt.*` events don't match the `turn.*`
+   * predicates in PromptService's handler.
    */
 
   publish(event: Event): void {
@@ -148,9 +144,8 @@ export class EventService
     const envelope = buildEventEnvelope(state.seq, sid, event);
     state.buffer.push({ seq: state.seq, envelope });
 
-    // Ring buffer cap (W5.3 behavior; W5.2 still ships the same enforcement
-    // because the API needs to be self-consistent even before
-    // `getBufferedSince` returns `resyncRequired=true`).
+    // Enforce the ring buffer cap so `getBufferedSince` can return
+    // `resyncRequired=true` after eviction.
     while (state.buffer.length > this._maxBufferSize) {
       const evicted = state.buffer.shift();
       if (evicted) state.oldestSeq = evicted.seq + 1;
@@ -168,12 +163,12 @@ export class EventService
       conn.send(envelope);
     }
 
-    // Phase C — fire the Emitter AFTER fan-out. Each handler may call
-    // `this.publish(...)` to synthesize derived events. Re-entrance
-    // terminates naturally: synthesized `prompt.*` events don't match the
-    // `turn.*` predicates in PromptService's handler, so no infinite loop.
-    // Listener exceptions route through `onUnexpectedError` inside
-    // `Emitter.fire()` (no per-handler try/catch needed).
+    // Fire the Emitter AFTER fan-out. Each handler may call `this.publish(...)`
+    // to synthesize derived events. Re-entrance terminates naturally:
+    // synthesized `prompt.*` events don't match the `turn.*` predicates in
+    // PromptService's handler, so no infinite loop. Listener exceptions route
+    // through `onUnexpectedError` inside `Emitter.fire()` (no per-handler
+    // try/catch needed).
     this._onDidPublish.fire(event);
   }
 
@@ -211,7 +206,7 @@ export class EventService
   /**
    * Highest dispatched `seq` for the session (0 if never published).
    * Public companion to `_currentSeqForTest` — used by the WS abort handler
-   * to populate `at_seq` in the idempotent-abort ack (W7.3).
+   * to populate `at_seq` in the idempotent-abort ack.
    */
   currentSeq(sid: string): number {
     return this._sessions.get(sid)?.seq ?? 0;
@@ -255,8 +250,8 @@ export class EventService
  * Pull a session id off an Event. agent-core's Event union is `AgentEvent &
  * { agentId, sessionId }` (camelCase) per
  * `packages/agent-core/src/rpc/events.ts:320`. WS wire format is
- * `session_id` (snake_case) — the toWire mapping (WS.md §7.5) is a Phase 2
- * concern; for Stage 1 the inbound side is the agent-core camelCase shape.
+ * `session_id` (snake_case); the inbound side is the agent-core camelCase
+ * shape.
  *
  * We accept both `sessionId` and `session_id` defensively so tests can pass
  * either spelling, and so future wire-mapped events still extract correctly.

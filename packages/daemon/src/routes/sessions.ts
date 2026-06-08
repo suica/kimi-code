@@ -1,5 +1,5 @@
 /**
- * `/sessions/*` REST routes (Chain 2 / P1.2).
+ * `/sessions/*` REST routes.
  *
  * 5 endpoints (REST.md §3.3):
  *
@@ -14,7 +14,7 @@
  * `accessor.get(ISessionService).<method>(...)`, and emits an `okEnvelope`.
  *
  * **Error mapping**: `SessionNotFoundError` → envelope `code: 40401`. Other
- * errors fall through to the W4 `installErrorHandler` (→ 50001).
+ * errors fall through to the global `installErrorHandler` (→ 50001).
  *
  * **Wiring**: takes an `IInstantiationService` so each request can resolve
  * `ISessionService` via the same DI container the daemon constructs in
@@ -256,7 +256,7 @@ export function registerSessionsRoutes(
 /**
  * Map a thrown error to the right envelope:
  *   - `SessionNotFoundError` → `code: 40401`
- *   - Anything else → re-throw so the W4 `installErrorHandler` catches it
+ *   - Anything else → re-throw so the global `installErrorHandler` catches it
  *     and emits `50001`.
  *
  * We don't catch generic `Error` here because the global hook is the single

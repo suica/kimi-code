@@ -1,5 +1,5 @@
 /**
- * Background Task entity schemas (SCHEMAS.md §7 / Chain 8 / P1.8, W9.2).
+ * Background Task entity schemas (SCHEMAS.md §7).
  *
  * Wire shape: snake_case fields; ISO 8601 `Z`-suffix timestamps via
  * `isoDateTimeSchema`. SCHEMAS §7 specifies these fields:
@@ -54,7 +54,7 @@
  *     (the BackgroundTaskInfoBase shape has no output fields; output is
  *     fetched separately via `getBackgroundOutput`). Adapter omits both
  *     for now. REST.md §3.7 `with_output=true` query is documented but
- *     deferred to a follow-up chain.
+ *     deferred until output fetching is wired through the adapter.
  *
  * **Anti-corruption**: this file imports zero `@moonshot-ai/agent-core` types.
  */

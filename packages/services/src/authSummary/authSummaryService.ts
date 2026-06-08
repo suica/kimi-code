@@ -88,7 +88,7 @@ export class AuthSummaryService
 
     // Credential presence: api_key (config or env), OR a cached OAuth token.
     // We deliberately don't probe live OAuth refresh here — that path is
-    // reactive (P2.9). Static gate only.
+    // reactive. Static gate only.
     const hasInlineKey = nonEmpty(providerConfig.apiKey) !== null;
     if (hasInlineKey) return;
 
@@ -99,7 +99,7 @@ export class AuthSummaryService
     }
 
     // No inline key, no oauth ref. Could still be an env-supplied key — for
-    // P2.1 minimum viable we conservatively gate; env-key callers can set
+    // minimum viable we conservatively gate; env-key callers can set
     // apiKey="${VAR}" in config to bypass. The acceptance test fixture for
     // 40111 uses "manual provider with no api_key" which lands here.
     throw new AuthTokenMissingError(providerName);
@@ -145,5 +145,5 @@ function nonEmpty(value: string | undefined): string | null {
 // Self-register under the global singleton registry. All ctor deps are
 // `@I…`-injected (@IEnvironmentService / @ICoreProcessService);
 // `staticArguments = []`. `supportsDelayedInstantiation = false` preserves
-// current reverse-dispose semantics (plan §540).
+// current reverse-dispose semantics.
 registerSingleton(IAuthSummaryService, new SyncDescriptor(AuthSummaryService, [], false));

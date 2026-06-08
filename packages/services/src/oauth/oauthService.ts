@@ -64,7 +64,7 @@ export class OAuthService extends Disposable implements IOAuthService {
   async startLogin(providerName?: string): Promise<OAuthFlowStart> {
     const name = providerName ?? KIMI_CODE_PROVIDER_NAME;
 
-    // PLAN D6.4 — supersede any existing pending flow.
+    // Supersede any existing pending flow.
     const existing = this._flows.get(name);
     if (existing !== undefined && existing.status === 'pending') {
       existing.controller.abort();
@@ -282,5 +282,5 @@ function classifyFailure(err: unknown): OAuthFlowStatus {
 // Self-register under the global singleton registry. All ctor deps are
 // `@I…`-injected (@IEnvironmentService only); `staticArguments = []`.
 // `supportsDelayedInstantiation = false` preserves current reverse-dispose
-// semantics (plan §540).
+// semantics.
 registerSingleton(IOAuthService, new SyncDescriptor(OAuthService, [], false));

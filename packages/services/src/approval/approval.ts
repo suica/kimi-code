@@ -1,9 +1,9 @@
 /**
- * Approval service interface + protocol adapter (W8.1 / Chain 5).
+ * Approval service interface + protocol adapter.
  *
  * **Service interface** (`IApprovalService`): Reverse-RPC one-shot broker
  * role — routes `ApprovalRequest`s coming out of `KimiCore` to a waiter
- * (web client over WS in P1.x, mock handler in tests) and resolves the
+ * (web client over WS, mock handler in tests) and resolves the
  * promise when the response arrives.
  *
  * Role: one-shot broker — see `packages/services/AGENTS.md`. Kept under the
@@ -16,8 +16,8 @@
  * selectedLabel? }`, see `packages/agent-core/src/rpc/sdk-api.ts:10`).
  * SCHEMAS.md §6.1 defines a protocol-level `ApprovalResponse` with the same
  * fields in snake_case (`selected_label`). The protocol↔in-process adapter
- * lives at the daemon/REST boundary (W4+ / Chain 5, see SCHEMAS.md §6.4) —
- * the service stays SDK-shaped. When the protocol Zod validator ships,
+ * lives at the daemon/REST boundary (see SCHEMAS.md §6.4) — the service
+ * stays SDK-shaped. When the protocol Zod validator ships,
  * this interface stays SDK-shaped; the REST handler adapts.
  *
  * **Adapter** (`toBrokerRequest` / `toAgentCoreResponse`): Bridges two
@@ -75,9 +75,8 @@ export interface IApprovalService {
 
   /**
    * Called by the answer-side (REST handler / TUI / mock) to settle a pending
-   * `request()` promise. `id` matches `ApprovalRequest.toolCallId` (PLAN D4 —
-   * the toolCallId is the stable correlation key; W4 may add a separate
-   * `request_id` if the prefix harmonization decides so).
+   * `request()` promise. `id` matches `ApprovalRequest.toolCallId`, the stable
+   * correlation key.
    */
   resolve(id: string, response: ApprovalResponse): void;
 }

@@ -1,6 +1,5 @@
 /**
- * `QuestionService` (daemon-side `IQuestionService` impl, W8.2 / Chain 6;
- * was W4.4 stub).
+ * `QuestionService` (daemon-side `IQuestionService` impl).
  *
  * One-shot broker for Question (data-collection) interaction. Mirrors
  * `ApprovalService` with one addition: `dismiss(id)` is a first-class outcome
@@ -91,7 +90,7 @@ export class QuestionService extends Disposable implements IQuestionService {
   private readonly _recentlyResolvedCap: number;
 
   constructor(
-    // P4.1: static-first / services-last with `@I*` decorators.
+    // Static-first / services-last constructor with `@I*` decorators.
     // `options` is required; call sites pass `{}` when no overrides apply.
     options: QuestionServiceOptions,
     @ILogService private readonly logger: ILogService,
@@ -171,9 +170,8 @@ export class QuestionService extends Disposable implements IQuestionService {
     const resolvedAt = new Date().toISOString();
     // For broadcast, we forward the in-process answers map directly so all
     // subscribers see consistent shape. (REST handler stamps the wire shape
-    // before this broadcast; for in-process internal callers — none today —
-    // the broadcast still carries the SDK shape, which is acceptable for
-    // Stage 1 until WS.md §7.5 wire-renaming lands.)
+    // before this broadcast; in-process internal callers receive the SDK
+    // shape.)
     const answeredEvent: Event = {
       type: 'event.question.answered',
       sessionId: p.sessionId,

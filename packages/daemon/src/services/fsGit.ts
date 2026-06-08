@@ -1,5 +1,5 @@
 /**
- * `IFsGitService` — daemon-OWN git status for the session cwd (W11 / Chain 12).
+ * `IFsGitService` — daemon-OWN git status for the session cwd.
  *
  * Single endpoint: `:git_status`. Shell out `git status --porcelain=v1 --branch`
  * and parse the stable machine-readable output. The wire shape matches
@@ -9,7 +9,7 @@
  *
  * The `GitStatus` enum (`'clean' | 'modified' | 'added' | 'deleted' |
  * 'renamed' | 'untracked' | 'ignored' | 'conflicted'`) is the SCHEMAS §9.2
- * line 521 wire enum, reused from W10. We collapse the porcelain XY status
+ * line 521 wire enum. We collapse the porcelain XY status
  * pair (index + worktree) to a single value using a priority ladder:
  *
  *   conflicted > deleted > modified > renamed > added > untracked > ignored
@@ -19,12 +19,12 @@
  * we throw `FsGitUnavailableError` → routes map to 40908. We do NOT match
  * stderr text — exit-code-based detection is locale-independent.
  *
- * **Performance** (ROADMAP Chain 12 AC #2): the porcelain parse runs in
- * ~tens of milliseconds on the kimi-code repo (~200 entries). 300ms target.
+ * **Performance**: the porcelain parse runs in ~tens of milliseconds on the
+ * kimi-code repo (~200 entries), within the 300ms target.
  *
  * **Path filter**: when client passes `paths`, we resolve each via
  * `resolveSafePath` and intersect the porcelain output. Out-of-tree paths
- * raise 41304 batch-wide (same posture as `:stat_many` from W10).
+ * raise 41304 batch-wide (same posture as `:stat_many`).
  *
  * **Anti-corruption**: imports `node:child_process`, `node:path`,
  * `ISessionService`, `ILogService`. ZERO SDK imports.

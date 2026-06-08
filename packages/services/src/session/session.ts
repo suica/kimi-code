@@ -1,12 +1,11 @@
 /**
- * `ISessionService` — daemon-facing session CRUD interface (Chain 2 / P1.2).
+ * `ISessionService` — daemon-facing session CRUD interface.
  *
  * Wraps `ICoreProcessService.rpc.{createSession, listSessions, closeSession,
  * updateSessionMetadata}` and adapts agent-core's camelCase + number
  * timestamps to the protocol's snake_case + ISO 8601 `Z` shape (see SCHEMAS.md
- * §2). The adapter is the load-bearing piece of this chain — every later
- * service in `@moonshot-ai/services` (messages, prompts, ...) inherits this
- * camelCase ↔ snake_case + number ↔ ISO pattern.
+ * §2). Other services in `@moonshot-ai/services` (messages, prompts, ...)
+ * inherit this camelCase ↔ snake_case + number ↔ ISO pattern.
  *
  * **Why a service layer**: REST handlers in `@moonshot-ai/daemon` are
  * disallowed from importing `@moonshot-ai/kimi-code-sdk` (anti-corruption
@@ -19,8 +18,7 @@
  * filter, throwing `SessionNotFoundError` (→ 40401) when the id is absent.
  * See `SessionService` for details + the gap documentation.
  *
- * **Adapter helpers**: `toProtocolSession` is co-located here (moved from
- * `adapter/` in Phase B per-domain consolidation).
+ * **Adapter helpers**: `toProtocolSession` is co-located here.
  *
  * **DI wiring**: this class takes `ICoreProcessService` via ctor positional
  * arg. `defaultServicesModule()` adds a `SyncDescriptor(SessionService)`
@@ -72,7 +70,7 @@ export interface ISessionService {
   /**
    * `GET /v1/sessions` — list sessions. Cursor pagination is applied
    * client-side over `core.rpc.listSessions({})` (the CoreAPI surface
-   * doesn't take a cursor today — see W6 STATUS Decisions). Default
+   * doesn't take a cursor today). Default
    * `page_size = 20` per REST.md §1.6 is applied at the route layer, not here.
    */
   list(query: SessionListQuery): Promise<PageResponse<Session>>;
@@ -95,8 +93,7 @@ export interface ISessionService {
   /**
    * `DELETE /v1/sessions/{id}` — close (= soft-delete in v1) the session.
    * Backed by `bridge.rpc.closeSession({sessionId})`. CoreAPI does not
-   * surface a hard delete; first daemon version conflates close == delete
-   * (see W6 STATUS Decisions).
+   * surface a hard delete; the daemon currently conflates close == delete.
    *
    * Returns `{ deleted: true }` envelope shape per REST §3.3.
    */
@@ -125,7 +122,7 @@ export const ISessionService = createDecorator<ISessionService>('sessionService'
 
 /**
  * Sentinel error class — daemon's route layer catches this and maps to
- * `code: 40401` (session.not_found). Other errors fall through to the W4
+ * `code: 40401` (session.not_found). Other errors fall through to
  * `installErrorHandler` (→ 50001 internal).
  */
 export class SessionNotFoundError extends Error {
@@ -182,8 +179,8 @@ export function toProtocolSession(
     metadata: mergedMetadata,
     agent_config: {
       // CoreAPI doesn't surface a session's effective model on the listSessions
-      // path; we leave it empty and let later chains populate via getModel
-      // (chain 3+). Empty string keeps the schema valid for downstream
+      // path; we leave it empty because there is no current source for the
+      // effective model on this path. Empty string keeps the schema valid for
       // consumers that only inspect known keys.
       model: '',
     },

@@ -9,7 +9,7 @@
  * timestamps; the cross-package adapter lives in
  * `packages/services/src/impls/session-service-impl.ts` (`toProtocolSession`).
  *
- * Coverage gaps (TBD pending agent-core surface work — see W6 STATUS Decisions):
+ * Coverage gaps pending agent-core surface work:
  *   - `status`: agent-core does not expose a session "status" enum yet; the
  *     adapter returns 'idle' for now. Will be promoted to a real signal once
  *     the bridge surfaces `event.session.status`.
@@ -24,8 +24,7 @@
  *     defaults applied as documented in the adapter.
  *
  * These are NOT silent omissions: the shape stays on-wire stable; the daemon
- * fills with empty/zero values flagged in W6 STATUS. W7+ chains backfill as
- * agent-core surfaces grow.
+ * fills with empty/zero defaults until agent-core surfaces grow.
  */
 
 import { z } from 'zod';
@@ -95,10 +94,9 @@ export type PermissionRule = z.infer<typeof permissionRuleSchema>;
 
 export const sessionAgentConfigSchema = z.object({
   // SCHEMAS.md §2 documents `model` as required (e.g. "moonshot-v1-128k").
-  // W6.2 relaxes to allow empty string at parse time: agent-core's
-  // `listSessions` does NOT surface the per-session model, so the daemon
-  // returns "" until the gap closes in a later chain (W7+ may wire
-  // `getModel` via `bridge.rpc.getModel({sessionId, agentId: 'main'})`).
+  // Allow empty string at parse time: agent-core's `listSessions` does NOT
+  // surface the per-session model, so the daemon returns "" until the gap
+  // closes (for example via `bridge.rpc.getModel({sessionId, agentId: 'main'})`).
   // The wire shape stays the same — clients should treat "" as "unknown".
   model: z.string(),
   system_prompt: z.string().optional(),

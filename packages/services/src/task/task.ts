@@ -1,12 +1,11 @@
 /**
- * `ITaskService` — daemon-facing background task surface (Chain 8 / P1.8, W9.2).
+ * `ITaskService` — daemon-facing background task surface.
  *
  * Wraps `ICoreProcessService.rpc.{getBackground, stopBackground}` and adapts
  * `BackgroundTaskInfo` (camelCase + ms timestamps + agent-core literal sets)
  * into SCHEMAS §7 `BackgroundTask` (snake_case + ISO + spec literal sets).
  *
- * Adapter helpers (`toProtocolTask`, `isTerminalStatus`) are co-located here
- * (moved from `adapter/task-adapter.ts` in Phase B per-domain consolidation).
+ * Adapter helpers (`toProtocolTask`, `isTerminalStatus`) are co-located here.
  *
  * **CoreAPI surface used**:
  *   - `core.rpc.getBackground({sessionId, agentId, activeOnly?, limit?})

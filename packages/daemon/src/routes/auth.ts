@@ -1,5 +1,5 @@
 /**
- * `GET /v1/auth` — readiness probe (P2.1 D2 / REST.md §3).
+ * `GET /v1/auth` — readiness probe (REST.md §3).
  *
  * Single权威 readiness signal that web/IDE clients hit on first paint to
  * decide between onboarding vs. chat UI. Returns 200 + envelope regardless

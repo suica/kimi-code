@@ -1,13 +1,16 @@
 /**
- * `/sessions/{sid}/fs:*` REST routes (W10 / Chains 9 + 10).
+ * `/sessions/{sid}/fs:*` REST routes.
  *
- * Endpoints landed in W10.1 (Chain 9):
+ * Supported POST actions:
  *
- *   POST /sessions/{sid}/fs:list       → FsListResponse
- *   POST /sessions/{sid}/fs:read       → FsReadResponse
- *
- * W10.2 (Chain 10) extends this module with `:list_many`, `:stat`, and
- * `:stat_many` — same dispatch shape, different per-action handlers.
+ *   POST /sessions/{sid}/fs:list        → FsListResponse
+ *   POST /sessions/{sid}/fs:read        → FsReadResponse
+ *   POST /sessions/{sid}/fs:list_many   → FsListManyResponse
+ *   POST /sessions/{sid}/fs:stat        → FsEntry
+ *   POST /sessions/{sid}/fs:stat_many   → FsStatManyResponse
+ *   POST /sessions/{sid}/fs:search      → FsSearchResponse
+ *   POST /sessions/{sid}/fs:grep        → FsGrepResponse
+ *   POST /sessions/{sid}/fs:git_status  → FsGitStatusResponse
  *
  * **URL convention**: Fastify can't disambiguate `:resource_id` from a
  * `:action` suffix at the same path prefix. find-my-way's `::` colon
@@ -150,8 +153,8 @@ export function registerFsRoutes(
   // Fastify path: `/sessions/:session_id/:tail`. We capture the FULL
   // final segment (`fs:list`, `fs:read`, ...) and split locally — Fastify's
   // `::` colon-escape collapses both colons into a literal `:` STATIC
-  // path, NOT a literal `:` followed by a param, so we can't isolate the
-  // action with the route syntax (see W10 STATUS).
+  // path, NOT a literal `:` followed by a param, so we isolate the action
+  // after Fastify routes the request here.
   //
   // The tail's `fs:` prefix is enforced here; non-`fs:` tails 404 from
   // this route — sibling routes (`messages`, `prompts`, `tasks`, etc.)
@@ -240,7 +243,7 @@ export function registerFsRoutes(
   );
 
   // ---------------------------------------------------------------------
-  // GET /sessions/{sid}/fs/*  — Chain 13 (W11.3) streaming download.
+  // GET /sessions/{sid}/fs/*  — streaming download.
   //
   // **Architectural exception**: REST.md §3.9 line 558 — the ONLY GET in
   // the daemon's REST surface with a verb in the URL (`:download`
@@ -614,7 +617,7 @@ function buildValidationEnvelope(
 }
 
 // ---------------------------------------------------------------------------
-// :download helpers (Chain 13 / W11.3)
+// :download helpers
 // ---------------------------------------------------------------------------
 
 /**

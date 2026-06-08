@@ -1,18 +1,18 @@
 /**
- * `IOAuthService` — daemon-facing device-code login orchestration (P2.7).
+ * `IOAuthService` — daemon-facing device-code login orchestration.
  *
  * Bridges the OAuth toolkit's `login({onDeviceCode})` callback shape to a
  * REST resource: the frontend POSTs to start, gets a `verification_uri`
  * synchronously, then polls a GET endpoint for status transitions while the
  * daemon polls the OAuth host in the background.
  *
- * **One in-flight flow per provider** (PLAN D6.4). A second start cancels
+ * **One in-flight flow per provider**. A second start cancels
  * the existing pending flow first (transitions it to `'cancelled'`) then
  * mints a fresh `flow_id`. Completed flows live in-memory for 5 min so the
  * frontend's last poll lands on the terminal status; after that, they GC
  * and `getFlow()` returns `undefined`.
  *
- * **No client coupling** (PLAN D6.5). Daemon does NOT detect frontend exit
+ * **No client coupling**. Daemon does NOT detect frontend exit
  * / WS disconnect. Cleanup paths:
  *   1. 15-min upstream timeout (DeviceCodeTimeoutError → 'expired')
  *   2. Explicit `cancelLogin()` (→ 'cancelled')
@@ -52,7 +52,7 @@
  *
  *   GET /v1/oauth/login  →  getFlow()  →  snapshot of in-memory state
  *
- * **One in-flight per provider** (PLAN D6.4): startLogin replaces an
+ * **One in-flight per provider**: startLogin replaces an
  * existing pending flow by aborting its AbortController + flipping its
  * status to 'cancelled' BEFORE minting a new flow_id.
  *

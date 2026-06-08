@@ -1,15 +1,12 @@
 /**
- * `request_id` helper (PLAN.md §P7, REST.md §1.5).
+ * `request_id` helper (REST.md §1.5).
  *
  * Clients may supply `X-Request-Id`; the server echoes it back in the
  * envelope `request_id` field. If the header is missing OR is not a valid
  * ULID, the server mints a fresh ULID.
  *
- * Note on wire format: PLAN P7 talks about a `req_<26 char ulid>` prefix.
- * The first daemon version (`packages/daemon/src/request-id.ts`) does that
- * prefixing; this protocol helper returns the bare ULID (no prefix) so
- * callers can choose to add their own namespace. W4 will harmonize the
- * daemon over to this helper.
+ * This protocol helper returns the bare ULID (no prefix); callers that need a
+ * namespace can add their own prefix.
  */
 import { isValid, ulid } from 'ulid';
 

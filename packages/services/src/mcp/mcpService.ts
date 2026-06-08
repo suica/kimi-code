@@ -64,5 +64,5 @@ export class McpService extends Disposable implements IMcpService {
 
 // Self-register under the global singleton registry. All ctor deps are
 // `@I…`-injected; `staticArguments = []`. `supportsDelayedInstantiation =
-// false` preserves current reverse-dispose semantics (plan §540).
+// false` preserves current reverse-dispose semantics.
 registerSingleton(IMcpService, new SyncDescriptor(McpService, [], false));

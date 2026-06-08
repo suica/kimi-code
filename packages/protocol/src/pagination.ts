@@ -1,5 +1,5 @@
 /**
- * Cursor pagination primitives (PLAN.md §P6, SCHEMAS.md §1.3, REST.md §1.6).
+ * Cursor pagination primitives (SCHEMAS.md §1.3, REST.md §1.6).
  *
  * Only time-series resources (messages, sessions) use this. Wire format:
  *   ?before_id=<id>&after_id=<id>&page_size=<1..100>
@@ -47,7 +47,7 @@ export const cursorQuerySchema = z
 
 export type CursorQuery = z.infer<typeof cursorQuerySchema>;
 
-/** Alias matching the SCHEMAS.md / PLAN.md type name. */
+/** Alias matching the SCHEMAS.md type name. */
 export const CursorQuery = cursorQuerySchema;
 
 /**

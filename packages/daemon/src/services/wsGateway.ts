@@ -1,5 +1,5 @@
 /**
- * `IWSGateway` (W5.1 / P0.15) — WebSocket gateway.
+ * `IWSGateway` — WebSocket gateway.
  *
  * Owns a `ws.WebSocketServer` in `noServer` mode and attaches an `'upgrade'`
  * handler to the Fastify-exposed raw `http.Server`. WS path is `/api/v1/ws`
@@ -7,7 +7,7 @@
  * `IConnectionRegistry`, and let the connection drive its own handshake +
  * heartbeat.
  *
- * **Construction order** (relative to W4 services):
+ * **Construction order**:
  *   ILogService → IRestGateway → IConnectionRegistry → ISessionClientsService
  *     → IEventService → IApprovalService → IQuestionService
  *     → IWSGateway   ← here, constructed LATE
@@ -54,14 +54,14 @@ export interface IWSGateway {
   /** Number of currently-attached WS connections. */
   readonly size: number;
   /**
-   * W7.3: attach an abort handler so future WS connections can dispatch
-   * `abort` control messages through it. Has no effect on already-attached
+   * Attach an abort handler so future WS connections can dispatch `abort`
+   * control messages through it. Has no effect on already-attached
    * connections (they captured their handler at construction).
    */
   setAbortHandler(handler: AbortHandler): void;
   /**
-   * W12 / Chain 14: attach an fs-watch handler so future WS connections
-   * can dispatch `subscribe.watch_fs` / `watch_fs_add` / `watch_fs_remove`
+   * Attach an fs-watch handler so future WS connections can dispatch
+   * `subscribe.watch_fs` / `watch_fs_add` / `watch_fs_remove`
    * through it. Like `setAbortHandler`, only affects connections opened
    * AFTER the call; in production we wire it once at startup before the
    * REST listener accepts traffic, so this is a non-issue.

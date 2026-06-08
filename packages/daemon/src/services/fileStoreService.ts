@@ -31,10 +31,11 @@ export class FileStore extends Disposable implements IFileStore {
   private indexLoadPromise: Promise<void> | undefined;
 
   constructor(
-    // P2.6: static-first / services-last. `options` carries `homeDir`
-    // + `maxUploadBytes`; @ILogService auto-injects. The inline default on
-    // options is dropped (required `@ILogService` can't follow an optional
-    // param); start.ts passes `{}` explicitly when no overrides apply.
+    // Constructor order stays static-first / services-last. `options`
+    // carries `homeDir` + `maxUploadBytes`; @ILogService auto-injects. The
+    // inline default on options is dropped (required `@ILogService` can't
+    // follow an optional param); start.ts passes `{}` explicitly when no
+    // overrides apply.
     options: FileStoreOptions,
     @ILogService private readonly logger: ILogService,
   ) {

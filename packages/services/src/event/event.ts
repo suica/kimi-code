@@ -1,6 +1,6 @@
 /**
  * `IEventService` — pub-sub bus that fans out ordered `Event`s coming out of
- * `KimiCore` to the outside world (daemon → WS clients in P1.x; tests can use
+ * `KimiCore` to the outside world (daemon → WS clients; tests can use
  * a no-op impl).
  *
  * The service sits on the receive-end of the in-process RPC adapter: when an
@@ -71,7 +71,7 @@ export const IEventService = createDecorator<IEventService>('eventService');
  * Daemon-local replay surface: ring-buffer lookup keyed by `(sessionId,
  * lastSeq)` and a per-session `currentSeq` accessor. Consumed by `WSGateway`
  * / `WsConnection` for `client_hello.last_seq_by_session` replay (WS.md §6)
- * and by the WS abort ack to populate `at_seq` on idempotent calls (W7.3).
+ * and by the WS abort ack to populate `at_seq` on idempotent calls.
  *
  * `getBufferedSince` result interpretation:
  *   - `currentSeq == 0`           → session has no events yet; empty replay.

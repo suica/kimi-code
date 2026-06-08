@@ -1,5 +1,5 @@
 /**
- * `/files*` REST routes (W12.2 / Chain 15 / P1.15).
+ * `/files*` REST routes.
  *
  * Three endpoints:
  *
@@ -60,8 +60,8 @@ import {
  * `fs.ts` / `tasks.ts` patterns: we narrow to the methods we actually
  * use to avoid pulling in heavy Fastify generics.
  *
- * `get` return type is widened to `Promise<unknown> | unknown` (W11
- * fixup-1 precedent at `routes/fs.ts:106`) so `return reply.send(stream)`
+ * `get` return type is widened to `Promise<unknown> | unknown` so
+ * `return reply.send(stream)`
  * propagates without violating the declared return type.
  */
 interface FilesRouteHost {
@@ -121,8 +121,8 @@ export function registerFilesRoutes(
   ix: IInstantiationService,
 ): void {
   // Register `@fastify/multipart` synchronously BEFORE `app.ready()` so
-  // avvio queues it as part of the initial boot phase. Setting
-  // `fileSize` to `DEFAULT_MAX_UPLOAD_BYTES` short-circuits huge files
+  // avvio queues it during boot. Setting `fileSize` to
+  // `DEFAULT_MAX_UPLOAD_BYTES` short-circuits huge files
   // at the busboy layer; the route still re-checks inside
   // `IFileStore.save` for defense-in-depth.
   app.register(multipart, {
@@ -370,8 +370,8 @@ function readFieldNumber(field: unknown): number | undefined {
 /**
  * Build a `Content-Disposition: attachment; filename="..."` header.
  * For names with non-ASCII or unsafe chars we fall back to the bare
- * `attachment` directive (W11 / Chain 13 deferred the RFC 5987
- * `filename*=UTF-8''...` form; same trade-off here).
+ * `attachment` directive; we do not currently emit the RFC 5987
+ * `filename*=UTF-8''...` form.
  */
 function buildContentDisposition(name: string): string {
   if (/^[\w. \-()+\[\]]+$/.test(name)) {

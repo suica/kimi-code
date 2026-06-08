@@ -1,9 +1,9 @@
 /**
- * `IConnectionRegistry` (W5.1 / P0.15) — flat registry of live WS connections.
+ * `IConnectionRegistry` — flat registry of live WS connections.
  *
  * The registry owns a `Map<connId, WsConnection>` and serves three roles:
  *
- *   1. Lookup by `connId` (W5+ broadcast paths and operator commands).
+ *   1. Lookup by `connId` for broadcast paths and operator commands.
  *   2. Bulk close on shutdown (`closeAll(reason)`) — invoked by
  *      `WSGateway.dispose()` so connections are torn down BEFORE EventService /
  *      peer services, ensuring no service emits into a closed socket.

@@ -1,5 +1,5 @@
 /**
- * OAuth device-code flow REST schemas (P2.7 — `/v1/oauth/login` + `/v1/oauth/logout`).
+ * OAuth device-code flow REST schemas (`/v1/oauth/login` + `/v1/oauth/logout`).
  *
  * Wire shapes (REST.md §6):
  *
@@ -10,21 +10,21 @@
  *
  * **Design notes**:
  *
- * - **One in-flight flow per provider** (PLAN D6.4). Per-user single-daemon
- *   (PLAN non-goal) means at most one pending flow per provider; the resource
- *   is implicit. The minted `flow_id` is returned so the client can detect
+ * - **One in-flight flow per provider**. The daemon keeps at most one pending
+ *   flow per provider; the resource is implicit. The minted `flow_id` is
+ *   returned so the client can detect
  *   "the flow I started got cancelled because a new one started elsewhere"
  *   (status='cancelled' with a different flow_id).
  *
- * - **`device_code` never crosses the wire** (PLAN D6.2). It stays in the
- *   daemon's in-memory map alongside the flow state. The frontend uses
+ * - **`device_code` never crosses the wire**. It stays in the daemon's
+ *   in-memory map alongside the flow state. The frontend uses
  *   `verification_uri_complete` + `user_code` to drive the user agent.
  *
- * - **Flow lifecycle decoupled from client** (PLAN D6.5). daemon does NOT
- *   detect frontend exit / WS disconnect / tab close. Cleanup is driven by:
+ * - **Flow lifecycle decoupled from client**. The daemon does NOT detect
+ *   frontend exit / WS disconnect / tab close. Cleanup is driven by:
  *   (1) upstream 15-min hard timeout, (2) explicit DELETE, (3) same-provider
- *   new flow superseding old. Completed flows live for 5 min so a slow
- *   poll catches the final status.
+ *   new flow superseding old. Completed flows live for 5 min so a slow poll
+ *   catches the final status.
  */
 import { z } from 'zod';
 
@@ -58,7 +58,7 @@ export type OAuthLoginStartRequest = z.infer<typeof oauthLoginStartRequestSchema
 
 /**
  * Response from `POST /v1/oauth/login`. Carries everything the frontend needs
- * to drive the user-agent (browser) — but NOT `device_code` (PLAN D6.2).
+ * to drive the user-agent (browser) — but NOT `device_code`.
  */
 export const oauthFlowStartSchema = z.object({
   flow_id: z.string().min(1),

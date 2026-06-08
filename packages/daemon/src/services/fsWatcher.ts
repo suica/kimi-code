@@ -1,5 +1,5 @@
 /**
- * `IFsWatcher` — daemon-OWN filesystem watcher (W12 / Chain 14, P1.14).
+ * `IFsWatcher` — daemon-OWN filesystem watcher.
  *
  * **Responsibility**: maintain one `chokidar.FSWatcher` per active session,
  * accept dynamic `subscribe.watch_fs` / `watch_fs_add` / `watch_fs_remove`
@@ -16,7 +16,7 @@
  * Node `fs` + `chokidar`. So it lives in `packages/daemon`, NOT in
  * `@moonshot-ai/services`.
  *
- * # Architecture (per W12 prompt §critical-design-questions)
+ * # Architecture
  *
  *   - Per-session `chokidar.FSWatcher` instance.
  *     - Lazily created on first `addPaths(sessionId, ...)`.
@@ -25,7 +25,7 @@
  *   - Per-session 200ms debounce window collecting raw events.
  *     - Inside the window: at most `MAX_CHANGES_PER_WINDOW` (500) per-entry
  *       changes accumulate before we flip to truncated-mode (WS.md §4.9
- *       `truncated:true` + `count`; ROADMAP Chain 14 AC #2).
+ *       `truncated:true` + `count`).
  *   - Per-connection state:
  *     - `Map<connectionId, Map<sessionId, Set<absolutePath>>>` for the
  *       overlap filter AND for the 100-path cap enforcement
@@ -36,8 +36,8 @@
  *     - `refCount` is the number of connections that have asked for this
  *       path. We `chokidar.add(path)` on first ref and `chokidar.unwatch(path)`
  *       on last unref.
- *   - Path safety: every input path runs through W10's `resolveSafePath`
- *     BEFORE chokidar sees it. We propagate `FsPathEscapesError` so the WS
+ *   - Path safety: every input path runs through `resolveSafePath` BEFORE
+ *     chokidar sees it. We propagate `FsPathEscapesError` so the WS
  *     adapter can translate to a `41304` error frame (today the WS path
  *     uses 42902 for over-cap; we surface 41304-bearing errors via the
  *     same error throw).
@@ -129,15 +129,15 @@ import type { WsConnection } from '../ws/connection.js';
 const DEFAULT_DEBOUNCE_MS = 200;
 
 /**
- * ROADMAP Chain 14 AC #2 — when a single window collects > this many raw
- * change events, we flip to `truncated:true` mode and stop accumulating
+ * When a single window collects more than this many raw change events, we
+ * flip to `truncated:true` mode and stop accumulating
  * per-entry detail. The client is expected to throw away local fs state
  * and re-`:list` to resync. WS.md §4.9 mentions "单窗口 changes 超 500
  * 时 true" — 500 is the spec threshold.
  */
 const DEFAULT_MAX_CHANGES_PER_WINDOW = 500;
 
-/** ROADMAP Chain 14 AC #4 — per-connection total watched-path cap. */
+/** Per-connection total watched-path cap. */
 const DEFAULT_MAX_PATHS_PER_CONNECTION = 100;
 
 /* -------------------------------------------------------------------------
@@ -147,8 +147,8 @@ const DEFAULT_MAX_PATHS_PER_CONNECTION = 100;
 /**
  * Thrown when a WS connection's projected total watched-paths count
  * (across all sessions on that connection) would exceed
- * `maxPathsPerConnection` (default 100, ROADMAP Chain 14 AC #4). The WS
- * handler maps this to envelope/ack `code: 42902 fs.watch_limit_exceeded`.
+ * `maxPathsPerConnection` (default 100). The WS handler maps this to
+ * envelope/ack `code: 42902 fs.watch_limit_exceeded`.
  */
 export class FsWatchLimitError extends Error {
   readonly connectionId: string;
@@ -329,8 +329,8 @@ export interface FsWatcherServiceOptions {
  * Walks `ISessionClientsService` lazily to find a connection by id.
  * We can't add a `getById` to `ISessionClientsService` without breaking
  * its index invariant (sessionId → connections); instead we walk every
- * session bucket. With PLAN's "O(10) WS clients per daemon" assumption
- * this is fine. If the cardinality grows we can extend the registry.
+ * session bucket. The expected connection cardinality is small enough that
+ * this is fine; if it grows we can extend the registry.
  * ----------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------

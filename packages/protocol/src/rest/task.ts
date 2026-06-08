@@ -1,5 +1,5 @@
 /**
- * Background Tasks REST endpoint schemas (REST.md §3.7, Chain 8 / P1.8, W9.2).
+ * Background Tasks REST endpoint schemas (REST.md §3.7).
  *
  * 3 endpoints:
  *

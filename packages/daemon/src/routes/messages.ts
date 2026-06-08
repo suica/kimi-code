@@ -1,5 +1,5 @@
 /**
- * `/sessions/{session_id}/messages*` REST routes (Chain 3 / P1.3, W7.1).
+ * `/sessions/{session_id}/messages*` REST routes.
  *
  * 2 endpoints (REST.md §3.4):
  *
@@ -13,7 +13,7 @@
  * **Error mapping**:
  *   - `SessionNotFoundError`   → 40401
  *   - `MessageNotFoundError`   → 40403
- *   - Other errors fall through to W4 `installErrorHandler` (→ 50001).
+ *   - Other errors fall through to the global `installErrorHandler` (→ 50001).
  *
  * **Wiring**: takes an `IInstantiationService` so each request resolves
  * `IMessageService` via the daemon's DI container. Same pattern as
@@ -164,7 +164,7 @@ export function registerMessagesRoutes(
  * Map a thrown error to the right envelope:
  *   - `SessionNotFoundError`  → `code: 40401`
  *   - `MessageNotFoundError`  → `code: 40403`
- *   - Anything else → re-throw; W4 `installErrorHandler` → `50001`.
+ *   - Anything else → re-throw; the global error handler emits `50001`.
  */
 function sendMappedError(
   reply: { send(payload: unknown): unknown },

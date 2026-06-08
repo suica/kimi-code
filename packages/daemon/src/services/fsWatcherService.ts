@@ -24,15 +24,15 @@ import {
 const DEFAULT_DEBOUNCE_MS = 200;
 
 /**
- * ROADMAP Chain 14 AC #2 — when a single window collects > this many raw
- * change events, we flip to `truncated:true` mode and stop accumulating
+ * When a single window collects more than this many raw change events, we
+ * flip to `truncated:true` mode and stop accumulating
  * per-entry detail. The client is expected to throw away local fs state
  * and re-`:list` to resync. WS.md §4.9 mentions "单窗口 changes 超 500
  * 时 true" — 500 is the spec threshold.
  */
 const DEFAULT_MAX_CHANGES_PER_WINDOW = 500;
 
-/** ROADMAP Chain 14 AC #4 — per-connection total watched-path cap. */
+/** Per-connection total watched-path cap. */
 const DEFAULT_MAX_PATHS_PER_CONNECTION = 100;
 
 interface PendingChange {
@@ -75,8 +75,8 @@ export class FsWatcherService extends Disposable implements IFsWatcher {
   private readonly connections = new Map<string, Map<string, Set<string>>>();
 
   constructor(
-    // P2.6: VSCode-style static-first / services-last. `lookup` is a
-    // closure built at start.ts so it stays a positional static dep;
+    // VSCode-style static-first / services-last. `lookup` is a closure
+    // built at start.ts so it stays a positional static dep;
     // `options` is the config bag. `logger` + `_sessionService` are
     // auto-injected via @ILogService / @ISessionService. The
     // `_sessionService` parameter is intentionally unused (reserved to

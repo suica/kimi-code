@@ -1,32 +1,28 @@
 /**
- * `WsConnection` (W5.1 / P0.15, extended W7.3 / P1.4b for `abort` handling) —
- * per-socket WS state holder.
+ * `WsConnection` — per-socket WS state holder.
  *
  * One instance per upgraded HTTP request. Owns:
  *   - The raw `ws.WebSocket`.
- *   - Subscription set (populated in W5.2 via `subscribe` control).
- *   - Per-session `lastSeqBySession` (populated in W5.3 from `client_hello`).
+ *   - Subscription set (populated via `subscribe` control).
+ *   - Per-session `lastSeqBySession` (populated from `client_hello`).
  *   - Ping/pong heartbeat timers (WS.md §1.3, §3.5).
  *
  * Lifecycle (WS.md §1):
  *   1. Constructor sends `server_hello`.
- *   2. Client should respond with `client_hello` (W5.3 will react with
- *      replay-or-resync logic; W5.1 only logs the hello + acks).
+ *   2. Client should respond with `client_hello`; the server then runs
+ *      replay-or-resync logic and acks the hello.
  *   3. Server pings every `pingIntervalMs` (30s prod, overridable for tests).
  *      Client must `pong` within `pongTimeoutMs` (10s prod per WS.md §1.3)
  *      else server terminates the socket.
  *
- * **W5.2** extends the message switch with `subscribe` / `unsubscribe` handlers
- * (wiring `ISessionClientsService` registration).
- * **W5.3** extends `client_hello` to parse `last_seq_by_session` and replay
- * buffered events or send `resync_required`.
- * **W7.3** extends `abort` to dispatch through the same handler the REST
- * fallback route uses (`IPromptService.abort`). See WS.md §3.4 for the ack
- * shape — idempotent calls return `code: 0, payload.aborted: false`.
+ * The message switch includes `subscribe` / `unsubscribe` handlers (wiring
+ * `ISessionClientsService` registration), `client_hello` replay of buffered
+ * events or `resync_required`, and `abort` dispatch through the same handler
+ * the REST fallback route uses (`IPromptService.abort`). See WS.md §3.4 for
+ * the ack shape — idempotent calls return `code: 0, payload.aborted: false`.
  *
  * Anti-corruption: WS schemas come from `@moonshot-ai/protocol` (Zod-validated
- * on the inbound path per PLAN D3). The daemon never imports directly from
- * the SDK package.
+ * on the inbound path). The daemon never imports directly from the SDK package.
  */
 
 import type { RawData, WebSocket } from 'ws';
@@ -55,8 +51,8 @@ import {
 } from './protocol.js';
 
 /**
- * Subset of `EventService` consumed by `WsConnection` for the W5.3 replay
- * path. Keeping it as a structural interface lets tests pass a stub without
+ * Subset of `EventService` consumed by `WsConnection` for the replay path.
+ * Keeping it as a structural interface lets tests pass a stub without
  * a full event service, and prevents `WsConnection` from circular-importing
  * `EventService` (which itself imports types from this file via
  * `protocol.ts`).
@@ -101,8 +97,8 @@ export interface AbortHandler {
 }
 
 /**
- * W12 / Chain 14 — `subscribe.watch_fs` + `watch_fs_add` + `watch_fs_remove`
- * delivery surface. Implemented in production by a thin adapter sitting on
+ * `subscribe.watch_fs` + `watch_fs_add` + `watch_fs_remove` delivery surface.
+ * Implemented in production by a thin adapter sitting on
  * top of `IFsWatcher` + `ISessionService` (see `start.ts`).
  *
  * Each method:
@@ -145,13 +141,13 @@ export type FsWatchResult =
 export interface WsConnectionOptions {
   socket: WebSocket;
   logger: ILogService;
-  /** Per-session subscriber index — populated by `subscribe` / `unsubscribe` (W5.2). */
+  /** Per-session subscriber index — populated by `subscribe` / `unsubscribe`. */
   sessionClients: ISessionClientsService;
-  /** Ring-buffer replay source — `EventService` in prod, stub in tests (W5.3). */
+  /** Ring-buffer replay source — `EventService` in prod, stub in tests. */
   eventService: BufferReplaySource;
-  /** Abort handler — `IPromptService.abort` in prod, stub in tests (W7.3). */
+  /** Abort handler — `IPromptService.abort` in prod, stub in tests. */
   abortHandler?: AbortHandler;
-  /** Watch_fs handler — `IFsWatcher` adapter in prod, stub in tests (W12 / Chain 14). */
+  /** Watch_fs handler — `IFsWatcher` adapter in prod, stub in tests. */
   fsWatchHandler?: FsWatchHandler;
   /** ms between server pings. Default 30_000 (WS.md §1.3). */
   pingIntervalMs?: number;
@@ -173,9 +169,9 @@ const DEFAULT_MAX_EVENT_BUFFER = 1000;
 
 export class WsConnection {
   public readonly id: string;
-  /** session_ids this connection is subscribed to (populated in W5.2). */
+  /** session_ids this connection is subscribed to. */
   public readonly subscriptions = new Set<string>();
-  /** Per-session client-reported last seq (populated in W5.3 from client_hello). */
+  /** Per-session client-reported last seq (populated from client_hello). */
   public readonly lastSeqBySession = new Map<string, number>();
 
   private readonly socket: WebSocket;
@@ -355,7 +351,7 @@ export class WsConnection {
       }
     }
 
-    // W12 / Chain 14 — handle optional `watch_fs` map (WS.md §3.3).
+    // Handle optional `watch_fs` map (WS.md §3.3).
     // We fire-and-forget each per-session watch add: the underlying
     // handler resolves cwd and validates paths asynchronously. Errors
     // here do NOT fail the subscribe ack — `subscribe.watch_fs` is a
@@ -399,7 +395,7 @@ export class WsConnection {
     const { session_ids } = msg.payload;
     for (const sid of session_ids) {
       this.unsubscribe(sid);
-      // W12 / Chain 14 (WS.md §3.3): "解订时同时 drop 该 session 的所有 watch_fs"
+      // WS.md §3.3: "解订时同时 drop 该 session 的所有 watch_fs"
       // Surface all current watched paths for the session and remove them.
       if (this.fsWatchHandler !== undefined) {
         // No direct query method on the handler interface; the watcher
@@ -431,8 +427,8 @@ export class WsConnection {
   }
 
   /**
-   * W12 / Chain 14 (WS.md §3.3.1) — handle `watch_fs_add`. Adds the
-   * caller's paths to the per-session chokidar watcher and acks with the
+   * Handle `watch_fs_add` (WS.md §3.3.1). Adds the caller's paths to the
+   * per-session chokidar watcher and acks with the
    * full deduplicated `watched_paths` list for the session (POSIX-relative
    * to `session.cwd`). Validation failures land as ack codes:
    *   - 42902 fs.watch_limit_exceeded (per-connection > 100 paths)
@@ -475,8 +471,8 @@ export class WsConnection {
   }
 
   /**
-   * W12 / Chain 14 (WS.md §3.3.1) — handle `watch_fs_remove`. Idempotent.
-   * Empty paths array acks with code 0 + current `watched_paths`.
+   * Handle `watch_fs_remove` (WS.md §3.3.1). Idempotent. Empty paths array
+   * acks with code 0 + current `watched_paths`.
    */
   private onWatchFsRemove(msg: WatchFsRemoveMessage): void {
     if (this.fsWatchHandler === undefined) {
@@ -510,8 +506,8 @@ export class WsConnection {
   }
 
   /**
-   * W7.3: dispatch a WS `abort` control message through the same handler the
-   * REST `POST /sessions/{sid}/prompts/{pid}:abort` route uses
+   * Dispatch a WS `abort` control message through the same handler the REST
+   * `POST /sessions/{sid}/prompts/{pid}:abort` route uses
    * (`IPromptService.abort` via the daemon's accessor). Idempotent calls
    * (already-completed prompt) return `code: 0, payload.aborted: false`
    * per WS.md §3.4 — NOT the REST 40903; different convention to avoid the
@@ -637,7 +633,7 @@ export class WsConnection {
     // send into a closed socket on the next event.
     this.sessionClients.forgetConnection(this);
     this.subscriptions.clear();
-    // W12 / Chain 14 — drop all fs-watch subscriptions for this connection.
+    // Drop all fs-watch subscriptions for this connection.
     // The watcher closes any chokidar instance whose path-set goes empty.
     if (this.fsWatchHandler !== undefined) {
       try {
@@ -653,9 +649,9 @@ export class WsConnection {
   }
 
   /**
-   * Outbound send. Used both for system frames (W5.1) and for per-session
-   * event envelopes pushed by `EventService` (W5.2). Drops silently if the
-   * socket is closed or not yet OPEN.
+   * Outbound send. Used both for system frames and for per-session event
+   * envelopes pushed by `EventService`. Drops silently if the socket is closed
+   * or not yet OPEN.
    */
   public send(message: unknown): void {
     if (this.closed) return;

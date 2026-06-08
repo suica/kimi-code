@@ -1,5 +1,5 @@
 /**
- * `IAuthSummaryService` — daemon-facing readiness probe (P2.1 D2).
+ * `IAuthSummaryService` — daemon-facing readiness probe.
  *
  * Single権威 readiness signal source:
  *   - `get()` produces the `AuthSummary` payload for `GET /v1/auth`.
@@ -11,14 +11,14 @@
  *
  * Why centralized: the same "is there a usable provider + model + token?"
  * computation is needed by both the read probe and every write-side entry that
- * could surface 50001 "internal" today (PLAN背景 §1). Co-locating it keeps the
+ * could surface 50001 "internal" today. Co-locating it keeps the
  * logic in one place + makes it cheap to add new gated entries (PATCH session
  * model, etc.).
  *
- * Status mapping note (P2.1 scope): we only return `'authenticated'` (token
- * cached) or `'unauthenticated'` (no token). The `'expired' / 'revoked'`
- * states require runtime OAuth introspection that lands in P2.7 + P2.9 —
- * P2.1's gate intentionally does NOT try to differentiate them.
+ * Status mapping note: we only return `'authenticated'` (token cached) or
+ * `'unauthenticated'` (no token). The `'expired' / 'revoked'` states require
+ * runtime OAuth introspection; this gate intentionally does NOT try to
+ * differentiate them.
  *
  * **Implementation** (`AuthSummaryService`): Reads the live config via
  * `ICoreProcessService.rpc.getKimiConfig({})` and the managed-OAuth credential
@@ -79,9 +79,8 @@ export class AuthTokenMissingError extends Error {
 
 /**
  * `40112 auth.token_unauthorized` — OAuth refresh returned 401; user has
- * revoked the grant. Not produced by P2.1's static gate (would require a
- * round-trip to the OAuth host); reserved for the reactive-refresh path in
- * P2.9.
+ * revoked the grant. Not produced by the static gate (would require a
+ * round-trip to the OAuth host); reserved for the reactive-refresh path.
  */
 export class AuthTokenUnauthorizedError extends Error {
   readonly providerId: string;

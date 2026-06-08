@@ -1,6 +1,5 @@
 /**
- * Filesystem entity schemas (SCHEMAS.md §9.2, Chains 9 + 10 / P1.9 + P1.10,
- * W10).
+ * Filesystem entity schemas (SCHEMAS.md §9.2).
  *
  * Wire shape: snake_case fields; ISO 8601 `Z`-suffix timestamps via
  * `isoDateTimeSchema`. All `path` fields are POSIX-style relative paths
@@ -9,7 +8,7 @@
  * **Daemon-OWN** (not bridged via ICoreProcessService): `IFsService` is implemented
  * in `packages/daemon/src/services/fs-service.ts` against Node `fs.promises`
  * with explicit path-safety guards (REST.md §4.4). Agent-core has no `fs`
- * surface — this is the first daemon-self service in the W3+ DI graph.
+ * surface — this is a daemon-self service in the DI graph.
  *
  * Single canonical type per SCHEMAS §9.2:
  *
@@ -26,15 +25,14 @@
  *   - `etag` is `mtime + size + inode` sha1 (mirror of VSCode's
  *     FileSystemProvider — not strong-consistent).
  *
- * Chain 9 (W10.1) covers `:list` + `:read`; Chain 10 (W10.2) covers
- * `:list_many` + `:stat` + `:stat_many`. `:download` / `:search` / `:grep` /
- * `:git_status` arrive in W11+.
+ * The surface covers `:list`, `:read`, `:list_many`, `:stat`, `:stat_many`,
+ * `:download`, `:search`, `:grep`, and `:git_status`.
  *
  * **Anti-corruption**: zero `@moonshot-ai/agent-core` imports — `fs` is a
  * daemon-self surface, so the protocol schemas describe the daemon's wire
  * shape directly without an SDK round-trip.
  *
- * W11 additions (Chains 11 + 12):
+ * Additional filesystem entities:
  *   - `FsSearchHit`        — `:search` item (path + name + kind + score +
  *                            match positions). NOT a discriminated union
  *                            with `FsGrepMatch`; they're two different
@@ -42,8 +40,8 @@
  *   - `FsGrepMatch`        — `:grep` per-line hit (line + col + text +
  *                            before / after context).
  *   - `FsGitStatusEntry`   — `:git_status` per-path entry. Reuses the
- *                            existing `FsGitStatus` enum from W10 (verbatim
- *                            SCHEMAS §9.2 line 521) rather than introducing
+ *                            existing `FsGitStatus` enum (verbatim SCHEMAS
+ *                            §9.2 line 521) rather than introducing
  *                            a new XY-pair shape; REST.md §3.9 line 666
  *                            specifies the map shape `{[path]: GitStatus}`.
  */
@@ -70,7 +68,7 @@ export type FsKind = z.infer<typeof fsKindSchema>;
 /**
  * `GitStatus` — SCHEMAS §9.2 line 521. Surfaced on `FsEntry.git_status` when
  * client passes `include_git_status: true` in `:list` / `:list_many`. Not
- * exposed yet for `:stat` (Chain 10 stays git-quiet; W11 adds `:git_status`).
+ * exposed on `:stat` only when the daemon adds it to the entry payload.
  */
 export const fsGitStatusSchema = z.enum([
   'clean',
@@ -125,7 +123,7 @@ export const fsEntrySchema = z.object({
 });
 export type FsEntry = z.infer<typeof fsEntrySchema>;
 
-// --- 9.x FsSearchHit (W11 / Chain 11) --------------------------------------
+// --- 9.x FsSearchHit ---------------------------------------------------------
 
 /**
  * `FsSearchHit` — single item of `:search` response (REST.md §3.9 line 593).
@@ -148,7 +146,7 @@ export const fsSearchHitSchema = z.object({
 });
 export type FsSearchHit = z.infer<typeof fsSearchHitSchema>;
 
-// --- 9.x FsGrepMatch (W11 / Chain 11) --------------------------------------
+// --- 9.x FsGrepMatch ---------------------------------------------------------
 
 /**
  * `FsGrepMatch` — single per-line hit inside one file's `matches[]` array of
@@ -189,7 +187,7 @@ export const fsGrepFileHitSchema = z.object({
 });
 export type FsGrepFileHit = z.infer<typeof fsGrepFileHitSchema>;
 
-// --- 9.x FsGitStatusEntry (W11 / Chain 12) ---------------------------------
+// --- 9.x FsGitStatusEntry ----------------------------------------------------
 
 /**
  * `FsGitStatusEntry` — single row of `:git_status` response.
@@ -207,7 +205,7 @@ export type FsGrepFileHit = z.infer<typeof fsGrepFileHitSchema>;
  * deliberately — most clients just paint a badge.
  *
  * **Not exposed on the wire**: this type is daemon-internal. The wire uses
- * `FsGitStatus` (the existing W10 enum).
+ * `FsGitStatus` (the shared Git status enum).
  */
 export const fsGitStatusEntrySchema = z.object({
   /** POSIX-style path, relative to `session.metadata.cwd`. */
@@ -219,7 +217,7 @@ export const fsGitStatusEntrySchema = z.object({
 });
 export type FsGitStatusEntry = z.infer<typeof fsGitStatusEntrySchema>;
 
-// --- 9.x FsChangeEntry / FsChangeEvent (W12 / Chain 14) --------------------
+// --- 9.x FsChangeEntry / FsChangeEvent --------------------------------------
 
 /**
  * `FsChangeKind` — kind of filesystem entity the change applies to. Mirrors
@@ -287,8 +285,8 @@ export type FsChangeEntry = z.infer<typeof fsChangeEntrySchema>;
  *     count?: number                 // total raw change count when truncated
  *   }
  *
- * **Truncation contract** (WS.md §4.9 + ROADMAP Chain 14 AC #2): when the
- * daemon collects more than 500 raw chokidar events inside the 200ms
+ * **Truncation contract** (WS.md §4.9): when the daemon collects more than
+ * 500 raw chokidar events inside the 200ms
  * coalesce window (e.g. `git checkout` swapping a branch), it stops
  * accumulating per-entry detail and instead emits a single event with
  * `truncated: true` and `count: <raw event count>`. The client is expected

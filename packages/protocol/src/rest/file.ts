@@ -1,5 +1,5 @@
 /**
- * File REST endpoint schemas (REST.md §3.10, Chain 15 / P1.15, W12.2).
+ * File REST endpoint schemas (REST.md §3.10).
  *
  * Three endpoints:
  *
@@ -16,8 +16,8 @@
  *            `ETag` + `Content-Length` + raw bytes.
  *     - 404: `{code:40407, msg:'file not found', ...}` envelope
  *            (client checks `Content-Type` to disambiguate).
- *     - 410: `{code:41003, msg:'file expired', ...}` (deferred —
- *            no GC pass in W12).
+ *     - 410: `{code:41003, msg:'file expired', ...}` (reserved; no GC pass
+ *            currently removes expired files).
  *
  *   DELETE /v1/files/{file_id}
  *     Response data: `{deleted: true}` (envelope-wrapped).

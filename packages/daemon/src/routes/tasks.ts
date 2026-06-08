@@ -1,5 +1,5 @@
 /**
- * `/sessions/{sid}/tasks*` REST routes (Chain 8 / P1.8, W9.2).
+ * `/sessions/{sid}/tasks*` REST routes.
  *
  * 3 endpoints (REST.md §3.7):
  *
@@ -12,8 +12,8 @@
  *   - `SessionNotFoundError`     → envelope `code: 40401`
  *   - `TaskNotFoundError`        → envelope `code: 40406`
  *   - `TaskAlreadyFinishedError` → envelope `code: 40904` with custom
- *     `data:{cancelled:false}` (mirrors W7's 40903/W8's 40902 precedent).
- *   - Other errors → 50001 via W4 `installErrorHandler`.
+ *     `data:{cancelled:false}` for idempotent cancellation conflicts.
+ *   - Other errors → 50001 via the global `installErrorHandler`.
  *
  * **Action suffix**: `:cancel` uses the shared `parseActionSuffix` helper
  * (5th call site after prompts:abort, questions:resolve|dismiss, mcp:restart).
@@ -207,8 +207,8 @@ export function registerTasksRoutes(
  * Map a thrown error to the right envelope. See module header for the table.
  *
  * `TaskAlreadyFinishedError` is a SPECIAL case — REST.md §3.7 mandates
- * envelope `code: 40904` + `data: {cancelled: false}`. Mirrors the W7 40903
- * + W8 40902 idempotent shape.
+ * envelope `code: 40904` + `data: {cancelled: false}` for the idempotent
+ * cancellation shape.
  */
 function sendMappedError(
   reply: { send(payload: unknown): unknown },

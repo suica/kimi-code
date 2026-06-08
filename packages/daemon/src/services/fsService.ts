@@ -54,9 +54,8 @@ export class FsService extends Disposable implements IFsService {
    *
    * Why per-cwd: two sessions may share a `cwd`; sharing the compiled
    * matcher is cheaper and safer (no stale state between sessions). On
-   * `.gitignore` mutation we'd want to bust the cache, but W10 is a
-   * first cut — we accept the staleness (W12 file watcher will bust it
-   * naturally when it ships).
+   * `.gitignore` mutation we'd want to bust the cache, but we accept the
+   * staleness because later file-watcher invalidation can clear it.
    */
   protected gitignoreCache = new Map<string, Ignore>();
 
@@ -257,7 +256,7 @@ export class FsService extends Disposable implements IFsService {
   }
 
   // -----------------------------------------------------------------
-  // :list_many  (W10.2 / Chain 10)
+  // :list_many
   //
   // Per-path failures land in `partial_errors` and don't poison the
   // whole response. We re-use `list()` for each path so the path-safety,
@@ -317,7 +316,7 @@ export class FsService extends Disposable implements IFsService {
   }
 
   // -----------------------------------------------------------------
-  // :stat  (W10.2 / Chain 10)
+  // :stat
   //
   // Single-path `FsEntry` lookup. Same path-safety guard as `:list` and
   // `:read`. Surfaces `40409` when the file is missing, `41304` on
@@ -342,18 +341,16 @@ export class FsService extends Disposable implements IFsService {
   }
 
   // -----------------------------------------------------------------
-  // :stat_many  (W10.2 / Chain 10)
+  // :stat_many
   //
   // Batch stat. Per-path misses surface as `null` (REST.md §3.9 line 524
   // + SCHEMAS §9.2 line 524). Path-safety failures (41304) fail batch-wide
   // — we resolve safety for ALL paths up-front so a bad path crashes the
   // whole call before any I/O lands.
   //
-  // **Performance**: ROADMAP §Chain 10 AC #3 requires 1000 stats <
-  // 200 ms on SSD. We achieve this by running `fs.stat` under
-  // `Promise.all` (each syscall ~µs); on a 2024-era M-series Mac the
-  // 1000-path bench at `test/fs-batch.e2e.test.ts:..` lands around
-  // 30-60 ms — 3-6× margin.
+  // **Performance**: run `fs.stat` under `Promise.all` so large batches stay
+  // responsive; each syscall is ~µs, keeping the 1000-path bench well under
+  // the target on typical CI/dev hardware.
   // -----------------------------------------------------------------
 
   async statMany(
@@ -410,7 +407,7 @@ export class FsService extends Disposable implements IFsService {
   }
 
   // -----------------------------------------------------------------
-  // resolveDownload  (W11.3 / Chain 13)
+  // resolveDownload
   //
   // Returns enough metadata for the route layer to drive a streaming GET
   // response without doing the path-safety dance again. The route owns
@@ -614,7 +611,7 @@ function buildFsEntryFromDirentAndStat(
     const lang = guessLanguageId(relPath);
     if (lang !== undefined) entry.language_id = lang;
   }
-  void absPath; // reserved for symlink target resolution in W11
+  void absPath;
   return entry;
 }
 

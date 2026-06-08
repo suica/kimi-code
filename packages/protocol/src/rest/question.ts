@@ -1,5 +1,5 @@
 /**
- * Question REST endpoint schemas (REST.md §3.6, W8.2 / Chain 6).
+ * Question REST endpoint schemas (REST.md §3.6).
  *
  * 2 endpoints:
  *
@@ -16,8 +16,8 @@
  *     answering, agent-core receives a `null` QuestionResult.
  *
  * **Idempotency** (REST.md §3.6): a second resolve on the same question_id
- * returns envelope `code: 40902` with `data.resolved: false` (mirrors W7's
- * 40903 + W8.1's 40902 approval pattern).
+ * returns envelope `code: 40902` with `data.resolved: false` (matches the
+ * existing 40903 / approval 40902 idempotent pattern).
  */
 
 import { z } from 'zod';

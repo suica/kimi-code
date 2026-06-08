@@ -1,10 +1,10 @@
 /**
- * Feishu-style REST response envelope (PLAN.md §P1, SCHEMAS.md §1.1).
+ * Feishu-style REST response envelope (SCHEMAS.md §1.1).
  *
  * All REST responses share this wire shape — HTTP status is always 200; the
  * business outcome lives in the `code` field. Wire shape must round-trip
- * byte-identical to `packages/daemon/src/envelope.ts` so the daemon can swap
- * its local helpers for these without breaking responses (W4).
+ * byte-identical to the daemon's envelope re-export so JSON serialization is
+ * stable across package boundaries.
  */
 import { z } from 'zod';
 
@@ -44,7 +44,7 @@ export function okEnvelope<T>(data: T, requestId: string): Envelope<T> {
 
 /**
  * Build an error envelope. `data` is fixed to `null` so the shape stays
- * stable across success and failure (PLAN.md §P1).
+ * stable across success and failure.
  */
 export function errEnvelope(code: number, msg: string, requestId: string): Envelope<null> {
   return { code, msg, data: null, request_id: requestId };

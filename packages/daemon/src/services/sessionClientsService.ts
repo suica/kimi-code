@@ -14,8 +14,8 @@ export class SessionClientsService extends Disposable implements ISessionClients
   private readonly _bySession = new Map<string, Set<WsConnection>>();
 
   /**
-   * P2.2: `@ILogService` is auto-injected by the container. The service does
-   * not currently emit log lines (the subscription model is silent by
+   * `@ILogService` is auto-injected by the container. The service does not
+   * currently emit log lines (the subscription model is silent by
    * design — service / event-publish call sites do the logging) but the dep is
    * declared so future diagnostic work doesn't need a ctor reshuffle.
    */
@@ -66,8 +66,8 @@ export class SessionClientsService extends Disposable implements ISessionClients
 
   forgetConnection(connection: WsConnection): void {
     // Walk every session bucket and drop the connection. Cheaper than a
-    // reverse index (connId → sessionIds) for the connection counts we
-    // expect (PLAN: O(10) WS clients per daemon).
+    // reverse index (connId → sessionIds) for the expected daemon connection
+    // counts.
     for (const [sid, set] of this._bySession) {
       if (set.delete(connection) && set.size === 0) {
         this._bySession.delete(sid);

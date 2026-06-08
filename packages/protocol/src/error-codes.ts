@@ -1,5 +1,5 @@
 /**
- * Daemon REST + WS error codes (REST.md §1.4, PLAN.md §P2).
+ * Daemon REST + WS error codes (REST.md §1.4).
  *
  * Integer namespaces:
  *   - 0          success
@@ -10,8 +10,8 @@
  *   - 8xxxx      MCP server 透传 (msg = original upstream text)
  *   - 9xxxx      预留
  *
- * **整数稳定不变** (PLAN P2): a published code never changes meaning; new
- * error variants get fresh code positions. Several reserved codes are
+ * **整数稳定不变**: a published code never changes meaning; new error
+ * variants get fresh code positions. Several reserved codes are
  * intentionally absent from this enum (see "Reserved codes" comment below).
  */
 
@@ -26,7 +26,7 @@ export const ErrorCode = {
   /** JSON 解析失败、字段类型错 */
   REQUEST_MALFORMED: 40002,
 
-  // -- 4011x 上游 provider 鉴权 / 配置缺位 (P2.1 D1) --
+  // -- 4011x 上游 provider 鉴权 / 配置缺位 --
   /** daemon 没有任何 provider 配置 */
   AUTH_PROVISIONING_REQUIRED: 40110,
   /** provider 存在但 token / api_key 缺失 */
@@ -109,7 +109,7 @@ export const ErrorCode = {
 
   // -- 7xxxx LLM provider 透传 --
   // provider.* — provider 原 code 含义保留；`msg` 字段透传上游错误文本。
-  // 不在此枚举中静态列出，调用方应将 provider 原 code 直接放入 envelope.code（PLAN P2）。
+  // 不在此枚举中静态列出，调用方应将 provider 原 code 直接放入 envelope.code。
 
   // -- 8xxxx MCP server 透传 --
   // mcp.* — mcp server 原 code 含义保留；`msg` 字段透传上游错误文本。
@@ -124,14 +124,14 @@ export const ErrorCode = {
  *   - 42901 rate.limited
  *   - 50002 protocol.version_mismatch
  *
- * 4011x is now claimed (P2.1 D1) for "上游 provider 鉴权 / 配置缺位" —
- * semantically distinct from "daemon 自身鉴权", which the 4010x段 will
+ * 4011x is claimed for "上游 provider 鉴权 / 配置缺位" — semantically
+ * distinct from "daemon 自身鉴权", which the 4010x段 will
  * eventually carry. Sub-codes within 4012x+ remain open for future daemon
  * auth refinements.
  *
  * These cover features the first daemon version intentionally cuts (no auth,
  * no rate limiting, no version handshake). When those features land, they
- * MUST claim these specific codes (REST.md §1.4 注; PLAN P2 "整数稳定不变").
+ * MUST claim these specific codes (REST.md §1.4 注) to keep integers stable.
  */
 
 /**

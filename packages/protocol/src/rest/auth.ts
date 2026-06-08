@@ -1,5 +1,5 @@
 /**
- * `GET /v1/auth` — readiness probe (PLAN.md §P2.1 D2; REST.md §3).
+ * `GET /v1/auth` — readiness probe (REST.md §3).
  *
  * Single权威 readiness signal:web 端首屏靠 `ready` 决定渲染 onboarding 还是 chat
  * 主面板。No token required — this is the入口 that tells the client whether

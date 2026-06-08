@@ -1,9 +1,9 @@
 /**
- * Question service interface + protocol adapter (W8.2 / Chain 6).
+ * Question service interface + protocol adapter.
  *
  * **Service interface** (`IQuestionService`): Reverse-RPC one-shot broker
  * role — routes `QuestionRequest`s coming out of `KimiCore` to a waiter
- * (web client over WS in P1.x, mock handler in tests) and resolves the
+ * (web client over WS, mock handler in tests) and resolves the
  * promise when the response arrives — or `dismiss()`-es it if the user
  * closes the panel (SCHEMAS.md §6.3).
  *
@@ -37,7 +37,7 @@
  *      defined in `packages/protocol/src/question.ts`. 5-kind discriminated
  *      union for answers: `single | multi | other | multi_with_other | skipped`.
  *
- * **Synthesizing stable ids** (W8.2 — SDK has no per-item / per-option `id`):
+ * **Synthesizing stable ids** (SDK has no per-item / per-option `id`):
  *   - `QuestionItem.id`     ← `q_<index>` (e.g. `q_0`, `q_1`, ...)
  *   - `QuestionOption.id`   ← `opt_<parent_idx>_<option_idx>` (e.g. `opt_0_0`)
  *
@@ -78,8 +78,8 @@ export interface IQuestionService {
   /**
    * Called by the answer-side (REST handler / TUI / mock) to settle a pending
    * `request()` with user answers. `id` matches `QuestionRequest`'s correlation
-   * id (`turnId`+`toolCallId` today; SCHEMAS.md §6.2's `question_id` once
-   * Chain 6 lands).
+   * id (`turnId`+`toolCallId` today; SCHEMAS.md §6.2's `question_id` once the
+   * protocol exposes it).
    */
   resolve(id: string, response: QuestionResult): void;
 

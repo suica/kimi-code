@@ -1,5 +1,5 @@
 /**
- * Messages history endpoint schemas (REST.md §3.4, W7.1 / Chain 3).
+ * Messages history endpoint schemas (REST.md §3.4).
  *
  * 2 endpoints (REST.md §3.4):
  *

@@ -94,5 +94,5 @@ export class TaskService extends Disposable implements ITaskService {
 
 // Self-register under the global singleton registry. All ctor deps are
 // `@I…`-injected; `staticArguments = []`. `supportsDelayedInstantiation =
-// false` preserves current reverse-dispose semantics (plan §540).
+// false` preserves current reverse-dispose semantics.
 registerSingleton(ITaskService, new SyncDescriptor(TaskService, [], false));

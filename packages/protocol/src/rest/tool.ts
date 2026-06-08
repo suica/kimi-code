@@ -1,5 +1,5 @@
 /**
- * Tool + MCP REST endpoint schemas (REST.md §3.8, W9.1 / Chain 7 / P1.7).
+ * Tool + MCP REST endpoint schemas (REST.md §3.8).
  *
  * 3 endpoints:
  *
@@ -18,14 +18,11 @@
  *
  * Notes:
  *  - `:restart` uses the action-suffix convention (REST.md §1.6); the daemon
- *    parses it via the shared `parseActionSuffix` helper (introduced in W9.1
- *    as the 4th call site after prompts:abort + questions:resolve +
- *    questions:dismiss).
+ *    parses it via the shared `parseActionSuffix` helper.
  *  - Side effect of restart: daemon broadcasts `event.mcp.disconnected` →
  *    `event.mcp.connecting` → `event.mcp.connected|error`. Today agent-core
- *    surfaces only `reconnectMcpServer({name})`; the WS event sequence lives
- *    in W12+ once the bridge MCP observer arrives. W9.1 wires the REST
- *    handler + 40408 error; observability events deferred.
+ *    surfaces only `reconnectMcpServer({name})`; the REST handler emits the
+ *    40408 error and observability events remain deferred.
  */
 
 import { z } from 'zod';

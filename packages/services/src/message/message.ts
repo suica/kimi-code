@@ -1,5 +1,5 @@
 /**
- * `IMessageService` — daemon-facing message history interface (Chain 3 / P1.3, W7.1).
+ * `IMessageService` — daemon-facing message history interface.
  *
  * Wraps `ICoreProcessService.rpc.getContext({sessionId, agentId})` and adapts
  * agent-core's `ContextMessage` history shape (kosong `Message` + origin) to

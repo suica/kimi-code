@@ -1,6 +1,5 @@
 /**
- * `ApprovalService` (daemon-side `IApprovalService` impl, W8.1 / Chain 5;
- * was W4.4 stub).
+ * `ApprovalService` (daemon-side `IApprovalService` impl).
  *
  * One-shot broker that handles the full reverse-RPC path:
  *
@@ -34,8 +33,8 @@
  * level of the event object (which becomes `envelope.payload` after the
  * `EventService.publish → buildEventEnvelope` wrap).
  *
- * **approval_id ↔ toolCallId correlation** (W8 design Q3): the in-process
- * `IApprovalService` contract says `resolve(id, ...)`'s `id` matches
+ * **approval_id ↔ toolCallId correlation**: the in-process `IApprovalService`
+ * contract says `resolve(id, ...)`'s `id` matches
  * `req.toolCallId`. The REST path uses daemon-minted `approval_id`. We
  * satisfy BOTH by indexing the pending map by `approvalId` (the daemon's
  * authoritative key) and tracking `toolCallId` alongside for back-compat.
@@ -119,7 +118,7 @@ export class ApprovalService extends Disposable implements IApprovalService {
   private readonly _recentlyResolvedCap: number;
 
   constructor(
-    // P4.1: static-first / services-last with `@I*` decorators.
+    // Static-first / services-last constructor with `@I*` decorators.
     // `options` is required; call sites pass `{}` when no overrides apply.
     options: ApprovalServiceOptions,
     @ILogService private readonly logger: ILogService,

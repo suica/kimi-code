@@ -1,5 +1,5 @@
 /**
- * `/tools` + `/mcp/servers*` REST routes (Chain 7 / P1.7, W9.1).
+ * `/tools` + `/mcp/servers*` REST routes.
  *
  * 3 endpoints (REST.md §3.8):
  *
@@ -9,11 +9,10 @@
  *
  * **Error mapping**:
  *   - `McpServerNotFoundError` → envelope `code: 40408 mcp.server_not_found`.
- *   - Other errors → 50001 via W4 `installErrorHandler`.
+ *   - Other errors → 50001 via the global `installErrorHandler`.
  *
  * **Action suffix**: the `:restart` POST endpoint uses the shared
- * `parseActionSuffix` helper (extracted W9.1, 4th call site after prompts:abort,
- * questions:resolve, questions:dismiss).
+ * `parseActionSuffix` helper.
  *
  * **Anti-corruption**: route resolves `IToolService` / `IMcpService` via the
  * accessor; no SDK imports.

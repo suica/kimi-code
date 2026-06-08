@@ -1,21 +1,20 @@
 /**
- * `IFsService` — daemon-OWN filesystem service (W10 / Chains 9 + 10).
+ * `IFsService` — daemon-OWN filesystem service.
  *
  * **Daemon-OWN** distinction: every prior `IXxxService` (`ISessionService`,
  * `IMessageService`, `IPromptService`, `IToolService`, `IMcpService`,
  * `ITaskService`) wraps an `ICoreProcessService` call. `IFsService` does not —
  * agent-core has no `fs.list` / `fs.read` surface, and the wire path
  * directly addresses `session.metadata.cwd`. We therefore implement
- * against Node `fs.promises` directly and live in the daemon package
- * (NOT `@moonshot-ai/services` — the services package frozen for W10).
+ * against Node `fs.promises` directly and live in the daemon package.
  *
  * Endpoints (REST.md §3.9):
  *
- *   list(sessionId, request)          → FsListResponse        (W10.1)
- *   read(sessionId, request)          → FsReadResponse        (W10.1)
- *   listMany(sessionId, request)      → FsListManyResponse    (W10.2)
- *   stat(sessionId, request)          → FsEntry               (W10.2)
- *   statMany(sessionId, request)      → FsStatManyResponse    (W10.2)
+ *   list(sessionId, request)          → FsListResponse
+ *   read(sessionId, request)          → FsReadResponse
+ *   listMany(sessionId, request)      → FsListManyResponse
+ *   stat(sessionId, request)          → FsEntry
+ *   statMany(sessionId, request)      → FsStatManyResponse
  *
  * **Path safety**: every `path` input is funnelled through
  * `resolveSafePath(cwd, input)` from `fsPathSafety.ts` BEFORE any Node `fs`
@@ -47,15 +46,15 @@
  * `FsIsBinaryError` (route maps to 40907). The threshold matches common
  * "file is binary" heuristics in `git` (which uses NUL + 8000-byte sample)
  * and `vscode` (NUL + 4096 sample). We pick 4 KB / 30% as the documented
- * W10 contract; explicit `encoding: 'base64'` BYPASSES this guard and
- * always returns base64-encoded bytes (REST.md §3.9 line 536: "二进制
+ * contract; explicit `encoding: 'base64'` BYPASSES this guard and always
+ * returns base64-encoded bytes (REST.md §3.9 line 536: "二进制
  * fall back base64").
  *
  * **Too-large threshold** (41302): file size > 10 MB = `10_485_760` bytes
  * → reject. Mirrors SCHEMAS §10 / REST.md §3.9 line 535 max `length`
  * (10 MB). Files exactly at 10 MB pass; > 10 MB throws.
  *
- * **Batch endpoints** (Chain 10 / W10.2):
+ * **Batch endpoints**:
  *   - `listMany`: per-path failures land in `partial_errors` and don't
  *     poison the whole response. Path-safety (41304) failures DO fail
  *     batch-wide — they indicate the client crossed the session boundary,
@@ -66,8 +65,8 @@
  *     fails batch-wide.
  *
  * **stat_many performance**: implemented as `Promise.all(paths.map(fs.stat))`.
- * Each `fs.stat` is ~µs on SSD; 1000 paths fit comfortably under 200 ms
- * (ROADMAP §Chain 10 AC #3). No batching needed.
+ * Each `fs.stat` is ~µs on SSD; 1000 paths fit comfortably under the target
+ * latency with no extra batching.
  *
  * **Anti-corruption**: this module imports `node:fs/promises`, `node:path`,
  * `ignore`, and `ISessionService` from `@moonshot-ai/services`. ZERO imports
@@ -169,7 +168,7 @@ export interface IFsService extends IDisposable {
 
   list(sessionId: string, req: FsListRequest): Promise<FsListResponse>;
   read(sessionId: string, req: FsReadRequest): Promise<FsReadResponse>;
-  // Chain 10 (W10.2) — batch endpoints.
+  // Batch endpoints.
   listMany(
     sessionId: string,
     req: FsListManyRequest,
@@ -179,8 +178,8 @@ export interface IFsService extends IDisposable {
     sessionId: string,
     req: FsStatManyRequest,
   ): Promise<FsStatManyResponse>;
-  // Chain 13 (W11.3) — streaming download helper. Returns the
-  // safety-checked absolute path + cached `fs.stat` so the route layer
+  // Streaming download helper. Returns the safety-checked absolute path +
+  // cached `fs.stat` so the route layer
   // can negotiate `If-None-Match` / `Range` and pipe a read stream
   // without re-doing the safety walk.
   resolveDownload(

@@ -24,9 +24,9 @@ import { ILogService } from './logger.js';
 import { IFsSearchService, FsGrepTimeoutError } from './fsSearch.js';
 import { FsPathEscapesError, resolveSafePath } from './fsPathSafety.js';
 
-/** Hard cap on `:search` items (ROADMAP Chain 11 AC #3). */
+/** Hard cap on `:search` items. */
 const SEARCH_HARD_CAP = 500;
-/** Wall-clock cap for `:grep` (ROADMAP Chain 11 AC #4 / REST.md §3.9 line 645). */
+/** Wall-clock cap for `:grep` (REST.md §3.9 line 645). */
 const GREP_TIMEOUT_MS = 30_000;
 /** Hard cap on directory traversal depth — defensive (real repos cap below). */
 const WALK_MAX_DEPTH = 64;
@@ -67,7 +67,7 @@ export class FsSearchService
   }
 
   // -----------------------------------------------------------------
-  // :search (W11.1)
+  // :search
   //
   // Fuzzy filename match. Walks `cwd` (gitignore-respecting), scores each
   // candidate against `query`, sorts descending by score, caps to
@@ -125,7 +125,7 @@ export class FsSearchService
   }
 
   // -----------------------------------------------------------------
-  // :grep (W11.1)
+  // :grep
   //
   // Content search. Prefers rg via spawn; falls back to pure-Node on
   // missing rg.
@@ -506,7 +506,7 @@ export class FsSearchService
     for (const d of entries) {
       const name = d.name;
       // Always skip the literal `.git` directory — git-managed but never
-      // useful in either search or grep. Matches W10 IFsService behavior.
+      // useful in either search or grep. Matches IFsService behavior.
       if (name === '.git') continue;
       const childRel = rootRel === '' ? name : `${rootRel}/${name}`;
       if (matcher) {

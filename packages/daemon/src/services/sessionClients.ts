@@ -1,6 +1,5 @@
 /**
- * `ISessionClientsService` (W5.2 / P0.16) — `sessionId → Set<WsConnection>`
- * reverse index.
+ * `ISessionClientsService` — `sessionId → Set<WsConnection>` reverse index.
  *
  * `IConnectionRegistry` indexes connections by `connId` (1→1 by socket).
  * `ISessionClientsService` indexes them by `sessionId` (1→N by subscription)

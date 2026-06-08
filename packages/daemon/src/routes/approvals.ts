@@ -1,5 +1,5 @@
 /**
- * `/sessions/{sid}/approvals/{aid}` REST route (Chain 5 / P1.5, W8.1).
+ * `/sessions/{sid}/approvals/{aid}` REST route.
  *
  * 1 endpoint (REST.md §3.6):
  *
@@ -10,7 +10,7 @@
  *   - 40404 (approval.not_found)         — no pending approval matches {aid}
  *   - 40902 (approval.already_resolved)  — second resolve; custom envelope
  *                                          `{code:40902, data:{resolved:false}}`
- *                                          per W7's 40903-pattern
+ *                                          matching the daemon's idempotent-conflict pattern
  *   - 40001 (validation.failed)          — bad body via the Zod preHandler
  *
  * **Mechanism**: idempotency is handled by the broker's `isPending()` gate
@@ -93,18 +93,17 @@ export function registerApprovalsRoutes(
         // `isPending()`. We can't tell "never-existed" from "already-resolved"
         // without history, so we conservatively emit 40404 (more accurate
         // signal that the id is invalid; 40902 would be misleading for a
-        // typo'd id). Production-grade tracking of resolved ids could move
-        // the discrimination into the broker; out of W8 scope.
+        // typo'd id). The broker tracks a short recently-resolved window to
+        // honor 40902 for immediate re-POSTs.
         const broker = ix.invokeFunction((a) =>
           a.get(IApprovalService) as ApprovalService,
         );
         if (!broker.isPending(approval_id)) {
           // 40404 path covers BOTH "never-existed" and "already-resolved" in
           // this iteration. REST.md §3.6 lists 40902 for "已应答 + 抢答场景" —
-          // for that we'd need a resolved-ids ledger; deferred until a real
-          // multi-client client_id arrives in Phase 2. To still honor the
-          // 40902 contract for re-POST cases, broker tracks recently-resolved
-          // ids: see `isRecentlyResolved`.
+          // for that we'd need a resolved-ids ledger. To still honor the 40902
+          // contract for re-POST cases, broker tracks recently-resolved ids:
+          // see `isRecentlyResolved`.
           if (broker.isRecentlyResolved(approval_id)) {
             reply.send({
               code: ErrorCode.APPROVAL_ALREADY_RESOLVED,

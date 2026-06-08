@@ -1,6 +1,5 @@
 /**
- * `/sessions/{sid}/prompts*` REST routes (Chain 4 / P1.4, W7.2;
- * abort handler extended in Chain 4b / W7.3).
+ * `/sessions/{sid}/prompts*` REST routes.
  *
  * 2 endpoints (REST.md §3.5):
  *
@@ -13,9 +12,9 @@
  *   - `PromptNotFoundError`         → 40402
  *   - `PromptAlreadyCompletedError` → 40903 with data `{aborted: false}`
  *     per REST.md §3.5 (idempotent — wire data, non-zero code)
- *   - Other errors → 50001 via W4 `installErrorHandler`.
+ *   - Other errors → 50001 via the global `installErrorHandler`.
  *
- * **Shared abort handler** (W7.3): the actual abort logic lives in
+ * **Shared abort handler**: the actual abort logic lives in
  * `IPromptService.abort` — both this REST route AND the WS abort control
  * message dispatch through the same accessor call. The route is just a thin
  * envelope layer.
@@ -109,8 +108,7 @@ export function registerPromptsRoutes(
   // colon-prefixed param (`:prompt_id:abort` parses ambiguously). REST.md
   // §3.5 specifies the action-suffix syntax `{prompt_id}:abort`. We register
   // the route by capturing the tail segment (`:tail`) and verifying it ends
-  // with `:abort` via the shared `parseActionSuffix` helper (4th call site
-  // shared since W9.1).
+  // with `:abort` via the shared `parseActionSuffix` helper.
   app.post(
     '/sessions/:session_id/prompts/:tail',
     {
@@ -208,10 +206,9 @@ function sendMappedError(
     reply.send(errEnvelope(ErrorCode.SESSION_NOT_FOUND, err.message, requestId));
     return;
   }
-  // P2.1 D1 — readiness gate failures. The envelope shape mirrors
-  // PLAN.md §3.1.4: `code` is the auth sub-code, `data: null`, `details`
-  // carries `{provider_id?, model_id?}` so clients can route onboarding
-  // without parsing `msg`.
+  // Readiness gate failures. The envelope shape uses the auth sub-code,
+  // `data: null`, and `details` carrying `{provider_id?, model_id?}` so
+  // clients can route onboarding without parsing `msg`.
   if (err instanceof AuthProvisioningRequiredError) {
     reply.send({
       code: ErrorCode.AUTH_PROVISIONING_REQUIRED,

@@ -1,5 +1,5 @@
 /**
- * `IFileStore` — daemon-OWN files store (W12.2 / Chain 15, P1.15).
+ * `IFileStore` — daemon-OWN files store.
  *
  * **Responsibility**: persist uploaded blobs under `<KIMI_CODE_HOME>/files/`
  * (defaults to `~/.kimi-code/files/`; overridable via `KIMI_CODE_HOME` env
@@ -70,7 +70,7 @@ import { ILogService } from './logger.js';
  * Tunable constants
  * ----------------------------------------------------------------------- */
 
-/** REST.md §3.10 + ROADMAP Chain 15 AC #2 — upload cap (50 MB). */
+/** REST.md §3.10 upload cap (50 MB). */
 export const DEFAULT_MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 
 /* -------------------------------------------------------------------------
@@ -115,7 +115,7 @@ export interface SaveOptions {
   name?: string;
   /** Multipart `mimetype`; defaults to `application/octet-stream`. */
   mimeType?: string;
-  /** Optional expiry seconds (deferred GC — reserved for a later phase). */
+  /** Optional expiry seconds. */
   expiresInSec?: number;
 }
 

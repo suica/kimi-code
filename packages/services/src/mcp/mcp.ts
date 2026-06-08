@@ -1,10 +1,9 @@
 /**
- * `IMcpService` — daemon-facing MCP server surface (Chain 7 / P1.7, W9.1).
+ * `IMcpService` — daemon-facing MCP server surface.
  *
  * Wraps `ICoreProcessService.rpc.{listMcpServers, reconnectMcpServer}` and adapts
  * the agent-core `McpServerInfo` shape into SCHEMAS §8 `McpServer`. The
- * adapter helper (`toProtocolMcpServer`) is co-located here (moved from the
- * tool-portion of `adapter/tool-adapter.ts` in Phase B consolidation).
+ * adapter helper (`toProtocolMcpServer`) is co-located here.
  *
  * **CoreAPI surface used**:
  *   - `core.rpc.listMcpServers({}) => readonly McpServerInfo[]`
@@ -115,7 +114,7 @@ export const IMcpService = createDecorator<IMcpService>('mcpService');
 
 /**
  * Sentinel — daemon's route layer catches this and maps to envelope `code:
- * 40408 mcp.server_not_found`. Other thrown errors fall through to W4's
+ * 40408 mcp.server_not_found`. Other thrown errors fall through to
  * `installErrorHandler` (→ 50001).
  */
 export class McpServerNotFoundError extends Error {

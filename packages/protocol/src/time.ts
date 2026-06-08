@@ -1,5 +1,5 @@
 /**
- * ISO 8601 time normalization (PLAN.md §P5, SCHEMAS.md §1.4).
+ * ISO 8601 time normalization (SCHEMAS.md §1.4).
  *
  * Wire format: `"2026-06-04T10:30:00.123Z"` — always milliseconds + `Z`.
  *
@@ -48,7 +48,7 @@ export const isoDateTimeSchema = z
     return new Date(ms).toISOString();
   });
 
-/** Alias matching the canonical PLAN/SCHEMAS naming. */
+/** Alias matching the canonical SCHEMAS naming. */
 export const IsoDateTime = isoDateTimeSchema;
 
 /** Branded TS string type for canonical UTC ISO 8601 with millisecond precision. */

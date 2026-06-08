@@ -1,7 +1,7 @@
 /**
  * Filesystem REST endpoint schemas (REST.md §3.9).
  *
- * Endpoints landed in W10.1 (Chain 9):
+ * Single-file endpoints:
  *
  *   POST /v1/sessions/{sid}/fs:list
  *     Body: FsListRequest
@@ -13,7 +13,7 @@
  *     Response data: FsReadResponse
  *     Errors: 40401, 40409, 40906, 40907, 41302, 41304
  *
- * Endpoints landed in W10.2 (Chain 10):
+ * Batch endpoints:
  *
  *   POST /v1/sessions/{sid}/fs:list_many
  *     Body: FsListManyRequest  (paths[] up to 100)
@@ -31,7 +31,7 @@
  *     Per-path failures land as `null` (REST.md §3.9 line 524); only
  *     path-safety (41304) fails the whole call.
  *
- * Endpoints landed in W11.1 (Chain 11):
+ * Search endpoints:
  *
  *   POST /v1/sessions/{sid}/fs:search
  *     Body: FsSearchRequest   { query, limit?, include_globs?, exclude_globs?,
@@ -45,14 +45,14 @@
  *                                      elapsed_ms }
  *     Errors: 40401, 41303, 41304, 41305 (>30s grep timeout)
  *
- * Endpoints landed in W11.2 (Chain 12):
+ * Git endpoint:
  *
  *   POST /v1/sessions/{sid}/fs:git_status
  *     Body: FsGitStatusRequest  { paths? }
  *     Response data: FsGitStatusResponse  { branch, ahead, behind, entries }
  *     Errors: 40401, 40908 (not a git repo), 41304
  *
- * Endpoints landed in W11.3 (Chain 13):
+ * Download endpoint:
  *
  *   GET /v1/sessions/{sid}/fs/{path}:download
  *     Architectural exception (REST.md §3.9 line 558): only verb-in-URL GET
@@ -73,7 +73,7 @@
  * schemas themselves do NOT enforce path safety (Zod doesn't know `cwd`);
  * they only enforce non-empty + reasonable batch sizes.
  *
- * **Batch failure semantics** (Chain 10):
+ * **Batch failure semantics**:
  *   - `fs:list_many` uses REST.md §3.9 line 506-510 `{results,
  *     partial_errors?, truncated_paths?}` shape — per-path failures don't
  *     poison the whole response.
@@ -82,25 +82,24 @@
  *     per-path miss (most commonly 40409). The whole call only fails on
  *     path-safety (41304) of an input string.
  *
- * The discriminated-union `{kind: 'ok'} | {kind: 'err'}` shape that the W10
- * prompt sketched is NOT what REST.md §3.9 specifies; the spec uses a flat
+ * The discriminated-union `{kind: 'ok'} | {kind: 'err'}` shape is NOT what
+ * REST.md §3.9 specifies; the spec uses a flat
  * map + sidecar error dict for `:list_many` and `null`-marker for
  * `:stat_many`. We follow the spec.
  *
- * **W11 search/grep caps**: both endpoints have client-tunable caps that
- * default to REST.md §3.9 numbers; the daemon also enforces a hard 30s
- * timeout for grep (ROADMAP Chain 11 AC #4 → `41305 fs.grep_timeout`).
- * Search has a soft 500-hit cap (ROADMAP Chain 11 AC #3) — items beyond
- * 500 are dropped with `truncated: true`.
+ * **Search/grep caps**: both endpoints have client-tunable caps that default
+ * to REST.md §3.9 numbers; the daemon also enforces a hard 30s timeout for
+ * grep (`41305 fs.grep_timeout`). Search has a soft 500-hit cap — items
+ * beyond 500 are dropped with `truncated: true`.
  *
  * Default thresholds (mirror REST.md §3.9 line 462-622):
  *   - `:list.depth`               default 1, max 10 (sane recursion bound)
  *   - `:list.limit`               default 200, max 1000
  *   - `:list_many.depth`          default 1, max 10
  *   - `:list_many.limit`          default 200, max 1000 (per-path)
- *   - `:list_many.paths.len`      max 100 (matches ROADMAP Chain 10 AC #1)
+ *   - `:list_many.paths.len`      max 100
  *   - `:read.length`              default 1048576 (1 MB), max 10485760 (10 MB)
- *   - `:stat_many.paths.len`      max 1000 (matches ROADMAP Chain 10 AC #3)
+ *   - `:stat_many.paths.len`      max 1000
  *   - `:search.limit`             default 50, max 200 (REST.md §3.9 line 583)
  *   - `:grep.max_files`           default 200
  *   - `:grep.max_matches_per_file` default 50
@@ -128,7 +127,7 @@ export const fsListSortSchema = z.enum([
 ]);
 export type FsListSort = z.infer<typeof fsListSortSchema>;
 
-// --- POST /v1/sessions/{sid}/fs:list  (W10.1 / Chain 9) --------------------
+// --- POST /v1/sessions/{sid}/fs:list          --------------------
 
 export const fsListRequestSchema = z.object({
   /** Default '.' = session.cwd root. */
@@ -153,7 +152,7 @@ export const fsListResponseSchema = z.object({
 });
 export type FsListResponse = z.infer<typeof fsListResponseSchema>;
 
-// --- POST /v1/sessions/{sid}/fs:read  (W10.1 / Chain 9) --------------------
+// --- POST /v1/sessions/{sid}/fs:read          --------------------
 
 export const fsReadEncodingRequestSchema = z.enum(['auto', 'utf-8', 'base64']);
 export const fsReadEncodingResponseSchema = z.enum(['utf-8', 'base64']);
@@ -190,7 +189,7 @@ export const fsReadResponseSchema = z.object({
 });
 export type FsReadResponse = z.infer<typeof fsReadResponseSchema>;
 
-// --- POST /v1/sessions/{sid}/fs:list_many  (W10.2 / Chain 10) --------------
+// --- POST /v1/sessions/{sid}/fs:list_many          --------------
 
 export const fsListManyRequestSchema = z.object({
   paths: z.array(z.string().min(1)).min(1).max(100),
@@ -223,7 +222,7 @@ export const fsListManyResponseSchema = z.object({
 });
 export type FsListManyResponse = z.infer<typeof fsListManyResponseSchema>;
 
-// --- POST /v1/sessions/{sid}/fs:stat  (W10.2 / Chain 10) -------------------
+// --- POST /v1/sessions/{sid}/fs:stat          -------------------
 
 export const fsStatRequestSchema = z.object({
   path: z.string().min(1),
@@ -233,7 +232,7 @@ export type FsStatRequest = z.infer<typeof fsStatRequestSchema>;
 export const fsStatResponseSchema = fsEntrySchema;
 export type FsStatResponse = z.infer<typeof fsStatResponseSchema>;
 
-// --- POST /v1/sessions/{sid}/fs:stat_many  (W10.2 / Chain 10) --------------
+// --- POST /v1/sessions/{sid}/fs:stat_many          --------------
 
 export const fsStatManyRequestSchema = z.object({
   paths: z.array(z.string().min(1)).min(1).max(1000),
@@ -250,7 +249,7 @@ export const fsStatManyResponseSchema = z.object({
 });
 export type FsStatManyResponse = z.infer<typeof fsStatManyResponseSchema>;
 
-// --- POST /v1/sessions/{sid}/fs:search  (W11.1 / Chain 11) -----------------
+// --- POST /v1/sessions/{sid}/fs:search          -----------------
 
 /**
  * REST.md §3.9 line 580-588 verbatim:
@@ -262,8 +261,8 @@ export type FsStatManyResponse = z.infer<typeof fsStatManyResponseSchema>;
  *     follow_gitignore?: boolean       // default true
  *   }
  *
- * The minimal-glob grammar from W10 (`*`, `**`, `?`) applies to the
- * include/exclude lists.
+ * The minimal-glob grammar (`*`, `**`, `?`) applies to the include/exclude
+ * lists.
  */
 export const fsSearchRequestSchema = z.object({
   /** Fuzzy filename query; e.g. `"buton"` matches `Button.tsx`. */
@@ -286,7 +285,7 @@ export const fsSearchResponseSchema = z.object({
 });
 export type FsSearchResponse = z.infer<typeof fsSearchResponseSchema>;
 
-// --- POST /v1/sessions/{sid}/fs:grep  (W11.1 / Chain 11) -------------------
+// --- POST /v1/sessions/{sid}/fs:grep          -------------------
 
 /**
  * REST.md §3.9 line 611-622 verbatim:
@@ -303,8 +302,8 @@ export type FsSearchResponse = z.infer<typeof fsSearchResponseSchema>;
  *     context_lines?: number           // default 2
  *   }
  *
- * The 30s hard timeout (ROADMAP Chain 11 AC #4) is enforced by the daemon,
- * not the schema. Errors: `41305 fs.grep_timeout` (>30s),
+ * The 30s hard timeout is enforced by the daemon, not the schema. Errors:
+ * `41305 fs.grep_timeout` (>30s),
  * `41303 fs.too_many_results` (hit `max_total_matches`).
  */
 export const fsGrepRequestSchema = z.object({
@@ -339,7 +338,7 @@ export const fsGrepResponseSchema = z.object({
 });
 export type FsGrepResponse = z.infer<typeof fsGrepResponseSchema>;
 
-// --- POST /v1/sessions/{sid}/fs:git_status  (W11.2 / Chain 12) -------------
+// --- POST /v1/sessions/{sid}/fs:git_status          -------------
 
 /**
  * REST.md §3.9 line 653-657: request is `{paths?}` (omit for cwd-wide).
@@ -378,7 +377,7 @@ export const fsGitStatusResponseSchema = z.object({
 });
 export type FsGitStatusResponse = z.infer<typeof fsGitStatusResponseSchema>;
 
-// --- GET /v1/sessions/{sid}/fs/{path}:download  (W11.3 / Chain 13) ---------
+// --- GET /v1/sessions/{sid}/fs/{path}:download          ---------
 
 /**
  * **Architectural exception** — REST.md §3.9 line 558 (the ONLY verb-in-URL
