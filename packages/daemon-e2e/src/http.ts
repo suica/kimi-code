@@ -80,13 +80,13 @@ export class HttpClient {
     return this.request('GET', `/sessions${qs(query)}`, undefined);
   }
   updateSession(sid: string, body: SessionUpdate): Promise<Session> {
-    // Daemon canonical route: `POST /v1/sessions/{sid}/meta` (REST.md §3.3).
+    // Daemon canonical route: `POST /v1/sessions/{sid}/profile` (REST.md §3.3).
     // Earlier scaffolding spoke `PATCH /v1/sessions/{sid}`, which the daemon
     // never wired — keep the helper name (used by existing fixtures) and just
     // dispatch to the right URL.
     return this.request<Session>(
       'POST',
-      `/sessions/${encodeURIComponent(sid)}/meta`,
+      `/sessions/${encodeURIComponent(sid)}/profile`,
       body,
     );
   }

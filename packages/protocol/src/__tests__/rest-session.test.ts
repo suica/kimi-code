@@ -10,9 +10,10 @@ import { describe, expect, it } from 'vitest';
 import {
   createSessionRequestSchema,
   deleteSessionResponseSchema,
+  getSessionProfileResponseSchema,
   listSessionsQuerySchema,
   sessionStatusResponseSchema,
-  updateSessionMetaRequestSchema,
+  updateSessionProfileRequestSchema,
   updateSessionRequestSchema,
 } from '../rest/session';
 
@@ -81,26 +82,55 @@ describe('listSessionsQuerySchema', () => {
   });
 });
 
-describe('updateSessionMetaRequestSchema', () => {
+describe('getSessionProfileResponseSchema', () => {
+  it('accepts a Session payload', () => {
+    const parsed = getSessionProfileResponseSchema.parse({
+      id: 'sess_abc',
+      workspace_id: 'wd_kimi_0123456789ab',
+      title: 'Profile',
+      created_at: '2026-01-01T00:00:00.000Z',
+      updated_at: '2026-01-01T00:00:00.000Z',
+      status: 'idle',
+      metadata: { cwd: '/tmp/foo' },
+      agent_config: { model: '' },
+      usage: {
+        input_tokens: 0,
+        output_tokens: 0,
+        cache_read_tokens: 0,
+        cache_creation_tokens: 0,
+        total_cost_usd: 0,
+        context_tokens: 0,
+        context_limit: 0,
+        turn_count: 0,
+      },
+      permission_rules: [],
+      message_count: 0,
+      last_seq: 0,
+    });
+    expect(parsed.id).toBe('sess_abc');
+  });
+});
+
+describe('updateSessionProfileRequestSchema', () => {
   it('accepts a metadata patch (without cwd)', () => {
     expect(
-      updateSessionMetaRequestSchema.parse({ metadata: { custom_field: 'x' } }),
+      updateSessionProfileRequestSchema.parse({ metadata: { custom_field: 'x' } }),
     ).toEqual({ metadata: { custom_field: 'x' } });
   });
 
   it('accepts an empty POST body (no-op)', () => {
-    expect(updateSessionMetaRequestSchema.parse({})).toEqual({});
+    expect(updateSessionProfileRequestSchema.parse({})).toEqual({});
   });
 
   it('accepts agent_config.model', () => {
-    const parsed = updateSessionMetaRequestSchema.parse({
+    const parsed = updateSessionProfileRequestSchema.parse({
       agent_config: { model: 'moonshot-v1-128k' },
     });
     expect(parsed.agent_config?.model).toBe('moonshot-v1-128k');
   });
 
   it('accepts agent_config runtime controls (thinking + permission_mode + plan_mode)', () => {
-    const parsed = updateSessionMetaRequestSchema.parse({
+    const parsed = updateSessionProfileRequestSchema.parse({
       agent_config: {
         thinking: 'medium',
         permission_mode: 'auto',
@@ -116,9 +146,9 @@ describe('updateSessionMetaRequestSchema', () => {
 });
 
 describe('updateSessionRequestSchema (legacy alias)', () => {
-  it('round-trips through the same schema as updateSessionMetaRequestSchema', () => {
+  it('round-trips through the same schema as updateSessionProfileRequestSchema', () => {
     expect(updateSessionRequestSchema.parse({ metadata: { custom_field: 'x' } })).toEqual(
-      updateSessionMetaRequestSchema.parse({ metadata: { custom_field: 'x' } }),
+      updateSessionProfileRequestSchema.parse({ metadata: { custom_field: 'x' } }),
     );
   });
 });

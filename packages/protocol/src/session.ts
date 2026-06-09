@@ -112,11 +112,11 @@ export const sessionAgentConfigSchema = z.object({
   // expose them on the list path) — callers wanting the live values use
   // `GET /v1/sessions/{sid}/status`. Optional on the WRITE side
   // (`.partial()` → `sessionAgentConfigPartialSchema`) so `POST
-  // /v1/sessions/{sid}/meta` can supply any subset to dispatch the
+  // /v1/sessions/{sid}/profile` can supply any subset to dispatch the
   // matching `setThinking` / `setPermission` / `enterPlan|cancelPlan` RPCs
   // through `IPromptService.applyAgentState`. The enum literals are
   // shared with `promptSubmissionSchema` so prompt-body overrides and
-  // /meta updates speak the same vocabulary.
+  // /profile updates speak the same vocabulary.
   thinking: promptThinkingSchema.optional(),
   permission_mode: promptPermissionModeSchema.optional(),
   plan_mode: z.boolean().optional(),

@@ -10,7 +10,7 @@
  * setter when the field actually changes — and tags each dispatch
  * `source='prompt'` so debug observers can attribute it.
  *
- * **Stateful session / /meta path**: `POST /v1/sessions/{sid}/meta` with
+ * **Stateful session / /profile path**: `POST /v1/sessions/{sid}/profile` with
  * `{agent_config: {...}}` mutates the same shadow through
  * `IPromptService.applyAgentState`, tagged `source='meta'`. A subsequent
  * content-only `POST /prompts` (no overrides) inherits the shadow and
@@ -40,7 +40,7 @@
  *   4. Submit with `plan_mode: false` + `permission_mode: 'yolo'`.
  *      Expect EXACTLY 2 new entries in `_applyAgentState` order
  *      (permission before plan): `[setPermission, cancelPlan]`.
- *   5. POST `/sessions/{sid}/meta` with `{agent_config: {permission_mode:
+ *   5. POST `/sessions/{sid}/profile` with `{agent_config: {permission_mode:
  *      'manual'}}` → expect +1 dispatch tagged `source='meta'`. Then a
  *      content-only `POST /prompts` → expect +0 dispatches.
  *
@@ -212,8 +212,8 @@ async function main() {
       logAfterPhase4 = await fetchDispatchLog(sid);
     }
 
-    // ── Phase 5 — POST /meta drives the shadow (source='meta') ────────────
-    // Flip `permission_mode` back to `manual` via /meta. The shared
+    // ── Phase 5 — POST /profile drives the shadow (source='meta') ──────────
+    // Flip `permission_mode` back to `manual` via /profile. The shared
     // applyAgentState helper diff-dispatches a single `setPermission` and
     // records source='meta'. A subsequent CONTENT-ONLY prompt then inherits
     // the shadow and triggers ZERO additional setters — the proof that
@@ -226,11 +226,11 @@ async function main() {
       const log = await fetchDispatchLog(sid);
       assert.equal(state.permissionMode, 'manual', `phase 5a: shadow.permissionMode=${state.permissionMode}, want manual`);
       const newEntries = log.slice(logAfterPhase4.length);
-      assert.equal(newEntries.length, 1, `phase 5a: expected +1 dispatch from /meta, got +${newEntries.length}: ${JSON.stringify(newEntries)}`);
+      assert.equal(newEntries.length, 1, `phase 5a: expected +1 dispatch from /profile, got +${newEntries.length}: ${JSON.stringify(newEntries)}`);
       assert.equal(newEntries[0].kind, 'setPermission', `phase 5a: expected setPermission, got ${newEntries[0].kind}`);
       assert.equal(newEntries[0].source, 'meta', `phase 5a: expected source='meta', got ${newEntries[0].source}`);
-      assert.equal(newEntries[0].promptId, '', `phase 5a: /meta dispatch carries empty promptId, got ${JSON.stringify(newEntries[0].promptId)}`);
-      console.log(`▶ phase 5a: POST /meta permission=manual — +1 setPermission dispatched (source='meta') ✓`);
+      assert.equal(newEntries[0].promptId, '', `phase 5a: /profile dispatch carries empty promptId, got ${JSON.stringify(newEntries[0].promptId)}`);
+      console.log(`▶ phase 5a: POST /profile permission=manual — +1 setPermission dispatched (source='meta') ✓`);
     }
     const logAfterPhase5a = await fetchDispatchLog(sid);
     await client.submitAndWaitStateful(

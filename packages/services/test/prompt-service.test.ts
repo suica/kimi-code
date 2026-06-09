@@ -83,7 +83,7 @@ function mkBody(over: Partial<PromptSubmission> = {}): PromptSubmission {
  * Minimal submit body — content only, no per-turn overrides. Triggers the
  * stateful-session path: no bootstrap RPCs, no setter dispatch, no
  * dispatch-log entries. Mirrors what the canonical web client sends after
- * setting state via `POST /sessions/{sid}/meta`.
+ * setting state via `POST /sessions/{sid}/profile`.
  */
 function mkBodyMinimal(over: Partial<PromptSubmission> = {}): PromptSubmission {
   return {
@@ -1013,7 +1013,7 @@ describe('PromptService stateful session — content-only path', () => {
   });
 });
 
-describe('PromptService.applyAgentState (POST /sessions/{sid}/meta path)', () => {
+describe('PromptService.applyAgentState (POST /sessions/{sid}/profile path)', () => {
   it('throws SessionNotFoundError on unknown sid', async () => {
     const { bridge } = makeBridge();
     const { bus } = makeBus();
@@ -1049,7 +1049,7 @@ describe('PromptService.applyAgentState (POST /sessions/{sid}/meta path)', () =>
     expect(log?.[0]?.promptId).toBe('');
   });
 
-  it('subsequent content-only submit observes the shadow set via /meta and dispatches nothing', async () => {
+  it('subsequent content-only submit observes the shadow set via /profile and dispatches nothing', async () => {
     const { bridge, record } = makeBridge({
       config: { thinkingLevel: 'off' },
       permission: { mode: 'manual' },

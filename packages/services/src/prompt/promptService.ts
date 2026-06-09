@@ -351,11 +351,11 @@ export class PromptService
   /**
    * `IPromptService.applyAgentState` — entry point shared by
    * `submit` (per-turn override) and `SessionService.update`
-   * (`POST /sessions/{sid}/meta`). Validates the session exists,
+   * (`POST /sessions/{sid}/profile`). Validates the session exists,
    * bootstraps the shadow lazily, then diff-dispatches each non-shadow
    * field through the matching `core.rpc.*` setter. Dispatch-log
    * entries are tagged with the `source` so downstream observers can
-   * tell prompt-driven and meta-driven setters apart.
+   * tell prompt-driven and profile-driven setters apart.
    *
    * No-op when every field matches the shadow; throws on setter failure
    * (the caller / route layer surfaces the error). Empty `patch` is

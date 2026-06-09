@@ -1,18 +1,20 @@
 /**
  * `/sessions/*` REST routes.
  *
- * 5 endpoints (REST.md §3.3):
+ * Session endpoints (REST.md §3.3):
  *
- *   POST   /sessions               body: SessionCreate    data: Session
- *   GET    /sessions               query: ListSessions    data: Page<Session>
- *   GET    /sessions/{id}          -                      data: Session
- *   POST   /sessions/{id}/meta     body: SessionUpdate    data: Session
- *   DELETE /sessions/{id}          -                      data: { deleted: true }
+ *   POST   /sessions                  body: SessionCreate    data: Session
+ *   GET    /sessions                  query: ListSessions    data: Page<Session>
+ *   GET    /sessions/{id}             -                      data: Session
+ *   GET    /sessions/{id}/profile     -                      data: Session
+ *   POST   /sessions/{id}/profile     body: SessionUpdate    data: Session
+ *   GET    /sessions/{id}/status      -                      data: SessionStatus
+ *   DELETE /sessions/{id}             -                      data: { deleted: true }
  *
  * Each handler invokes `accessor.get(ISessionService).<method>(...)`, and emits
  * an `okEnvelope`.
  *
- * **Runtime controls on /meta**: `agent_config` on the write side is the
+ * **Runtime controls on /profile**: `agent_config` on the write side is the
  * canonical mutation point for the four shadowed runtime fields —
  * `model`, `thinking`, `permission_mode`, `plan_mode`. The services
  * layer routes them through `IPromptService.applyAgentState(id, patch,
@@ -44,8 +46,7 @@ import {
   sessionSchema,
   sessionStatusResponseSchema,
   sessionStatusSchema,
-  updateSessionMetaRequestSchema,
-  updateSessionRequestSchema,
+  updateSessionProfileRequestSchema,
   workspaceIdSchema,
 } from '@moonshot-ai/protocol';
 import {
@@ -321,19 +322,49 @@ export function registerSessionsRoutes(
   );
   app.get(getRoute.path, getRoute.options, getRoute.handler as Parameters<SessionRouteHost['get']>[2]);
 
-  // POST /sessions/{session_id}/meta ------------------------------------
-  const metaRoute = defineRoute(
+  // GET /sessions/{session_id}/profile ---------------------------------
+  const getProfileRoute = defineRoute(
     {
-      method: 'POST',
-      path: '/sessions/{session_id}/meta',
+      method: 'GET',
+      path: '/sessions/{session_id}/profile',
       params: sessionIdParamSchema,
-      body: updateSessionMetaRequestSchema,
       success: { data: sessionSchema },
       errors: {
         [ErrorCode.VALIDATION_FAILED]: { detailsSchema },
         [ErrorCode.SESSION_NOT_FOUND]: {},
       },
-      description: 'Update session mutable properties (title, metadata, agent_config)',
+      description: 'Get session profile',
+      tags: ['sessions'],
+    },
+    async (req, reply) => {
+      try {
+        const { session_id } = req.params;
+        const session = await ix.invokeFunction((a) => a.get(ISessionService).get(session_id));
+        reply.send(okEnvelope(session, req.id));
+      } catch (err) {
+        sendMappedError(reply, req.id, err);
+      }
+    },
+  );
+  app.get(
+    getProfileRoute.path,
+    getProfileRoute.options,
+    getProfileRoute.handler as Parameters<SessionRouteHost['get']>[2],
+  );
+
+  // POST /sessions/{session_id}/profile --------------------------------
+  const updateProfileRoute = defineRoute(
+    {
+      method: 'POST',
+      path: '/sessions/{session_id}/profile',
+      params: sessionIdParamSchema,
+      body: updateSessionProfileRequestSchema,
+      success: { data: sessionSchema },
+      errors: {
+        [ErrorCode.VALIDATION_FAILED]: { detailsSchema },
+        [ErrorCode.SESSION_NOT_FOUND]: {},
+      },
+      description: 'Update session profile (title, metadata, agent_config)',
       tags: ['sessions'],
     },
     async (req, reply) => {
@@ -349,7 +380,11 @@ export function registerSessionsRoutes(
       }
     },
   );
-  app.post(metaRoute.path, metaRoute.options, metaRoute.handler as Parameters<SessionRouteHost['post']>[2]);
+  app.post(
+    updateProfileRoute.path,
+    updateProfileRoute.options,
+    updateProfileRoute.handler as Parameters<SessionRouteHost['post']>[2],
+  );
 
   // GET /sessions/{session_id}/status -----------------------------------
   const statusRoute = defineRoute(

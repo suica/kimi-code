@@ -10,7 +10,7 @@
  * carries `content` (required) plus `metadata?`, `model?`, `thinking?`,
  * `permission_mode?`, `plan_mode?`. The four runtime controls default to
  * the session's shadow state — the canonical mutation path is
- * `POST /sessions/{sid}/meta`. When the body carries any of the four, the
+ * `POST /sessions/{sid}/profile`. When the body carries any of the four, the
  * services layer diff-dispatches the matching setter (`source='prompt'`)
  * BEFORE running the prompt, so an override is also a state change for
  * the session.

@@ -21,7 +21,7 @@
  *
  * **Stateful session, optional per-turn overrides**: `model`, `thinking`,
  * `permission_mode`, and `plan_mode` are OPTIONAL on every prompt. The
- * canonical place to mutate them is `POST /v1/sessions/{sid}/meta`
+ * canonical place to mutate them is `POST /v1/sessions/{sid}/profile`
  * (SCHEMAS §2 `SessionUpdate.agent_config`), which the daemon dispatches
  * through `IPromptService.applyAgentState` against the same per-session
  * shadow. When a prompt body carries one or more of these fields, the
@@ -85,9 +85,9 @@ export type PromptPermissionMode = z.infer<typeof promptPermissionModeSchema>;
  * `model` / `thinking` / `permission_mode` / `plan_mode` are OPTIONAL per-turn
  * overrides. Each defaults to the session's current shadow state — the
  * canonical way to change a session's runtime state is `POST
- * /v1/sessions/{sid}/meta`. When supplied here, the daemon diff-dispatches
+ * /v1/sessions/{sid}/profile`. When supplied here, the daemon diff-dispatches
  * the matching setter BEFORE the prompt fires; the new value persists past
- * this turn (it lands in the same shadow as `/meta`).
+ * this turn (it lands in the same shadow as `/profile`).
  */
 export const promptSubmissionSchema = z.object({
   content: z.array(messageContentSchema).min(1),

@@ -87,14 +87,14 @@ export interface ISessionService {
   list(query: SessionListQuery): Promise<PageResponse<Session>>;
 
   /**
-   * `GET /v1/sessions/{id}` — single session by id. Implemented as
-   * `listSessions({}) + .find(id)`; throws `SessionNotFoundError` (→ 40401)
-   * when not found.
+   * `GET /v1/sessions/{id}` and `GET /v1/sessions/{id}/profile` — single
+   * session by id. Implemented as `listSessions({}) + .find(id)`; throws
+   * `SessionNotFoundError` (→ 40401) when not found.
    */
   get(id: string): Promise<Session>;
 
   /**
-   * `POST /v1/sessions/{id}/meta` — update session mutable properties.
+   * `POST /v1/sessions/{id}/profile` — update session mutable properties.
    * Backed by `updateSessionMetadata` for metadata changes; `title` writes
    * through the same path (mapped onto agent-core's `SessionMeta.title`).
    * `agent_config.model` is dispatched to `core.rpc.setModel` when present.

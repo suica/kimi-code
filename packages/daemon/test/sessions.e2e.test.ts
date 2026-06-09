@@ -12,7 +12,8 @@
  *   - POST /api/v1/sessions               → envelope code 0 + Session payload
  *   - GET  /api/v1/sessions               → Page<Session> + has_more
  *   - GET  /api/v1/sessions/{id}          → Session (40401 on unknown id)
- *   - POST /api/v1/sessions/{id}/meta     → Session (40401 on unknown id)
+ *   - GET  /api/v1/sessions/{id}/profile  → Session (40401 on unknown id)
+ *   - POST /api/v1/sessions/{id}/profile  → Session (40401 on unknown id)
  *   - DELETE /api/v1/sessions/{id}        → { deleted: true } (40401 on unknown)
  *
  * Plus the validation matrix:
@@ -210,10 +211,43 @@ describe('GET /api/v1/sessions/{session_id} — fetch single', () => {
   });
 });
 
-describe('POST /api/v1/sessions/{session_id}/meta — update', () => {
+describe('GET /api/v1/sessions/{session_id}/profile — fetch profile', () => {
+  it('returns the matching Session profile', async () => {
+    const r = await bootDaemon();
+    const cwd = join(tmpDir, 'workspace-profile-get');
+    const createRes = await appOf(r).inject({
+      method: 'POST',
+      url: '/api/v1/sessions',
+      payload: { metadata: { cwd } },
+    });
+    const created = envelopeOf<{ id: string }>(createRes.json()).data!;
+
+    const res = await appOf(r).inject({
+      method: 'GET',
+      url: `/api/v1/sessions/${created.id}/profile`,
+    });
+    const env = envelopeOf<unknown>(res.json());
+    expect(env.code).toBe(0);
+    const session = sessionSchema.parse(env.data);
+    expect(session.id).toBe(created.id);
+    expect(session.metadata.cwd).toBe(cwd);
+  });
+
+  it('returns 40401 for unknown id', async () => {
+    const r = await bootDaemon();
+    const res = await appOf(r).inject({
+      method: 'GET',
+      url: '/api/v1/sessions/sess_missing/profile',
+    });
+    const env = envelopeOf<unknown>(res.json());
+    expect(env.code).toBe(40401);
+  });
+});
+
+describe('POST /api/v1/sessions/{session_id}/profile — update profile', () => {
   it('updates the title and returns the post-update Session', async () => {
     const r = await bootDaemon();
-    const cwd = join(tmpDir, 'workspace-meta');
+    const cwd = join(tmpDir, 'workspace-profile-update');
     const created = envelopeOf<{ id: string }>(
       (await appOf(r).inject({
         method: 'POST',
@@ -224,7 +258,7 @@ describe('POST /api/v1/sessions/{session_id}/meta — update', () => {
 
     const res = await appOf(r).inject({
       method: 'POST',
-      url: `/api/v1/sessions/${created.id}/meta`,
+      url: `/api/v1/sessions/${created.id}/profile`,
       payload: { title: 'Renamed' },
     });
     const env = envelopeOf<unknown>(res.json());
@@ -239,7 +273,7 @@ describe('POST /api/v1/sessions/{session_id}/meta — update', () => {
     const r = await bootDaemon();
     const res = await appOf(r).inject({
       method: 'POST',
-      url: '/api/v1/sessions/sess_missing/meta',
+      url: '/api/v1/sessions/sess_missing/profile',
       payload: { title: 'x' },
     });
     const env = envelopeOf<unknown>(res.json());

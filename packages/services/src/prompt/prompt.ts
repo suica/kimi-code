@@ -93,7 +93,7 @@ export interface PromptAbortResult {
  *
  * Used by both `PromptService.submit` (when the caller carries per-turn
  * overrides on the body) and by `SessionService.update` (when `POST
- * /v1/sessions/{sid}/meta` patches `agent_config`).
+ * /v1/sessions/{sid}/profile` patches `agent_config`).
  */
 export interface AgentStatePatch {
   model?: string;
@@ -104,8 +104,8 @@ export interface AgentStatePatch {
 
 /**
  * Where an `applyAgentState` call originated. `'prompt'` is the
- * `POST /prompts` body override path; `'meta'` is the `POST /sessions/{sid}/meta`
- * path. Recorded in `PromptDispatchLogEntry.source` so the debug surface can
+ * `POST /prompts` body override path; `'meta'` is the legacy source label for
+ * the `POST /sessions/{sid}/profile` path. Recorded in `PromptDispatchLogEntry.source` so the debug surface can
  * attribute every dispatched setter to its triggering endpoint without the
  * caller having to interleave its own log entries.
  */
@@ -139,7 +139,7 @@ export interface IPromptService {
    * Apply a partial runtime-controls patch to a session's shadow,
    * diff-dispatching the matching `core.rpc.*` setter for any field that
    * differs. Used by both `submit` (per-turn override path) and
-   * `SessionService.update` (POST /sessions/{sid}/meta path).
+   * `SessionService.update` (POST /sessions/{sid}/profile path).
    *
    * Throws `SessionNotFoundError` (→ 40401) for unknown `sid`. Throws any
    * error the underlying setter throws. Idempotent: calling with values
@@ -147,7 +147,7 @@ export interface IPromptService {
    *
    * `promptId` is recorded on each appended dispatch-log entry so the
    * debug surface can attribute setters to the prompt that triggered
-   * them. Pass `undefined` for non-prompt callers (the `/meta` path) —
+   * them. Pass `undefined` for non-prompt callers (the `/profile` path) —
    * the entry's `promptId` will be the empty string.
    */
   applyAgentState(
@@ -282,13 +282,13 @@ export interface PromptDispatchLogEntry {
    * Prompt id this dispatch was made on behalf of. Minted at the top of
    * `submit()` so setter RPCs and the eventual `core.rpc.prompt(...)`
    * carry the same id. Empty string when the dispatch came from the
-   * `/sessions/{sid}/meta` path (no prompt context).
+   * `/sessions/{sid}/profile` path (no prompt context).
    */
   readonly promptId: string;
   /**
    * Which endpoint triggered the dispatch — `'prompt'` for a body
    * override on `POST /sessions/{sid}/prompts`, `'meta'` for a patch on
-   * `POST /sessions/{sid}/meta`. Lets the debug surface
+   * `POST /sessions/{sid}/profile`. Lets the debug surface
    * (`GET /debug/prompts/{sid}/dispatch-log`) and unit/e2e tests
    * attribute every setter to the request that caused it without
    * threading an extra log of its own.
