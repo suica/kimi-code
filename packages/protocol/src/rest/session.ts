@@ -10,6 +10,7 @@
  *   POST    /v1/sessions/{id}/profile     body: SessionUpdate   data: Session
  *   POST    /v1/sessions/{id}:fork        body: SessionFork     data: Session
  *   GET     /v1/sessions/{id}/status      -                     data: SessionStatus
+ *   POST    /v1/sessions/{id}:compact     body: CompactSession  data: {}
  *   DELETE  /v1/sessions/{id}             -                     data: { deleted: true }
  *
  * Cursor pagination (REST §1.6 / SCHEMAS §1.3) is shared via
@@ -110,6 +111,19 @@ export const sessionStatusResponseSchema = z.object({
   context_usage: z.number().min(0).max(1),
 });
 export type SessionStatusResponse = z.infer<typeof sessionStatusResponseSchema>;
+
+// --- POST /v1/sessions/{id}:compact ---------------------------------------
+
+export const compactSessionRequestSchema = z.preprocess(
+  (value) => value === undefined ? {} : value,
+  z.object({
+    instruction: z.string().optional(),
+  }),
+);
+export type CompactSessionRequest = z.infer<typeof compactSessionRequestSchema>;
+
+export const compactSessionResponseSchema = z.object({});
+export type CompactSessionResponse = z.infer<typeof compactSessionResponseSchema>;
 
 // --- DELETE /v1/sessions/{id} -----------------------------------------------
 

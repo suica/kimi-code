@@ -11,6 +11,8 @@ import {
 } from '@moonshot-ai/agent-core';
 import type { JsonObject, SessionMeta } from '@moonshot-ai/agent-core';
 import {
+  type CompactSessionRequest,
+  type CompactSessionResponse,
   type PageResponse,
   type Session,
   type SessionCreate,
@@ -40,6 +42,11 @@ const MAX_PAGE_SIZE = 100;
  */
 function asJsonObject(value: Record<string, unknown>): JsonObject {
   return value as unknown as JsonObject;
+}
+
+function normalizeOptionalString(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed === '' ? undefined : trimmed;
 }
 
 export class SessionService extends Disposable implements ISessionService {
@@ -273,6 +280,22 @@ export class SessionService extends Disposable implements ISessionService {
       max_context_tokens: maxContextTokens,
       context_usage: contextUsage,
     };
+  }
+
+  async compact(id: string, input: CompactSessionRequest): Promise<CompactSessionResponse> {
+    const all = await this.core.rpc.listSessions({});
+    const summary = all.find((s) => s.id === id);
+    if (summary === undefined) {
+      throw new SessionNotFoundError(id);
+    }
+
+    const instruction = normalizeOptionalString(input.instruction);
+    await this.core.rpc.beginCompaction({
+      sessionId: id,
+      agentId: 'main',
+      instruction,
+    });
+    return {};
   }
 
   async delete(id: string): Promise<{ deleted: true }> {

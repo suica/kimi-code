@@ -8,6 +8,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  compactSessionRequestSchema,
+  compactSessionResponseSchema,
   createSessionRequestSchema,
   deleteSessionResponseSchema,
   forkSessionRequestSchema,
@@ -257,6 +259,32 @@ describe('sessionStatusResponseSchema', () => {
         context_usage: 2,
       }).success,
     ).toBe(false);
+  });
+});
+
+describe('compactSessionRequestSchema', () => {
+  it('accepts an empty body', () => {
+    expect(compactSessionRequestSchema.parse({})).toEqual({});
+  });
+
+  it('treats a missing body as empty', () => {
+    expect(compactSessionRequestSchema.parse(undefined)).toEqual({});
+  });
+
+  it('accepts an optional instruction string', () => {
+    expect(compactSessionRequestSchema.parse({ instruction: '  focus on decisions  ' })).toEqual({
+      instruction: '  focus on decisions  ',
+    });
+  });
+
+  it('rejects a non-string instruction', () => {
+    expect(compactSessionRequestSchema.safeParse({ instruction: 123 }).success).toBe(false);
+  });
+});
+
+describe('compactSessionResponseSchema', () => {
+  it('accepts the empty success payload', () => {
+    expect(compactSessionResponseSchema.parse({})).toEqual({});
   });
 });
 

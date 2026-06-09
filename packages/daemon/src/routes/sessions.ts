@@ -10,6 +10,7 @@
  *   POST   /sessions/{id}/profile     body: SessionUpdate    data: Session
  *   POST   /sessions/{id}:fork        body: SessionFork      data: Session
  *   GET    /sessions/{id}/status      -                      data: SessionStatus
+ *   POST   /sessions/{id}:compact     body: CompactSession   data: {}
  *   DELETE /sessions/{id}             -                      data: { deleted: true }
  *
  * Each handler invokes `accessor.get(ISessionService).<method>(...)`, and emits
@@ -41,6 +42,8 @@
 
 import {
   ErrorCode,
+  compactSessionRequestSchema,
+  compactSessionResponseSchema,
   createSessionRequestSchema,
   deleteSessionResponseSchema,
   forkSessionRequestSchema,
@@ -65,11 +68,11 @@ import {
 
 import { errEnvelope, okEnvelope } from '../envelope';
 import { defineRoute } from '../middleware/defineRoute';
+import { parseActionSuffix } from './action-suffix';
 import {
   IWorkspaceRegistry,
   WorkspaceNotFoundError,
 } from '#/services/workspace';
-import { parseActionSuffix } from './action-suffix';
 
 /**
  * Per-request structural typing — we never need the full FastifyRequest type;
@@ -154,6 +157,15 @@ const sessionIdParamSchema = z.object({
 const sessionActionTailParamSchema = z.object({
   tail: z.string().min(1),
 });
+
+const sessionActionRequestSchema = z.preprocess(
+  (value) => value === undefined ? {} : value,
+  z.object({
+    title: z.string().min(1).optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+    instruction: z.string().optional(),
+  }),
+);
 
 // --- Registration -----------------------------------------------------------
 
@@ -397,28 +409,30 @@ export function registerSessionsRoutes(
     updateProfileRoute.handler as Parameters<SessionRouteHost['post']>[2],
   );
 
-  // POST /sessions/{session_id}:fork -----------------------------------
-  const forkRoute = defineRoute(
+  // POST /sessions/{session_id}:fork|compact ---------------------------
+  const sessionActionRoute = defineRoute(
     {
       method: 'POST',
       path: '/sessions/{tail}',
       params: sessionActionTailParamSchema,
-      body: forkSessionRequestSchema,
-      success: { data: sessionSchema },
+      body: sessionActionRequestSchema,
+      success: { data: z.union([sessionSchema, compactSessionResponseSchema]) },
       errors: {
         [ErrorCode.VALIDATION_FAILED]: { detailsSchema },
         [ErrorCode.SESSION_NOT_FOUND]: {},
         [ErrorCode.SESSION_BUSY]: {},
+        [ErrorCode.COMPACTION_UNABLE]: {},
       },
-      description: 'Fork a session',
+      description: 'Run a session action',
       tags: ['sessions'],
+      operationId: 'runSessionAction',
     },
     async (req, reply) => {
       try {
         const { tail } = req.params;
         const parsed = parseActionSuffix({
           tail,
-          allowedActions: ['fork'] as const,
+          allowedActions: ['fork', 'compact'] as const,
           resourceLabel: 'session',
         });
         if (parsed.kind !== 'action') {
@@ -433,20 +447,30 @@ export function registerSessionsRoutes(
           );
           return;
         }
-        const body = req.body;
-        const session = await ix.invokeFunction((a) =>
-          a.get(ISessionService).fork(parsed.id, body),
+
+        if (parsed.action === 'fork') {
+          const body = forkSessionRequestSchema.parse(req.body);
+          const session = await ix.invokeFunction((a) =>
+            a.get(ISessionService).fork(parsed.id, body),
+          );
+          reply.send(okEnvelope(session, req.id));
+          return;
+        }
+
+        const body = compactSessionRequestSchema.parse(req.body);
+        const result = await ix.invokeFunction((a) =>
+          a.get(ISessionService).compact(parsed.id, body),
         );
-        reply.send(okEnvelope(session, req.id));
+        reply.send(okEnvelope(result, req.id));
       } catch (err) {
         sendMappedError(reply, req.id, err);
       }
     },
   );
   app.post(
-    forkRoute.path,
-    forkRoute.options,
-    forkRoute.handler as Parameters<SessionRouteHost['post']>[2],
+    sessionActionRoute.path,
+    sessionActionRoute.options,
+    sessionActionRoute.handler as Parameters<SessionRouteHost['post']>[2],
   );
 
   // GET /sessions/{session_id}/status -----------------------------------
@@ -529,6 +553,10 @@ function sendMappedError(
   }
   if (isForkActiveTurnError(err)) {
     reply.send(errEnvelope(ErrorCode.SESSION_BUSY, formatErrorMessage(err), requestId));
+    return;
+  }
+  if (err instanceof KimiError && err.code === ErrorCodes.COMPACTION_UNABLE) {
+    reply.send(errEnvelope(ErrorCode.COMPACTION_UNABLE, err.message, requestId));
     return;
   }
   // Re-throw so Fastify's error hook handles it.

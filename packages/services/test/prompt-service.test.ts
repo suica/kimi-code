@@ -247,6 +247,7 @@ function makeSessionService(): {
     update: vi.fn() as unknown as ISessionService['update'],
     fork: vi.fn() as unknown as ISessionService['fork'],
     getStatus: vi.fn() as unknown as ISessionService['getStatus'],
+    compact: vi.fn() as unknown as ISessionService['compact'],
     delete: vi.fn() as unknown as ISessionService['delete'],
     onDidCreate: createEmitter.event,
     onDidClose: closeEmitter.event,

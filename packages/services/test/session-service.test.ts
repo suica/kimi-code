@@ -53,6 +53,7 @@ interface FakeBridgeState {
   renamedTitles: Map<string, string>;
   metadataPatches: Map<string, UpdateSessionMetadataPayload['metadata']>;
   forkPayloads: Array<WithSessionId<Omit<ForkSessionPayload, 'sessionId'>>>;
+  compactions: Array<{ sessionId: string; agentId: string; instruction?: string }>;
 }
 
 /**
@@ -176,6 +177,11 @@ function makeFakeBridge(state: FakeBridgeState): ICoreProcessService {
         }
         return found;
       }),
+    beginCompaction: vi
+      .fn()
+      .mockImplementation(async (payload: { sessionId: string; agentId: string; instruction?: string }) => {
+        state.compactions.push(payload);
+      }),
   };
   return {
     rpc: rpc as CoreRPC,
@@ -193,6 +199,7 @@ function freshState(): FakeBridgeState {
     renamedTitles: new Map(),
     metadataPatches: new Map(),
     forkPayloads: [],
+    compactions: [],
   };
 }
 
@@ -619,6 +626,30 @@ describe('SessionService.delete', () => {
 
   it('throws SessionNotFoundError on a missing id', async () => {
     await expect(svc.delete('does-not-exist')).rejects.toBeInstanceOf(SessionNotFoundError);
+  });
+});
+
+describe('SessionService.compact', () => {
+  it('calls bridge.rpc.beginCompaction with the main agent and a trimmed instruction', async () => {
+    const created = await svc.create({ metadata: { cwd: '/tmp/compact' } });
+    const result = await svc.compact(created.id, { instruction: '  focus on decisions  ' });
+    expect(result).toEqual({});
+    expect(state.compactions).toEqual([
+      { sessionId: created.id, agentId: 'main', instruction: 'focus on decisions' },
+    ]);
+  });
+
+  it('omits instruction when it is blank after trimming', async () => {
+    const created = await svc.create({ metadata: { cwd: '/tmp/compact-blank' } });
+    await svc.compact(created.id, { instruction: '    ' });
+    expect(state.compactions).toEqual([
+      { sessionId: created.id, agentId: 'main', instruction: undefined },
+    ]);
+  });
+
+  it('throws SessionNotFoundError on a missing id', async () => {
+    await expect(svc.compact('does-not-exist', {})).rejects.toBeInstanceOf(SessionNotFoundError);
+    expect(state.compactions).toEqual([]);
   });
 });
 

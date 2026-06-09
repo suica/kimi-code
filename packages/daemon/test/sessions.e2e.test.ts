@@ -30,7 +30,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { pino } from 'pino';
-import { sessionSchema } from '@moonshot-ai/protocol';
+import { ErrorCode, sessionSchema } from '@moonshot-ai/protocol';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { IRestGateway, startDaemon, type RunningDaemon } from '../src';
@@ -334,6 +334,41 @@ describe('POST /api/v1/sessions/{session_id}:fork — fork', () => {
     const env = envelopeOf<unknown>(res.json());
     expect(env.code).toBe(40401);
     expect(env.data).toBeNull();
+  });
+});
+
+describe('POST /api/v1/sessions/{session_id}:compact — begin compaction', () => {
+  it('returns 40401 for unknown id', async () => {
+    const r = await bootDaemon();
+    const res = await appOf(r).inject({
+      method: 'POST',
+      url: '/api/v1/sessions/sess_missing:compact',
+      payload: {},
+    });
+    const env = envelopeOf<unknown>(res.json());
+    expect(env.code).toBe(ErrorCode.SESSION_NOT_FOUND);
+    expect(env.data).toBeNull();
+  });
+
+  it('maps an empty-history compaction attempt to compaction.unable', async () => {
+    const r = await bootDaemon();
+    const created = envelopeOf<{ id: string }>(
+      (await appOf(r).inject({
+        method: 'POST',
+        url: '/api/v1/sessions',
+        payload: { metadata: { cwd: join(tmpDir, 'workspace-compact') } },
+      })).json(),
+    ).data!;
+
+    const res = await appOf(r).inject({
+      method: 'POST',
+      url: `/api/v1/sessions/${created.id}:compact`,
+      payload: { instruction: '  focus on decisions  ' },
+    });
+    const env = envelopeOf<unknown>(res.json());
+    expect(env.code).toBe(ErrorCode.COMPACTION_UNABLE);
+    expect(env.data).toBeNull();
+    expect(env.msg).toMatch(/No prefix/);
   });
 });
 

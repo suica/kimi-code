@@ -77,6 +77,8 @@ export const ErrorCode = {
   FS_GIT_UNAVAILABLE: 40908,
   /** 用户 ESC / 关闭面板放弃整组（client 调 `:dismiss`） */
   QUESTION_DISMISSED: 40909,
+  /** 当前历史没有可 compact 的前缀 */
+  COMPACTION_UNABLE: 40910,
 
   /** approval 60s 超时 */
   APPROVAL_EXPIRED: 41001,
@@ -184,6 +186,7 @@ export const ErrorCodeReason: Readonly<Record<ErrorCode, string>> = {
   [ErrorCode.FS_IS_BINARY]: 'fs.is_binary',
   [ErrorCode.FS_GIT_UNAVAILABLE]: 'fs.git_unavailable',
   [ErrorCode.QUESTION_DISMISSED]: 'question.dismissed',
+  [ErrorCode.COMPACTION_UNABLE]: 'compaction.unable',
 
   [ErrorCode.APPROVAL_EXPIRED]: 'approval.expired',
   [ErrorCode.QUESTION_EXPIRED]: 'question.expired',

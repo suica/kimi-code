@@ -40,6 +40,8 @@ import type { Event } from '@moonshot-ai/agent-core/base/common/event';
 import type { SessionMeta, SessionSummary } from '@moonshot-ai/agent-core';
 import {
   emptySessionUsage,
+  type CompactSessionRequest,
+  type CompactSessionResponse,
   type CursorQuery,
   type PageResponse,
   type Session,
@@ -114,6 +116,8 @@ export interface ISessionService {
    * Returns `{ deleted: true }` envelope shape per REST §3.3.
    */
   getStatus(id: string): Promise<SessionStatusResponse>;
+
+  compact(id: string, input: CompactSessionRequest): Promise<CompactSessionResponse>;
 
   /**
    * `DELETE /v1/sessions/{id}` — close (= soft-delete in v1) the session.
