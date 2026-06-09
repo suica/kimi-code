@@ -84,6 +84,7 @@ export function transformOpenApiDocument(
 
   patchFileUpload(paths);
   patchFileDownload(paths);
+  patchSessionFork(paths);
   patchFsAction(paths);
   patchFsDownload(paths);
   patchQuestionResolveOrDismiss(paths);
@@ -126,6 +127,18 @@ function patchFileDownload(paths: Record<string, unknown>): void {
     description: 'File not found',
     content: jsonContent(errorEnvelopeSchema),
   });
+}
+
+function patchSessionFork(paths: Record<string, unknown>): void {
+  const internalPath = '/api/v1/sessions/{tail}';
+  const publicPath = '/api/v1/sessions/{session_id}:fork';
+  const pathItem = asRecord(paths[internalPath]);
+  const operation = asRecord(pathItem?.['post']);
+  if (pathItem === undefined || operation === undefined) return;
+
+  replacePathParamName(pathItem, 'tail', 'session_id');
+  paths[publicPath] = pathItem;
+  delete paths[internalPath];
 }
 
 function patchFsAction(paths: Record<string, unknown>): void {
@@ -252,6 +265,29 @@ function headerInteger(): Record<string, unknown> {
 function appendDescription(existing: unknown, extra: string): string {
   if (typeof existing !== 'string' || existing.length === 0) return extra;
   return `${existing} ${extra}`;
+}
+
+function replacePathParamName(
+  container: Record<string, unknown>,
+  from: string,
+  to: string,
+): void {
+  const params = container['parameters'];
+  if (Array.isArray(params)) {
+    for (const param of params) {
+      const record = asRecord(param);
+      if (record?.['in'] === 'path' && record['name'] === from) {
+        record['name'] = to;
+      }
+    }
+  }
+
+  for (const method of ['get', 'post', 'put', 'patch', 'delete']) {
+    const operation = asRecord(container[method]);
+    if (operation !== undefined) {
+      replacePathParamName(operation, from, to);
+    }
+  }
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {

@@ -245,6 +245,7 @@ function makeSessionService(): {
     list: vi.fn() as unknown as ISessionService['list'],
     get: vi.fn() as unknown as ISessionService['get'],
     update: vi.fn() as unknown as ISessionService['update'],
+    fork: vi.fn() as unknown as ISessionService['fork'],
     getStatus: vi.fn() as unknown as ISessionService['getStatus'],
     delete: vi.fn() as unknown as ISessionService['delete'],
     onDidCreate: createEmitter.event,
@@ -1072,4 +1073,3 @@ describe('PromptService.applyAgentState (POST /sessions/{sid}/profile path)', ()
     });
   });
 });
-

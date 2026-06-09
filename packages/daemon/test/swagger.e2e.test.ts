@@ -129,6 +129,7 @@ describe('Swagger / OpenAPI', () => {
     expect(paths['/api/v1/healthz']).toBeDefined();
     expect(paths['/api/v1/meta']).toBeDefined();
     expect(paths['/api/v1/sessions']).toBeDefined();
+    expect(paths['/api/v1/sessions/{tail}']).toBeUndefined();
     expect(paths['/api/v1/tools']).toBeDefined();
     expect(paths['/api/v1/files']).toBeDefined();
 
@@ -149,6 +150,15 @@ describe('Swagger / OpenAPI', () => {
     const listSessionsEnvelope = schemaWithProperties(listSessionsResponse);
     const listSessionData = schemaWithProperties(asRecord(asRecord(listSessionsEnvelope['properties'])['data']));
     expect(asRecord(listSessionData['properties'])['items']).toBeDefined();
+
+    const forkOp = operation(doc, '/api/v1/sessions/{session_id}:fork', 'post');
+    const forkParams = forkOp['parameters'] as Array<Record<string, unknown>>;
+    expect(forkParams.some((p) => p['in'] === 'path' && p['name'] === 'session_id')).toBe(true);
+    expect(forkParams.some((p) => p['name'] === 'tail')).toBe(false);
+    const forkRequest = requestJsonSchema(doc, '/api/v1/sessions/{session_id}:fork', 'post');
+    expect(asRecord(forkRequest['properties'])['metadata']).toBeDefined();
+    const forkResponse = responseJsonSchema(doc, '/api/v1/sessions/{session_id}:fork', 'post');
+    expect(Array.isArray(forkResponse['oneOf'])).toBe(true);
 
     const uploadOp = operation(doc, '/api/v1/files', 'post');
     const uploadRequestBody = asRecord(uploadOp['requestBody']);

@@ -9,12 +9,12 @@ import {
   InstantiationType,
   registerSingleton,
 } from '@moonshot-ai/agent-core';
-import type { JsonObject, SessionMeta, SessionSummary } from '@moonshot-ai/agent-core';
+import type { JsonObject, SessionMeta } from '@moonshot-ai/agent-core';
 import {
-  emptySessionUsage,
   type PageResponse,
   type Session,
   type SessionCreate,
+  type SessionFork,
   type SessionStatusResponse,
   type SessionUpdate,
 } from '@moonshot-ai/protocol';
@@ -228,6 +228,21 @@ export class SessionService extends Disposable implements ISessionService {
     const summaryAfter = allAfter.find((s) => s.id === id) ?? summary;
     const meta = await this.tryGetMeta(id);
     return toProtocolSession(summaryAfter, meta);
+  }
+
+  async fork(id: string, input: SessionFork): Promise<Session> {
+    const source = await this.get(id);
+    const title = input.title ?? `Fork: ${source.title || source.id}`;
+    const metadata = input.metadata === undefined ? undefined : asJsonObject(input.metadata);
+    const summary = await this.core.rpc.forkSession({
+      sessionId: id,
+      title,
+      metadata,
+    });
+    const meta = await this.tryGetMeta(summary.id);
+    const session = toProtocolSession(summary, meta);
+    this._onDidCreate.fire({ session });
+    return session;
   }
 
   async getStatus(id: string): Promise<SessionStatusResponse> {

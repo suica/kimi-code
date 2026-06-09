@@ -8,6 +8,7 @@
  *   GET    /sessions/{id}             -                      data: Session
  *   GET    /sessions/{id}/profile     -                      data: Session
  *   POST   /sessions/{id}/profile     body: SessionUpdate    data: Session
+ *   POST   /sessions/{id}:fork        body: SessionFork      data: Session
  *   GET    /sessions/{id}/status      -                      data: SessionStatus
  *   DELETE /sessions/{id}             -                      data: { deleted: true }
  *
@@ -42,6 +43,7 @@ import {
   ErrorCode,
   createSessionRequestSchema,
   deleteSessionResponseSchema,
+  forkSessionRequestSchema,
   pageResponseSchema,
   sessionSchema,
   sessionStatusResponseSchema,
@@ -55,7 +57,11 @@ import {
 } from '@moonshot-ai/services';
 import { z } from 'zod';
 
-import type { IInstantiationService } from '@moonshot-ai/agent-core';
+import {
+  ErrorCodes,
+  KimiError,
+  type IInstantiationService,
+} from '@moonshot-ai/agent-core';
 
 import { errEnvelope, okEnvelope } from '../envelope';
 import { defineRoute } from '../middleware/defineRoute';
@@ -63,6 +69,7 @@ import {
   IWorkspaceRegistry,
   WorkspaceNotFoundError,
 } from '#/services/workspace';
+import { parseActionSuffix } from './action-suffix';
 
 /**
  * Per-request structural typing — we never need the full FastifyRequest type;
@@ -142,6 +149,10 @@ const sessionsListQueryCoercion = z
 
 const sessionIdParamSchema = z.object({
   session_id: z.string().min(1),
+});
+
+const sessionActionTailParamSchema = z.object({
+  tail: z.string().min(1),
 });
 
 // --- Registration -----------------------------------------------------------
@@ -386,6 +397,58 @@ export function registerSessionsRoutes(
     updateProfileRoute.handler as Parameters<SessionRouteHost['post']>[2],
   );
 
+  // POST /sessions/{session_id}:fork -----------------------------------
+  const forkRoute = defineRoute(
+    {
+      method: 'POST',
+      path: '/sessions/{tail}',
+      params: sessionActionTailParamSchema,
+      body: forkSessionRequestSchema,
+      success: { data: sessionSchema },
+      errors: {
+        [ErrorCode.VALIDATION_FAILED]: { detailsSchema },
+        [ErrorCode.SESSION_NOT_FOUND]: {},
+        [ErrorCode.SESSION_BUSY]: {},
+      },
+      description: 'Fork a session',
+      tags: ['sessions'],
+    },
+    async (req, reply) => {
+      try {
+        const { tail } = req.params;
+        const parsed = parseActionSuffix({
+          tail,
+          allowedActions: ['fork'] as const,
+          resourceLabel: 'session',
+        });
+        if (parsed.kind !== 'action') {
+          const message = parsed.kind === 'invalid'
+            ? parsed.reason
+            : `unsupported action: ${tail}`;
+          reply.send(
+            buildValidationEnvelope(
+              [{ path: 'session_id', message }],
+              req.id,
+            ),
+          );
+          return;
+        }
+        const body = req.body;
+        const session = await ix.invokeFunction((a) =>
+          a.get(ISessionService).fork(parsed.id, body),
+        );
+        reply.send(okEnvelope(session, req.id));
+      } catch (err) {
+        sendMappedError(reply, req.id, err);
+      }
+    },
+  );
+  app.post(
+    forkRoute.path,
+    forkRoute.options,
+    forkRoute.handler as Parameters<SessionRouteHost['post']>[2],
+  );
+
   // GET /sessions/{session_id}/status -----------------------------------
   const statusRoute = defineRoute(
     {
@@ -464,8 +527,36 @@ function sendMappedError(
     reply.send(errEnvelope(ErrorCode.WORKSPACE_NOT_FOUND, err.message, requestId));
     return;
   }
+  if (isForkActiveTurnError(err)) {
+    reply.send(errEnvelope(ErrorCode.SESSION_BUSY, formatErrorMessage(err), requestId));
+    return;
+  }
   // Re-throw so Fastify's error hook handles it.
   throw err;
+}
+
+function isForkActiveTurnError(err: unknown): boolean {
+  if (err instanceof KimiError && err.code === ErrorCodes.SESSION_FORK_ACTIVE_TURN) {
+    return true;
+  }
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { readonly code?: unknown }).code === ErrorCodes.SESSION_FORK_ACTIVE_TURN
+  );
+}
+
+function formatErrorMessage(err: unknown): string {
+  if (
+    typeof err === 'object' &&
+    err !== null &&
+    'message' in err &&
+    typeof (err as { readonly message?: unknown }).message === 'string'
+  ) {
+    return (err as { readonly message: string }).message;
+  }
+  return err instanceof Error ? err.message : String(err);
 }
 
 /**

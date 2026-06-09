@@ -281,6 +281,62 @@ describe('POST /api/v1/sessions/{session_id}/profile — update profile', () => 
   });
 });
 
+describe('POST /api/v1/sessions/{session_id}:fork — fork', () => {
+  it('forks the session, defaults the title from the source, and returns the fork', async () => {
+    const r = await bootDaemon();
+    const cwd = join(tmpDir, 'workspace-fork');
+    const source = envelopeOf<{ id: string }>(
+      (await appOf(r).inject({
+        method: 'POST',
+        url: '/api/v1/sessions',
+        payload: {
+          title: 'Source session',
+          metadata: { cwd, source: true },
+        },
+      })).json(),
+    ).data!;
+
+    const res = await appOf(r).inject({
+      method: 'POST',
+      url: `/api/v1/sessions/${source.id}:fork`,
+      payload: { metadata: { child: true } },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const env = envelopeOf<unknown>(res.json());
+    expect(env.code).toBe(0);
+    const fork = sessionSchema.parse(env.data);
+    expect(fork.id).not.toBe(source.id);
+    expect(fork.title).toBe('Fork: Source session');
+    expect(fork.metadata).toMatchObject({
+      cwd,
+      source: true,
+      child: true,
+    });
+
+    const forkGet = envelopeOf<unknown>(
+      (await appOf(r).inject({
+        method: 'GET',
+        url: `/api/v1/sessions/${fork.id}`,
+      })).json(),
+    );
+    expect(forkGet.code).toBe(0);
+    expect(sessionSchema.parse(forkGet.data).id).toBe(fork.id);
+  });
+
+  it('returns 40401 for an unknown source session', async () => {
+    const r = await bootDaemon();
+    const res = await appOf(r).inject({
+      method: 'POST',
+      url: '/api/v1/sessions/sess_missing:fork',
+      payload: {},
+    });
+    const env = envelopeOf<unknown>(res.json());
+    expect(env.code).toBe(40401);
+    expect(env.data).toBeNull();
+  });
+});
+
 describe('DELETE /api/v1/sessions/{session_id} — delete', () => {
   it('returns { deleted: true } envelope', async () => {
     const r = await bootDaemon();

@@ -17,19 +17,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  type CoreRPC,
+  type CreateSessionPayload,
   Emitter,
+  type ForkSessionPayload,
   type IInstantiationService,
+  type RenameSessionPayload,
+  type ResumeSessionResult,
   type ServiceIdentifier,
   type ServicesAccessor,
-} from '@moonshot-ai/agent-core';
-
-import type {
-  CoreRPC,
-  CreateSessionPayload,
-  RenameSessionPayload,
-  SessionMeta,
-  SessionSummary,
-  UpdateSessionMetadataPayload,
+  type SessionMeta,
+  type SessionSummary,
+  type UpdateSessionMetadataPayload,
 } from '@moonshot-ai/agent-core';
 import { emptySessionUsage, type Session } from '@moonshot-ai/protocol';
 
@@ -53,6 +52,7 @@ interface FakeBridgeState {
   closedIds: string[];
   renamedTitles: Map<string, string>;
   metadataPatches: Map<string, UpdateSessionMetadataPayload['metadata']>;
+  forkPayloads: Array<WithSessionId<Omit<ForkSessionPayload, 'sessionId'>>>;
 }
 
 /**
@@ -90,6 +90,53 @@ function makeFakeBridge(state: FakeBridgeState): ICoreProcessService {
           return state.sessions;
         },
       ),
+    forkSession: vi
+      .fn()
+      .mockImplementation(async (payload: ForkSessionPayload): Promise<ResumeSessionResult> => {
+        const source = state.sessions.find((s) => s.id === payload.sessionId);
+        if (source === undefined) {
+          throw new Error(`missing source ${payload.sessionId}`);
+        }
+        state.forkPayloads.push({
+          sessionId: payload.sessionId,
+          id: payload.id,
+          title: payload.title,
+          metadata: payload.metadata,
+        });
+        const id = payload.id ?? `sess_fork_${state.sessions.length + 1}`;
+        const created: SessionSummary = {
+          id,
+          workDir: source.workDir,
+          sessionDir: `/tmp/sessions/${id}`,
+          createdAt: 2_000_000 + state.sessions.length * 1_000,
+          updatedAt: 2_000_000 + state.sessions.length * 1_000,
+          metadata: {
+            ...source.metadata,
+            ...payload.metadata,
+          },
+          title: payload.title,
+        };
+        state.sessions.push(created);
+        const sourceMeta = state.metas.get(source.id);
+        const sessionMetadata: SessionMeta = {
+          title: payload.title ?? `Fork: ${source.title ?? source.id}`,
+          createdAt: new Date(0).toISOString(),
+          updatedAt: new Date(0).toISOString(),
+          isCustomTitle: payload.title !== undefined,
+          agents: {},
+          custom: {
+            ...sourceMeta?.custom,
+            ...payload.metadata,
+          },
+          forkedFrom: source.id,
+        };
+        state.metas.set(id, sessionMetadata);
+        return {
+          ...created,
+          sessionMetadata,
+          agents: {},
+        };
+      }),
     closeSession: vi.fn().mockImplementation(async ({ sessionId }: { sessionId: string }) => {
       state.closedIds.push(sessionId);
     }),
@@ -145,6 +192,7 @@ function freshState(): FakeBridgeState {
     closedIds: [],
     renamedTitles: new Map(),
     metadataPatches: new Map(),
+    forkPayloads: [],
   };
 }
 
@@ -509,6 +557,55 @@ describe('SessionService.update', () => {
     const after = await svc.update(created.id, { title: 'Renamed' });
     expect(after.id).toBe(created.id);
     expect(after.metadata.cwd).toBe('/tmp/u');
+  });
+});
+
+describe('SessionService.fork', () => {
+  it('forks through core.rpc.forkSession with TUI-compatible default title', async () => {
+    const source = await svc.create({
+      metadata: { cwd: '/tmp/fork', source: true },
+      title: 'Source title',
+    });
+
+    const fork = await svc.fork(source.id, { metadata: { child: true } });
+
+    expect(state.forkPayloads).toEqual([
+      {
+        sessionId: source.id,
+        id: undefined,
+        title: 'Fork: Source title',
+        metadata: { child: true },
+      },
+    ]);
+    expect(fork.id).toMatch(/^sess_fork_/);
+    expect(fork.title).toBe('Fork: Source title');
+    expect(fork.metadata).toMatchObject({
+      cwd: '/tmp/fork',
+      child: true,
+    });
+  });
+
+  it('passes an explicit title through to core.rpc.forkSession', async () => {
+    const source = await svc.create({ metadata: { cwd: '/tmp/fork-explicit' } });
+
+    const fork = await svc.fork(source.id, {
+      title: 'Custom fork',
+      metadata: { origin: 'web' },
+    });
+
+    expect(state.forkPayloads[0]).toEqual({
+      sessionId: source.id,
+      id: undefined,
+      title: 'Custom fork',
+      metadata: { origin: 'web' },
+    });
+    expect(fork.id).toMatch(/^sess_fork_/);
+    expect(fork.title).toBe('Custom fork');
+  });
+
+  it('throws SessionNotFoundError when the source session is missing', async () => {
+    await expect(svc.fork('missing', {})).rejects.toBeInstanceOf(SessionNotFoundError);
+    expect(state.forkPayloads).toEqual([]);
   });
 });
 

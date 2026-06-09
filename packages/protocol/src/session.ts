@@ -210,3 +210,10 @@ export const sessionUpdateSchema = z.object({
 });
 
 export type SessionUpdate = z.infer<typeof sessionUpdateSchema>;
+
+export const sessionForkSchema = z.object({
+  title: z.string().min(1).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type SessionFork = z.infer<typeof sessionForkSchema>;

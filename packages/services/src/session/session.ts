@@ -34,22 +34,20 @@
  * `ICoreProcessService.rpc.<method>`, not direct CoreAPI consumption.
  */
 
-import { createDecorator, Disposable } from '@moonshot-ai/agent-core';
+import { createDecorator } from '@moonshot-ai/agent-core';
 import { encodeWorkDirKey } from '@moonshot-ai/agent-core/session/store';
 import type { Event } from '@moonshot-ai/agent-core/base/common/event';
-import type { JsonObject, SessionMeta, SessionSummary } from '@moonshot-ai/agent-core';
+import type { SessionMeta, SessionSummary } from '@moonshot-ai/agent-core';
 import {
   emptySessionUsage,
+  type CursorQuery,
   type PageResponse,
   type Session,
   type SessionCreate,
+  type SessionFork,
   type SessionStatusResponse,
   type SessionUpdate,
 } from '@moonshot-ai/protocol';
-import type {
-  CursorQuery,
-} from '@moonshot-ai/protocol';
-
 
 /**
  * Listing query — `before_id`/`after_id` + `page_size` mutual exclusivity is
@@ -101,6 +99,12 @@ export interface ISessionService {
    * Returns the post-update Session.
    */
   update(id: string, input: SessionUpdate): Promise<Session>;
+
+  /**
+   * `POST /v1/sessions/{id}:fork` — create a new persisted session from an
+   * idle source session and return the fork.
+   */
+  fork(id: string, input: SessionFork): Promise<Session>;
 
   /**
    * `DELETE /v1/sessions/{id}` — close (= soft-delete in v1) the session.

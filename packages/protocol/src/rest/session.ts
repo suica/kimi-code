@@ -8,6 +8,7 @@
  *   GET     /v1/sessions/{id}             -                     data: Session
  *   GET     /v1/sessions/{id}/profile     -                     data: Session
  *   POST    /v1/sessions/{id}/profile     body: SessionUpdate   data: Session
+ *   POST    /v1/sessions/{id}:fork        body: SessionFork     data: Session
  *   GET     /v1/sessions/{id}/status      -                     data: SessionStatus
  *   DELETE  /v1/sessions/{id}             -                     data: { deleted: true }
  *
@@ -25,6 +26,7 @@ import { z } from 'zod';
 import { cursorQuerySchema } from '../pagination';
 import {
   sessionCreateSchema,
+  sessionForkSchema,
   sessionSchema,
   sessionStatusSchema,
   sessionUpdateSchema,
@@ -87,6 +89,14 @@ export type UpdateSessionRequest = z.infer<typeof updateSessionRequestSchema>;
 
 export const updateSessionResponseSchema = sessionSchema;
 export type UpdateSessionResponse = z.infer<typeof updateSessionResponseSchema>;
+
+// --- POST /v1/sessions/{id}:fork ------------------------------------------
+
+export const forkSessionRequestSchema = sessionForkSchema;
+export type ForkSessionRequest = z.infer<typeof forkSessionRequestSchema>;
+
+export const forkSessionResponseSchema = sessionSchema;
+export type ForkSessionResponse = z.infer<typeof forkSessionResponseSchema>;
 
 // --- GET /v1/sessions/{id}/status -----------------------------------------
 
