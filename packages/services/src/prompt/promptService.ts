@@ -27,7 +27,9 @@ import {
   SessionBusyError,
   PromptNotFoundError,
   PromptAlreadyCompletedError,
+  type AgentStatePatch,
   type AgentStateSnapshot,
+  type AgentStateSource,
   type PromptAbortResult,
   type PromptDispatchLogEntry,
   type SyntheticPromptCompletedEvent,
@@ -38,6 +40,35 @@ const MAIN_AGENT_ID = 'main';
 
 /** Cap per-session dispatch-log entries; ring-buffer drops oldest on overflow. */
 const DISPATCH_LOG_CAP = 100;
+
+/**
+ * `true` iff any of the four runtime-control fields is defined on the patch.
+ * Used to short-circuit `applyAgentState` / the prompt-body override path
+ * when the caller carries nothing actionable.
+ */
+function hasAnyAgentStateField(patch: AgentStatePatch): boolean {
+  return (
+    patch.model !== undefined ||
+    patch.thinking !== undefined ||
+    patch.permission_mode !== undefined ||
+    patch.plan_mode !== undefined
+  );
+}
+
+/**
+ * Extract the four optional runtime-control fields from a `PromptSubmission`
+ * body into a shadow-shaped patch. Returns `undefined` when the body carries
+ * none of the four fields — the submit path skips both shadow bootstrap and
+ * diff-dispatch in that case, saving three RPCs on hot content-only prompts.
+ */
+function pickAgentStatePatch(body: PromptSubmission): AgentStatePatch | undefined {
+  const patch: AgentStatePatch = {};
+  if (body.model !== undefined) patch.model = body.model;
+  if (body.thinking !== undefined) patch.thinking = body.thinking;
+  if (body.permission_mode !== undefined) patch.permission_mode = body.permission_mode;
+  if (body.plan_mode !== undefined) patch.plan_mode = body.plan_mode;
+  return hasAnyAgentStateField(patch) ? patch : undefined;
+}
 
 /**
  * Per-session "active prompt" state. Cleared on completion/abort.
@@ -196,14 +227,19 @@ export class PromptService
     // the error to the caller and leak only the unused ulid string.
     const promptId = `prompt_${ulid()}`;
 
-    // Bootstrap the per-session shadow on first prompt so subsequent
-    // diff-dispatch has a precise starting point. After bootstrap, run the
-    // diff against the body — only changed fields incur a setter RPC. Both
-    // happen BEFORE we record an active prompt / call `core.rpc.prompt`, so a
-    // setter failure surfaces to the caller and we don't leak an active
-    // prompt record.
-    await this._ensureAgentStateBootstrapped(sid);
-    await this._applyAgentState(sid, body, promptId);
+    // Per-turn override path. `PromptSubmission` allows the four runtime
+    // controls as optional — when ANY of them is set, we ensure the
+    // shadow is bootstrapped and run diff-dispatch with `source='prompt'`.
+    // When none is set, no setter fires and no bootstrap RPC is issued
+    // (the latter saves three round-trips on hot content-only paths).
+    // Both happen BEFORE we record an active prompt / call
+    // `core.rpc.prompt`, so a setter failure surfaces to the caller and
+    // we don't leak an active prompt record.
+    const overridePatch = pickAgentStatePatch(body);
+    if (overridePatch !== undefined) {
+      await this._ensureAgentStateBootstrapped(sid);
+      await this._applyAgentStateInternal(sid, overridePatch, 'prompt', promptId);
+    }
 
     const userMessageId = `msg_${sid}_pending_${promptId}`;
 
@@ -312,6 +348,33 @@ export class PromptService
     return { aborted: true };
   }
 
+  /**
+   * `IPromptService.applyAgentState` — entry point shared by
+   * `submit` (per-turn override) and `SessionService.update`
+   * (`POST /sessions/{sid}/meta`). Validates the session exists,
+   * bootstraps the shadow lazily, then diff-dispatches each non-shadow
+   * field through the matching `core.rpc.*` setter. Dispatch-log
+   * entries are tagged with the `source` so downstream observers can
+   * tell prompt-driven and meta-driven setters apart.
+   *
+   * No-op when every field matches the shadow; throws on setter failure
+   * (the caller / route layer surfaces the error). Empty `patch` is
+   * accepted and bootstraps nothing — useful for SessionService.update
+   * paths that need to no-op cleanly when the body carries no runtime
+   * controls.
+   */
+  async applyAgentState(
+    sid: string,
+    patch: AgentStatePatch,
+    source: AgentStateSource,
+    promptId?: string,
+  ): Promise<void> {
+    if (!hasAnyAgentStateField(patch)) return;
+    await this._requireSession(sid);
+    await this._ensureAgentStateBootstrapped(sid);
+    await this._applyAgentStateInternal(sid, patch, source, promptId ?? '');
+  }
+
   // --- IPromptService typed event accessors ---------------------------------
   //
   // `onDidComplete` / `onDidAbort` are declared above as `Emitter<T>.event`
@@ -348,77 +411,85 @@ export class PromptService
   }
 
   /**
-   * Diff-dispatch: for each of the four controls, call the matching
-   * `core.rpc.*` setter ONLY when `body.<field>` differs from the shadow.
-   * Each setter runs serially before `core.rpc.prompt` so any failure
-   * surfaces to the caller without recording an active prompt. Each
-   * successful setter also appends to the per-session dispatch-log ring
-   * buffer; absence of an entry between two prompts is the proof that
-   * the shadow suppressed a redundant dispatch.
+   * Diff-dispatch: for each of the four controls present on `patch`,
+   * call the matching `core.rpc.*` setter ONLY when the value differs
+   * from the shadow. Each setter runs serially so any failure surfaces
+   * to the caller. Each successful setter also appends to the per-session
+   * dispatch-log ring buffer; absence of an entry between two prompts is
+   * the proof that the shadow suppressed a redundant dispatch.
+   *
+   * Pre-condition: `_ensureAgentStateBootstrapped(sid)` already ran (the
+   * shadow Map carries `sid`). Callers must guard.
    */
-  private async _applyAgentState(
+  private async _applyAgentStateInternal(
     sid: string,
-    body: PromptSubmission,
+    patch: AgentStatePatch,
+    source: AgentStateSource,
     promptId: string,
   ): Promise<void> {
     const shadow = this._agentState.get(sid);
     if (shadow === undefined) {
-      // Bootstrap is a precondition of submit(); a missing shadow is a bug,
+      // Bootstrap is a precondition; a missing shadow here is a bug,
       // not a recoverable state.
       throw new Error(
-        `PromptService._applyAgentState: shadow not bootstrapped for sid=${sid}`,
+        `PromptService._applyAgentStateInternal: shadow not bootstrapped for sid=${sid}`,
       );
     }
     const agentId = MAIN_AGENT_ID;
 
-    if (body.model !== shadow.model) {
-      const payload = { sessionId: sid, agentId, model: body.model };
+    if (patch.model !== undefined && patch.model !== shadow.model) {
+      const payload = { sessionId: sid, agentId, model: patch.model };
       await this.core.rpc.setModel(payload);
-      shadow.model = body.model;
-      this._recordDispatch(sid, 'setModel', payload, promptId);
+      shadow.model = patch.model;
+      this._recordDispatch(sid, 'setModel', payload, promptId, source);
     }
-    if (body.thinking !== shadow.thinking) {
-      const payload = { sessionId: sid, agentId, level: body.thinking };
+    if (patch.thinking !== undefined && patch.thinking !== shadow.thinking) {
+      const payload = { sessionId: sid, agentId, level: patch.thinking as PromptThinking };
       await this.core.rpc.setThinking(payload);
-      shadow.thinking = body.thinking;
-      this._recordDispatch(sid, 'setThinking', payload, promptId);
+      shadow.thinking = patch.thinking;
+      this._recordDispatch(sid, 'setThinking', payload, promptId, source);
     }
-    if (body.permission_mode !== shadow.permissionMode) {
+    if (
+      patch.permission_mode !== undefined &&
+      patch.permission_mode !== shadow.permissionMode
+    ) {
       const payload = {
         sessionId: sid,
         agentId,
-        mode: body.permission_mode as PermissionMode,
+        mode: patch.permission_mode as PermissionMode,
       };
       await this.core.rpc.setPermission(payload);
-      shadow.permissionMode = body.permission_mode as PermissionMode;
-      this._recordDispatch(sid, 'setPermission', payload, promptId);
+      shadow.permissionMode = patch.permission_mode as PermissionMode;
+      this._recordDispatch(sid, 'setPermission', payload, promptId, source);
     }
-    if (body.plan_mode !== shadow.planMode) {
+    if (patch.plan_mode !== undefined && patch.plan_mode !== shadow.planMode) {
       const payload = { sessionId: sid, agentId };
-      if (body.plan_mode) {
+      if (patch.plan_mode) {
         await this.core.rpc.enterPlan(payload);
-        this._recordDispatch(sid, 'enterPlan', payload, promptId);
+        this._recordDispatch(sid, 'enterPlan', payload, promptId, source);
       } else {
         // `cancelPlan({id?})` accepts an omitted id — `PlanMode.cancel`
         // clears whatever id is currently active. Shadow doesn't track
         // ids, so we always omit.
         await this.core.rpc.cancelPlan(payload);
-        this._recordDispatch(sid, 'cancelPlan', payload, promptId);
+        this._recordDispatch(sid, 'cancelPlan', payload, promptId, source);
       }
-      shadow.planMode = body.plan_mode;
+      shadow.planMode = patch.plan_mode;
     }
   }
 
   /**
    * Append a dispatch entry to the per-session ring buffer, evicting the
-   * oldest entry when the cap is hit. Called only from `_applyAgentState`
-   * after the underlying setter resolves successfully.
+   * oldest entry when the cap is hit. Called only from
+   * `_applyAgentStateInternal` after the underlying setter resolves
+   * successfully.
    */
   private _recordDispatch(
     sid: string,
     kind: PromptDispatchLogEntry['kind'],
     payload: Record<string, unknown>,
     promptId: string,
+    source: AgentStateSource,
   ): void {
     let buf = this._dispatchLog.get(sid);
     if (buf === undefined) {
@@ -432,6 +503,7 @@ export class PromptService
       // the recorded payload retroactively.
       payload: { ...payload },
       promptId,
+      source,
     });
     if (buf.length > DISPATCH_LOG_CAP) {
       buf.splice(0, buf.length - DISPATCH_LOG_CAP);

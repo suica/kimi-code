@@ -11,6 +11,7 @@ import {
   createSessionRequestSchema,
   deleteSessionResponseSchema,
   listSessionsQuerySchema,
+  sessionStatusResponseSchema,
   updateSessionMetaRequestSchema,
   updateSessionRequestSchema,
 } from '../rest/session';
@@ -97,6 +98,21 @@ describe('updateSessionMetaRequestSchema', () => {
     });
     expect(parsed.agent_config?.model).toBe('moonshot-v1-128k');
   });
+
+  it('accepts agent_config runtime controls (thinking + permission_mode + plan_mode)', () => {
+    const parsed = updateSessionMetaRequestSchema.parse({
+      agent_config: {
+        thinking: 'medium',
+        permission_mode: 'auto',
+        plan_mode: false,
+      },
+    });
+    expect(parsed.agent_config).toEqual({
+      thinking: 'medium',
+      permission_mode: 'auto',
+      plan_mode: false,
+    });
+  });
 });
 
 describe('updateSessionRequestSchema (legacy alias)', () => {
@@ -104,6 +120,61 @@ describe('updateSessionRequestSchema (legacy alias)', () => {
     expect(updateSessionRequestSchema.parse({ metadata: { custom_field: 'x' } })).toEqual(
       updateSessionMetaRequestSchema.parse({ metadata: { custom_field: 'x' } }),
     );
+  });
+});
+
+describe('sessionStatusResponseSchema', () => {
+  it('accepts a full valid shape', () => {
+    const parsed = sessionStatusResponseSchema.parse({
+      model: 'moonshot-v1-128k',
+      thinking_level: 'on',
+      permission: 'ask',
+      plan_mode: true,
+      context_tokens: 1024,
+      max_context_tokens: 128000,
+      context_usage: 0.008,
+    });
+    expect(parsed.model).toBe('moonshot-v1-128k');
+    expect(parsed.plan_mode).toBe(true);
+    expect(parsed.context_usage).toBe(0.008);
+  });
+
+  it('accepts minimal shape without model', () => {
+    const parsed = sessionStatusResponseSchema.parse({
+      thinking_level: 'off',
+      permission: 'auto',
+      plan_mode: false,
+      context_tokens: 0,
+      max_context_tokens: 0,
+      context_usage: 0,
+    });
+    expect(parsed.model).toBeUndefined();
+  });
+
+  it('rejects negative context_tokens', () => {
+    expect(
+      sessionStatusResponseSchema.safeParse({
+        thinking_level: 'off',
+        permission: 'auto',
+        plan_mode: false,
+        context_tokens: -1,
+        max_context_tokens: 0,
+        context_usage: 0,
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects context_usage > 1', () => {
+    expect(
+      sessionStatusResponseSchema.safeParse({
+        thinking_level: 'off',
+        permission: 'auto',
+        plan_mode: false,
+        context_tokens: 10,
+        max_context_tokens: 5,
+        context_usage: 2,
+      }).success,
+    ).toBe(false);
   });
 });
 

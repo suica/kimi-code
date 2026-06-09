@@ -179,6 +179,19 @@ export class DaemonClient {
   submitPrompt(sid: string, input: PromptSubmitInput): Promise<PromptSubmitResult> {
     return this.http.submitPrompt(sid, fillPromptDefaults(input));
   }
+  /**
+   * Stateful-session submit — sends `body` to `POST /sessions/{sid}/prompts`
+   * verbatim, with NO default controls injected. Pair with
+   * `updateSession(sid, {agent_config: {...}})` (or `submitPrompt` with the
+   * legacy default-filled path) to first establish session state, then
+   * exercise the "content-only prompt inherits session state" contract.
+   */
+  submitPromptStateful(
+    sid: string,
+    body: PromptSubmission,
+  ): Promise<PromptSubmitResult> {
+    return this.http.submitPrompt(sid, body);
+  }
   abortPrompt(sid: string, pid: string): Promise<PromptAbortResponse> {
     return this.http.abortPrompt(sid, pid);
   }
@@ -386,6 +399,31 @@ export class DaemonClient {
       return pid === submit.prompt_id;
     }, timeoutMs);
 
+    return { prompt_id: submit.prompt_id, user_message_id: submit.user_message_id, finalFrame };
+  }
+
+  /**
+   * Stateful-session companion to `submitAndWait` — POSTs `body` verbatim
+   * (NO default controls injected), then waits for the terminal event for
+   * the resulting `prompt_id`. Use after `updateSession(sid, {agent_config:
+   * {...}})` to verify the session's shadow drives the next prompt without
+   * the body needing to redeclare any controls.
+   */
+  async submitAndWaitStateful(
+    sid: string,
+    body: PromptSubmission,
+    opts: SubmitAndWaitOptions = {},
+  ): Promise<{ prompt_id: string; user_message_id: string; finalFrame: AnyFrame }> {
+    const ws = this._requireWs();
+    const waitFor = opts.waitFor ?? 'prompt.completed';
+    const timeoutMs = opts.timeoutMs ?? DEFAULT_FRAME_TIMEOUT_MS;
+    const submit = await this.http.submitPrompt(sid, body);
+    const finalFrame = await ws.waitForFrame((f) => {
+      if (f.type !== waitFor) return false;
+      const payload = (f.payload as { promptId?: string; prompt_id?: string } | undefined) ?? {};
+      const pid = payload.promptId ?? payload.prompt_id;
+      return pid === submit.prompt_id;
+    }, timeoutMs);
     return { prompt_id: submit.prompt_id, user_message_id: submit.user_message_id, finalFrame };
   }
 

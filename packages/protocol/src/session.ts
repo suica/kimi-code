@@ -29,6 +29,10 @@
 
 import { z } from 'zod';
 
+import {
+  promptPermissionModeSchema,
+  promptThinkingSchema,
+} from './rest/prompt';
 import { isoDateTimeSchema } from './time';
 import { workspaceIdSchema } from './workspace';
 
@@ -103,6 +107,19 @@ export const sessionAgentConfigSchema = z.object({
   system_prompt: z.string().optional(),
   tools: z.array(z.string()).optional(),
   mcp_servers: z.array(z.string()).optional(),
+  // Runtime controls. Optional on the READ side because the daemon's
+  // `toProtocolSession` adapter doesn't backfill them (CoreAPI doesn't
+  // expose them on the list path) — callers wanting the live values use
+  // `GET /v1/sessions/{sid}/status`. Optional on the WRITE side
+  // (`.partial()` → `sessionAgentConfigPartialSchema`) so `POST
+  // /v1/sessions/{sid}/meta` can supply any subset to dispatch the
+  // matching `setThinking` / `setPermission` / `enterPlan|cancelPlan` RPCs
+  // through `IPromptService.applyAgentState`. The enum literals are
+  // shared with `promptSubmissionSchema` so prompt-body overrides and
+  // /meta updates speak the same vocabulary.
+  thinking: promptThinkingSchema.optional(),
+  permission_mode: promptPermissionModeSchema.optional(),
+  plan_mode: z.boolean().optional(),
 });
 
 export type SessionAgentConfig = z.infer<typeof sessionAgentConfigSchema>;

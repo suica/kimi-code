@@ -85,6 +85,32 @@ export interface PromptAbortResult {
   at_seq?: number;
 }
 
+/**
+ * Partial bag of runtime controls accepted by `applyAgentState`. Mirrors the
+ * four fields the per-session shadow tracks (`model`, `thinking`,
+ * `permission_mode`, `plan_mode`) on protocol's wire vocabulary. Every key is
+ * optional: only present keys diff-dispatch a setter.
+ *
+ * Used by both `PromptService.submit` (when the caller carries per-turn
+ * overrides on the body) and by `SessionService.update` (when `POST
+ * /v1/sessions/{sid}/meta` patches `agent_config`).
+ */
+export interface AgentStatePatch {
+  model?: string;
+  thinking?: string;
+  permission_mode?: string;
+  plan_mode?: boolean;
+}
+
+/**
+ * Where an `applyAgentState` call originated. `'prompt'` is the
+ * `POST /prompts` body override path; `'meta'` is the `POST /sessions/{sid}/meta`
+ * path. Recorded in `PromptDispatchLogEntry.source` so the debug surface can
+ * attribute every dispatched setter to its triggering endpoint without the
+ * caller having to interleave its own log entries.
+ */
+export type AgentStateSource = 'prompt' | 'meta';
+
 export interface IPromptService {
   readonly _serviceBrand: undefined;
 
@@ -108,6 +134,28 @@ export interface IPromptService {
    * Throws `PromptNotFoundError`  (→ 40402) when `pid` is unknown for `sid`.
    */
   abort(sid: string, pid: string): Promise<PromptAbortResult>;
+
+  /**
+   * Apply a partial runtime-controls patch to a session's shadow,
+   * diff-dispatching the matching `core.rpc.*` setter for any field that
+   * differs. Used by both `submit` (per-turn override path) and
+   * `SessionService.update` (POST /sessions/{sid}/meta path).
+   *
+   * Throws `SessionNotFoundError` (→ 40401) for unknown `sid`. Throws any
+   * error the underlying setter throws. Idempotent: calling with values
+   * equal to the shadow is a no-op (zero dispatch-log entries appended).
+   *
+   * `promptId` is recorded on each appended dispatch-log entry so the
+   * debug surface can attribute setters to the prompt that triggered
+   * them. Pass `undefined` for non-prompt callers (the `/meta` path) —
+   * the entry's `promptId` will be the empty string.
+   */
+  applyAgentState(
+    sid: string,
+    patch: AgentStatePatch,
+    source: AgentStateSource,
+    promptId?: string,
+  ): Promise<void>;
 
   /**
    * VSCode-style accessor for `prompt.completed` synthetic events. The
@@ -233,8 +281,17 @@ export interface PromptDispatchLogEntry {
   /**
    * Prompt id this dispatch was made on behalf of. Minted at the top of
    * `submit()` so setter RPCs and the eventual `core.rpc.prompt(...)`
-   * carry the same id. Empty string only on the (currently unreachable)
-   * path where bootstrap setters fire without a prompt context.
+   * carry the same id. Empty string when the dispatch came from the
+   * `/sessions/{sid}/meta` path (no prompt context).
    */
   readonly promptId: string;
+  /**
+   * Which endpoint triggered the dispatch — `'prompt'` for a body
+   * override on `POST /sessions/{sid}/prompts`, `'meta'` for a patch on
+   * `POST /sessions/{sid}/meta`. Lets the debug surface
+   * (`GET /debug/prompts/{sid}/dispatch-log`) and unit/e2e tests
+   * attribute every setter to the request that caused it without
+   * threading an extra log of its own.
+   */
+  readonly source: AgentStateSource;
 }

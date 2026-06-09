@@ -6,6 +6,15 @@
  *   POST   /sessions/{sid}/prompts              body: PromptSubmission  data: PromptSubmitResult
  *   POST   /sessions/{sid}/prompts/{pid}:abort  body: empty             data: { aborted, at_seq? }
  *
+ * **Stateful session, optional per-turn overrides**: `PromptSubmission`
+ * carries `content` (required) plus `metadata?`, `model?`, `thinking?`,
+ * `permission_mode?`, `plan_mode?`. The four runtime controls default to
+ * the session's shadow state — the canonical mutation path is
+ * `POST /sessions/{sid}/meta`. When the body carries any of the four, the
+ * services layer diff-dispatches the matching setter (`source='prompt'`)
+ * BEFORE running the prompt, so an override is also a state change for
+ * the session.
+ *
  * **Error mapping**:
  *   - `SessionNotFoundError`        → 40401
  *   - `SessionBusyError`            → 40901 (with details.active_prompt_id)

@@ -7,10 +7,10 @@
  *     Body:  PromptSubmission {
  *              content: MessageContent[],
  *              metadata?: ...,
- *              model: string,
- *              thinking: 'off'|'low'|'medium'|'high'|'xhigh'|'max',
- *              permission_mode: 'manual'|'yolo'|'auto',
- *              plan_mode: boolean,
+ *              model?: string,
+ *              thinking?: 'off'|'low'|'medium'|'high'|'xhigh'|'max',
+ *              permission_mode?: 'manual'|'yolo'|'auto',
+ *              plan_mode?: boolean,
  *            }
  *     Reply: PromptSubmitResult { prompt_id, user_message_id }
  *
@@ -19,16 +19,20 @@
  *     Reply: { aborted: true, at_seq: number }   (envelope code 0)
  *            { aborted: false, at_seq: number }  (envelope code 40903, idempotent)
  *
- * **Per-request stateless session controls**: `model`, `thinking`,
- * `permission_mode`, and `plan_mode` are REQUIRED on every prompt and carry
- * the frontend's intent for this turn. The services layer keeps a
- * per-session shadow of these four values and only re-issues the
- * corresponding `core.rpc.*` setter when a field differs from the
- * shadow — so identical values across consecutive prompts incur no extra
- * RPC round-trip and emit no spurious telemetry. Enum string literals are
- * declared locally (protocol is the lowest layer and must not import from
- * `@moonshot-ai/agent-core`); they mirror agent-core's `ThinkingEffort` /
- * `PermissionMode` value spaces verbatim.
+ * **Stateful session, optional per-turn overrides**: `model`, `thinking`,
+ * `permission_mode`, and `plan_mode` are OPTIONAL on every prompt. The
+ * canonical place to mutate them is `POST /v1/sessions/{sid}/meta`
+ * (SCHEMAS §2 `SessionUpdate.agent_config`), which the daemon dispatches
+ * through `IPromptService.applyAgentState` against the same per-session
+ * shadow. When a prompt body carries one or more of these fields, the
+ * shadow is diff-dispatched in-line BEFORE the prompt fires — so an
+ * override updates the session state and persists to the next turn. When
+ * the field is absent, no setter is re-issued and the existing shadow
+ * value is used.
+ *
+ * Enum string literals are declared locally (protocol is the lowest layer
+ * and must not import from `@moonshot-ai/agent-core`); they mirror
+ * agent-core's `ThinkingEffort` / `PermissionMode` value spaces verbatim.
  *
  * **Synthesized lifecycle events**:
  * agent-core's event union has no `prompt.completed` / `prompt.aborted`
@@ -78,16 +82,20 @@ export type PromptPermissionMode = z.infer<typeof promptPermissionModeSchema>;
  * `metadata` is a free Record passed through to agent-core as the prompt's
  * origin metadata.
  *
- * `model` / `thinking` / `permission_mode` / `plan_mode` are required
- * stateless session controls — see the module header for details.
+ * `model` / `thinking` / `permission_mode` / `plan_mode` are OPTIONAL per-turn
+ * overrides. Each defaults to the session's current shadow state — the
+ * canonical way to change a session's runtime state is `POST
+ * /v1/sessions/{sid}/meta`. When supplied here, the daemon diff-dispatches
+ * the matching setter BEFORE the prompt fires; the new value persists past
+ * this turn (it lands in the same shadow as `/meta`).
  */
 export const promptSubmissionSchema = z.object({
   content: z.array(messageContentSchema).min(1),
   metadata: z.record(z.string(), z.unknown()).optional(),
-  model: z.string().min(1),
-  thinking: promptThinkingSchema,
-  permission_mode: promptPermissionModeSchema,
-  plan_mode: z.boolean(),
+  model: z.string().min(1).optional(),
+  thinking: promptThinkingSchema.optional(),
+  permission_mode: promptPermissionModeSchema.optional(),
+  plan_mode: z.boolean().optional(),
 });
 export type PromptSubmission = z.infer<typeof promptSubmissionSchema>;
 

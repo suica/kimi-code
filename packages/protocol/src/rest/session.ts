@@ -75,6 +75,19 @@ export type UpdateSessionRequest = z.infer<typeof updateSessionRequestSchema>;
 export const updateSessionResponseSchema = sessionSchema;
 export type UpdateSessionResponse = z.infer<typeof updateSessionResponseSchema>;
 
+// --- GET /v1/sessions/{id}/status -----------------------------------------
+
+export const sessionStatusResponseSchema = z.object({
+  model: z.string().optional(),
+  thinking_level: z.string(),
+  permission: z.string(),
+  plan_mode: z.boolean(),
+  context_tokens: z.number().int().nonnegative(),
+  max_context_tokens: z.number().int().nonnegative(),
+  context_usage: z.number().min(0).max(1),
+});
+export type SessionStatusResponse = z.infer<typeof sessionStatusResponseSchema>;
+
 // --- DELETE /v1/sessions/{id} -----------------------------------------------
 
 export const deleteSessionResponseSchema = z.object({

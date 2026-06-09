@@ -63,8 +63,10 @@ function mkSummary(id = SID): SessionSummary {
 }
 
 /**
- * Default body for a submit() that satisfies the new required stateless
- * controls. Spread overrides on top per-test as needed.
+ * Default body for a submit() that exercises the per-turn override path —
+ * all four runtime controls are populated, so bootstrap + diff-dispatch
+ * fire. Spread overrides on top per-test as needed. Tests that want the
+ * content-only path (zero bootstrap, zero setters) use `mkBodyMinimal`.
  */
 function mkBody(over: Partial<PromptSubmission> = {}): PromptSubmission {
   return {
@@ -73,6 +75,19 @@ function mkBody(over: Partial<PromptSubmission> = {}): PromptSubmission {
     thinking: 'off',
     permission_mode: 'manual',
     plan_mode: false,
+    ...over,
+  };
+}
+
+/**
+ * Minimal submit body — content only, no per-turn overrides. Triggers the
+ * stateful-session path: no bootstrap RPCs, no setter dispatch, no
+ * dispatch-log entries. Mirrors what the canonical web client sends after
+ * setting state via `POST /sessions/{sid}/meta`.
+ */
+function mkBodyMinimal(over: Partial<PromptSubmission> = {}): PromptSubmission {
+  return {
+    content: [{ type: 'text', text: 'hi' }],
     ...over,
   };
 }
@@ -230,6 +245,7 @@ function makeSessionService(): {
     list: vi.fn() as unknown as ISessionService['list'],
     get: vi.fn() as unknown as ISessionService['get'],
     update: vi.fn() as unknown as ISessionService['update'],
+    getStatus: vi.fn() as unknown as ISessionService['getStatus'],
     delete: vi.fn() as unknown as ISessionService['delete'],
     onDidCreate: createEmitter.event,
     onDidClose: closeEmitter.event,
@@ -890,12 +906,14 @@ describe('PromptService stateless controls — dispatch log', () => {
     expect(log).toBeDefined();
     const kinds = (log ?? []).map((e) => e.kind);
     expect(kinds).toEqual(['setModel', 'setThinking', 'setPermission', 'enterPlan']);
-    expect(log?.[0].payload).toEqual({
+    expect(log?.[0]?.payload).toEqual({
       sessionId: SID,
       agentId: 'main',
       model: 'kimi-code/k1',
     });
-    expect(log?.[3].payload).toEqual({ sessionId: SID, agentId: 'main' });
+    expect(log?.[3]?.payload).toEqual({ sessionId: SID, agentId: 'main' });
+    // Every entry from a prompt-body override path is tagged source='prompt'.
+    expect((log ?? []).every((e) => e.source === 'prompt')).toBe(true);
     // Each entry should be attributed to the prompt id returned by submit;
     // they all share the same id within a single submit.
     expect(new Set((log ?? []).map((e) => e.promptId)).size).toBe(1);
@@ -922,7 +940,7 @@ describe('PromptService stateless controls — dispatch log', () => {
       agentId: 'main',
     } as unknown as Event);
     expect(impl._dispatchLogForTest(SID)?.length).toBe(1);
-    expect(impl._dispatchLogForTest(SID)?.[0].kind).toBe('enterPlan');
+    expect(impl._dispatchLogForTest(SID)?.[0]?.kind).toBe('enterPlan');
 
     // Second submit with the same plan_mode -> shadow suppresses dispatch.
     // This is the property scenario 04 cannot observe over WS frames alone.
@@ -939,6 +957,119 @@ describe('PromptService stateless controls — dispatch log', () => {
     expect(impl._dispatchLogForTest(SID)?.length).toBe(1);
     triggerClose(SID);
     expect(impl._dispatchLogForTest(SID)).toBeUndefined();
+  });
+});
+
+describe('PromptService stateful session — content-only path', () => {
+  it('issues zero bootstrap RPCs and zero setters when the body carries no controls', async () => {
+    const { bridge, record } = makeBridge();
+    const { bus } = makeBus();
+    const impl = newSvc(bridge, bus);
+    await impl.submit(SID, mkBodyMinimal());
+    // Bootstrap getters never ran (no body control to diff against).
+    expect(record.getConfigCalls).toBe(0);
+    expect(record.getPermissionCalls).toBe(0);
+    expect(record.getPlanCalls).toBe(0);
+    // No setters fired either.
+    expect(record.setModelCalls).toEqual([]);
+    expect(record.setThinkingCalls).toEqual([]);
+    expect(record.setPermissionCalls).toEqual([]);
+    expect(record.enterPlanCalls).toEqual([]);
+    expect(record.cancelPlanCalls).toEqual([]);
+    // Shadow stays absent — there's nothing to remember.
+    expect(impl._agentStateForTest(SID)).toBeUndefined();
+    // Dispatch log untouched.
+    expect(impl._dispatchLogForTest(SID)).toBeUndefined();
+    // The prompt itself fires through to bridge.prompt.
+    expect(record.promptCalls).toHaveLength(1);
+  });
+
+  it('reuses the shadow established by a prior submit for subsequent content-only submits', async () => {
+    const { bridge, record } = makeBridge({ config: { modelAlias: 'kimi-code/k2' } });
+    const { bus, triggerSubscribers } = makeBus();
+    const impl = newSvc(bridge, bus);
+    // First submit carries an override → bootstrap + dispatch.
+    await impl.submit(SID, mkBody({ model: 'kimi-code/k9' }));
+    expect(record.setModelCalls).toHaveLength(1);
+    triggerSubscribers({
+      type: 'turn.started',
+      turnId: 1,
+      origin: { kind: 'user' },
+      sessionId: SID,
+      agentId: 'main',
+    } as unknown as Event);
+    triggerSubscribers({
+      type: 'turn.ended',
+      turnId: 1,
+      reason: 'completed',
+      sessionId: SID,
+      agentId: 'main',
+    } as unknown as Event);
+    record.setModelCalls.length = 0;
+    // Second submit content-only — uses the shadow, no setter re-fires.
+    await impl.submit(SID, mkBodyMinimal({ content: [{ type: 'text', text: 'follow-up' }] }));
+    expect(record.setModelCalls).toEqual([]);
+    expect(impl._agentStateForTest(SID)?.model).toBe('kimi-code/k9');
+  });
+});
+
+describe('PromptService.applyAgentState (POST /sessions/{sid}/meta path)', () => {
+  it('throws SessionNotFoundError on unknown sid', async () => {
+    const { bridge } = makeBridge();
+    const { bus } = makeBus();
+    const impl = newSvc(bridge, bus);
+    await expect(
+      impl.applyAgentState('sess_missing', { model: 'kimi-code/k1' }, 'meta'),
+    ).rejects.toBeInstanceOf(SessionNotFoundError);
+  });
+
+  it('is a no-op when the patch carries no fields (no bootstrap, no setter)', async () => {
+    const { bridge, record } = makeBridge();
+    const { bus } = makeBus();
+    const impl = newSvc(bridge, bus);
+    await impl.applyAgentState(SID, {}, 'meta');
+    expect(record.getConfigCalls).toBe(0);
+    expect(record.setModelCalls).toEqual([]);
+    expect(impl._agentStateForTest(SID)).toBeUndefined();
+  });
+
+  it('dispatches setThinking and records source="meta" when patch differs from shadow', async () => {
+    const { bridge, record } = makeBridge({ config: { thinkingLevel: 'off' } });
+    const { bus } = makeBus();
+    const impl = newSvc(bridge, bus);
+    await impl.applyAgentState(SID, { thinking: 'high' }, 'meta');
+    expect(record.setThinkingCalls).toEqual([
+      { sessionId: SID, agentId: 'main', level: 'high' },
+    ]);
+    expect(impl._agentStateForTest(SID)?.thinking).toBe('high');
+    const log = impl._dispatchLogForTest(SID);
+    expect(log).toHaveLength(1);
+    expect(log?.[0]?.source).toBe('meta');
+    // No prompt minted → entry's promptId is the empty string.
+    expect(log?.[0]?.promptId).toBe('');
+  });
+
+  it('subsequent content-only submit observes the shadow set via /meta and dispatches nothing', async () => {
+    const { bridge, record } = makeBridge({
+      config: { thinkingLevel: 'off' },
+      permission: { mode: 'manual' },
+    });
+    const { bus } = makeBus();
+    const impl = newSvc(bridge, bus);
+    await impl.applyAgentState(
+      SID,
+      { thinking: 'high', permission_mode: 'yolo' },
+      'meta',
+    );
+    record.setThinkingCalls.length = 0;
+    record.setPermissionCalls.length = 0;
+    await impl.submit(SID, mkBodyMinimal());
+    expect(record.setThinkingCalls).toEqual([]);
+    expect(record.setPermissionCalls).toEqual([]);
+    expect(impl._agentStateForTest(SID)).toMatchObject({
+      thinking: 'high',
+      permissionMode: 'yolo',
+    });
   });
 });
 

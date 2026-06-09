@@ -1,12 +1,20 @@
 #!/usr/bin/env node
 /**
- * Scenario 04 — per-request stateless session controls.
+ * Scenario 04 — session runtime controls (stateful session + diff dispatch).
  *
- * Verifies the diff-dispatch contract for real: each
- * `POST /v1/sessions/{sid}/prompts` carries the four required controls
- * (`model`, `thinking`, `permission_mode`, `plan_mode`), and the services
- * layer ONLY calls the matching `core.rpc.*` setter when the field actually
- * changes.
+ * Verifies two contracts:
+ *
+ * **Per-turn override path**: each `POST /v1/sessions/{sid}/prompts` body
+ * MAY carry any subset of `model`, `thinking`, `permission_mode`,
+ * `plan_mode`. The services layer ONLY calls the matching `core.rpc.*`
+ * setter when the field actually changes — and tags each dispatch
+ * `source='prompt'` so debug observers can attribute it.
+ *
+ * **Stateful session / /meta path**: `POST /v1/sessions/{sid}/meta` with
+ * `{agent_config: {...}}` mutates the same shadow through
+ * `IPromptService.applyAgentState`, tagged `source='meta'`. A subsequent
+ * content-only `POST /prompts` (no overrides) inherits the shadow and
+ * issues ZERO setter dispatches.
  *
  * The old version of this scenario only watched `agent.status.updated`
  * frames — but a no-op submit and a redundant re-dispatch produce the same
@@ -25,12 +33,16 @@
  *      config.toml defaults differ from the scenario's default body. Either
  *      is correct — what matters is the deltas between phases.
  *   2. Submit with `plan_mode: true`. Expect EXACTLY 1 new entry of
- *      kind `enterPlan`. Shadow.planMode must now be `true`.
+ *      kind `enterPlan` tagged `source='prompt'`. Shadow.planMode must
+ *      now be `true`.
  *   3. Submit with `plan_mode: true` again. Expect ZERO new entries
  *      (this is the key property — shadow suppresses re-dispatch).
  *   4. Submit with `plan_mode: false` + `permission_mode: 'yolo'`.
  *      Expect EXACTLY 2 new entries in `_applyAgentState` order
  *      (permission before plan): `[setPermission, cancelPlan]`.
+ *   5. POST `/sessions/{sid}/meta` with `{agent_config: {permission_mode:
+ *      'manual'}}` → expect +1 dispatch tagged `source='meta'`. Then a
+ *      content-only `POST /prompts` → expect +0 dispatches.
  *
  * Usage:
  *   DAEMON_URL=http://127.0.0.1:7878 npx tsx scenarios/04-stateless-controls.mjs
@@ -122,7 +134,7 @@ async function main() {
 
     // ── Phase 2 — turn plan_mode on ───────────────────────────────────────
     // Only `plan_mode` differs from the phase-1 shadow. Expect EXACTLY one
-    // new dispatch entry of kind `enterPlan`.
+    // new dispatch entry of kind `enterPlan` tagged source='prompt'.
     await client.submitAndWait(
       sid,
       {
@@ -139,7 +151,8 @@ async function main() {
       const newEntries = logAfterPhase2.slice(logAfterPhase1.length);
       assert.equal(newEntries.length, 1, `phase 2: expected +1 dispatch, got +${newEntries.length}: ${JSON.stringify(newEntries)}`);
       assert.equal(newEntries[0].kind, 'enterPlan', `phase 2: expected enterPlan, got ${newEntries[0].kind}`);
-      console.log(`▶ phase 2: plan_mode=true — +1 enterPlan dispatched ✓`);
+      assert.equal(newEntries[0].source, 'prompt', `phase 2: expected source='prompt', got ${newEntries[0].source}`);
+      console.log(`▶ phase 2: plan_mode=true — +1 enterPlan dispatched (source='prompt') ✓`);
     }
 
     // ── Phase 3 — repeat plan_mode: true (THE KEY ASSERTION) ──────────────
@@ -194,8 +207,50 @@ async function main() {
       );
       console.log(`▶ phase 4: plan cancel + yolo — +2 dispatches in order [setPermission, cancelPlan] ✓`);
     }
+    let logAfterPhase4;
+    {
+      logAfterPhase4 = await fetchDispatchLog(sid);
+    }
 
-    console.log(`✓ 04-stateless-controls: per-request controls diff-dispatched across 4 prompts (verified via /debug)`);
+    // ── Phase 5 — POST /meta drives the shadow (source='meta') ────────────
+    // Flip `permission_mode` back to `manual` via /meta. The shared
+    // applyAgentState helper diff-dispatches a single `setPermission` and
+    // records source='meta'. A subsequent CONTENT-ONLY prompt then inherits
+    // the shadow and triggers ZERO additional setters — the proof that
+    // the session is genuinely stateful.
+    await client.updateSession(sid, {
+      agent_config: { permission_mode: 'manual' },
+    });
+    {
+      const state = await fetchDebugState(sid);
+      const log = await fetchDispatchLog(sid);
+      assert.equal(state.permissionMode, 'manual', `phase 5a: shadow.permissionMode=${state.permissionMode}, want manual`);
+      const newEntries = log.slice(logAfterPhase4.length);
+      assert.equal(newEntries.length, 1, `phase 5a: expected +1 dispatch from /meta, got +${newEntries.length}: ${JSON.stringify(newEntries)}`);
+      assert.equal(newEntries[0].kind, 'setPermission', `phase 5a: expected setPermission, got ${newEntries[0].kind}`);
+      assert.equal(newEntries[0].source, 'meta', `phase 5a: expected source='meta', got ${newEntries[0].source}`);
+      assert.equal(newEntries[0].promptId, '', `phase 5a: /meta dispatch carries empty promptId, got ${JSON.stringify(newEntries[0].promptId)}`);
+      console.log(`▶ phase 5a: POST /meta permission=manual — +1 setPermission dispatched (source='meta') ✓`);
+    }
+    const logAfterPhase5a = await fetchDispatchLog(sid);
+    await client.submitAndWaitStateful(
+      sid,
+      { content: [{ type: 'text', text: 'Reply with the single word "OK".' }] },
+      { waitFor: 'prompt.completed', timeoutMs: PROMPT_TIMEOUT_MS },
+    );
+    {
+      const state = await fetchDebugState(sid);
+      const log = await fetchDispatchLog(sid);
+      assert.equal(state.permissionMode, 'manual', `phase 5b: shadow.permissionMode=${state.permissionMode}, want manual (held)`);
+      assert.equal(
+        log.length,
+        logAfterPhase5a.length,
+        `phase 5b: content-only submit MUST NOT grow dispatch-log; was ${logAfterPhase5a.length}, now ${log.length}. New entries: ${JSON.stringify(log.slice(logAfterPhase5a.length))}`,
+      );
+      console.log(`▶ phase 5b: content-only prompt — shadow held, +0 dispatches ✓`);
+    }
+
+    console.log(`✓ 04-stateless-controls: per-request controls diff-dispatched across 4 prompts + stateful /meta verified (via /debug)`);
   } finally {
     try {
       if (sid) await client.deleteSession(sid);

@@ -43,6 +43,7 @@ import {
   type PageResponse,
   type Session,
   type SessionCreate,
+  type SessionStatusResponse,
   type SessionUpdate,
 } from '@moonshot-ai/protocol';
 import type {
@@ -107,6 +108,15 @@ export interface ISessionService {
    * surface a hard delete; the daemon currently conflates close == delete.
    *
    * Returns `{ deleted: true }` envelope shape per REST §3.3.
+   */
+  getStatus(id: string): Promise<SessionStatusResponse>;
+
+  /**
+   * `DELETE /v1/sessions/{id}` — close (= soft-delete in v1) the session.
+   *   Backed by `bridge.rpc.closeSession({sessionId})`. CoreAPI does not
+   *   surface a hard delete; the daemon currently conflates close == delete.
+   *
+   *   Returns `{ deleted: true }` envelope shape per REST §3.3.
    */
   delete(id: string): Promise<{ deleted: true }>;
 

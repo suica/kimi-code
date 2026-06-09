@@ -12,6 +12,17 @@
  * Each handler invokes `accessor.get(ISessionService).<method>(...)`, and emits
  * an `okEnvelope`.
  *
+ * **Runtime controls on /meta**: `agent_config` on the write side is the
+ * canonical mutation point for the four shadowed runtime fields —
+ * `model`, `thinking`, `permission_mode`, `plan_mode`. The services
+ * layer routes them through `IPromptService.applyAgentState(id, patch,
+ * 'meta')`, which diff-dispatches the matching `core.rpc.*` setter and
+ * writes a dispatch-log entry. Reading the live state stays on
+ * `GET /sessions/{id}/status`; the read-side `agent_config` does NOT
+ * echo the four runtime fields because the list adapter can't source
+ * them cheaply. Prompt-body overrides on `POST /sessions/{id}/prompts`
+ * use the same applyAgentState helper with `source='prompt'`.
+ *
  * **Error mapping**: `SessionNotFoundError` → envelope `code: 40401`. Other
  * errors fall through to the global `installErrorHandler` (→ 50001).
  *
@@ -31,6 +42,7 @@ import {
   deleteSessionResponseSchema,
   pageResponseSchema,
   sessionSchema,
+  sessionStatusResponseSchema,
   sessionStatusSchema,
   updateSessionMetaRequestSchema,
   updateSessionRequestSchema,
@@ -338,6 +350,34 @@ export function registerSessionsRoutes(
     },
   );
   app.post(metaRoute.path, metaRoute.options, metaRoute.handler as Parameters<SessionRouteHost['post']>[2]);
+
+  // GET /sessions/{session_id}/status -----------------------------------
+  const statusRoute = defineRoute(
+    {
+      method: 'GET',
+      path: '/sessions/{session_id}/status',
+      params: sessionIdParamSchema,
+      success: { data: sessionStatusResponseSchema },
+      errors: {
+        [ErrorCode.VALIDATION_FAILED]: { detailsSchema },
+        [ErrorCode.SESSION_NOT_FOUND]: {},
+      },
+      description: 'Get realtime session status',
+      tags: ['sessions'],
+    },
+    async (req, reply) => {
+      try {
+        const { session_id } = req.params;
+        const status = await ix.invokeFunction((a) =>
+          a.get(ISessionService).getStatus(session_id),
+        );
+        reply.send(okEnvelope(status, req.id));
+      } catch (err) {
+        sendMappedError(reply, req.id, err);
+      }
+    },
+  );
+  app.get(statusRoute.path, statusRoute.options, statusRoute.handler as Parameters<SessionRouteHost['get']>[2]);
 
   // DELETE /sessions/{session_id} ---------------------------------------
   const deleteRoute = defineRoute(

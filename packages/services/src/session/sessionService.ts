@@ -5,6 +5,7 @@
 import {
   Disposable,
   Emitter,
+  IInstantiationService,
   InstantiationType,
   registerSingleton,
 } from '@moonshot-ai/agent-core';
@@ -14,10 +15,12 @@ import {
   type PageResponse,
   type Session,
   type SessionCreate,
+  type SessionStatusResponse,
   type SessionUpdate,
 } from '@moonshot-ai/protocol';
 
 import { ICoreProcessService } from '../coreProcess/coreProcess';
+import { IPromptService, type AgentStatePatch } from '../prompt/prompt';
 import {
   ISessionService,
   SessionNotFoundError,
@@ -56,7 +59,11 @@ export class SessionService extends Disposable implements ISessionService {
   private readonly _onDidClose = this._register(new Emitter<{ sessionId: string }>());
   readonly onDidClose = this._onDidClose.event;
 
-  constructor(@ICoreProcessService private readonly core: ICoreProcessService) {
+  constructor(
+    @ICoreProcessService private readonly core: ICoreProcessService,
+    @IInstantiationService
+    private readonly instantiation: IInstantiationService,
+  ) {
     super();
   }
 
@@ -183,10 +190,34 @@ export class SessionService extends Disposable implements ISessionService {
       });
     }
 
-    // 3) agent_config.model: dispatch to core RPC when present and non-empty.
-    const model = input.agent_config?.model;
-    if (model !== undefined && model !== '') {
-      await this.core.rpc.setModel({ sessionId: id, agentId: 'main', model });
+    // 3) agent_config runtime controls — route the four fields (model,
+    //    thinking, permission_mode, plan_mode) through the per-session
+    //    shadow on `IPromptService.applyAgentState`. The helper diff-
+    //    dispatches against the shadow and writes a dispatch-log entry
+    //    with `source='meta'` for any setter that actually fires.
+    //    Resolution is lazy via `IInstantiationService` to break the
+    //    ctor cycle (`PromptService` already injects `ISessionService`).
+    const ac = input.agent_config;
+    if (ac !== undefined) {
+      const patch: AgentStatePatch = {};
+      // SessionService.update has long accepted `agent_config.model` and
+      // treated empty string as "no change" — we preserve that quirk by
+      // dropping the empty case before forwarding to the shadow.
+      if (ac.model !== undefined && ac.model !== '') patch.model = ac.model;
+      if (ac.thinking !== undefined) patch.thinking = ac.thinking;
+      if (ac.permission_mode !== undefined) patch.permission_mode = ac.permission_mode;
+      if (ac.plan_mode !== undefined) patch.plan_mode = ac.plan_mode;
+      if (
+        patch.model !== undefined ||
+        patch.thinking !== undefined ||
+        patch.permission_mode !== undefined ||
+        patch.plan_mode !== undefined
+      ) {
+        const promptService = this.instantiation.invokeFunction((a) =>
+          a.get(IPromptService),
+        );
+        await promptService.applyAgentState(id, patch, 'meta');
+      }
     }
 
     // 4) permission_rules: no CoreAPI surface yet — we accept the input
@@ -197,6 +228,36 @@ export class SessionService extends Disposable implements ISessionService {
     const summaryAfter = allAfter.find((s) => s.id === id) ?? summary;
     const meta = await this.tryGetMeta(id);
     return toProtocolSession(summaryAfter, meta);
+  }
+
+  async getStatus(id: string): Promise<SessionStatusResponse> {
+    // Existence check — same pattern as get() / update() / delete().
+    const all = await this.core.rpc.listSessions({});
+    const summary = all.find((s) => s.id === id);
+    if (summary === undefined) {
+      throw new SessionNotFoundError(id);
+    }
+
+    const [config, context, permission, plan] = await Promise.all([
+      this.core.rpc.getConfig({ sessionId: id, agentId: 'main' }),
+      this.core.rpc.getContext({ sessionId: id, agentId: 'main' }),
+      this.core.rpc.getPermission({ sessionId: id, agentId: 'main' }),
+      this.core.rpc.getPlan({ sessionId: id, agentId: 'main' }),
+    ]);
+
+    const maxContextTokens = config.modelCapabilities?.max_context_tokens ?? 0;
+    const contextTokens = context.tokenCount;
+    const contextUsage = maxContextTokens > 0 ? contextTokens / maxContextTokens : 0;
+
+    return {
+      model: config.modelAlias ?? config.provider?.model,
+      thinking_level: config.thinkingLevel,
+      permission: permission.mode,
+      plan_mode: plan !== null,
+      context_tokens: contextTokens,
+      max_context_tokens: maxContextTokens,
+      context_usage: contextUsage,
+    };
   }
 
   async delete(id: string): Promise<{ deleted: true }> {

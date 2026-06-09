@@ -16,6 +16,13 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  Emitter,
+  type IInstantiationService,
+  type ServiceIdentifier,
+  type ServicesAccessor,
+} from '@moonshot-ai/agent-core';
+
 import type {
   CoreRPC,
   CreateSessionPayload,
@@ -27,7 +34,12 @@ import type {
 import { emptySessionUsage, type Session } from '@moonshot-ai/protocol';
 
 import {
+  type IAuthSummaryService,
   type ICoreProcessService,
+  type IEventService,
+  IPromptService,
+  type ISessionService,
+  PromptService,
   SessionNotFoundError,
   SessionService,
   toProtocolSession,
@@ -138,10 +150,73 @@ function freshState(): FakeBridgeState {
 
 let state: FakeBridgeState;
 let svc: SessionService;
+let promptStub: ReturnType<typeof makePromptServiceStub>;
+
+/**
+ * Stub `IPromptService` for hermetic SessionService tests. Records every
+ * `applyAgentState(sid, patch, source)` call so tests can assert that
+ * `SessionService.update` forwards `agent_config` runtime fields through
+ * the shared shadow-aware helper rather than dispatching `core.rpc.*`
+ * directly. The other `IPromptService` methods aren't reachable from
+ * SessionService and are stubbed to throw on access.
+ */
+function makePromptServiceStub(): {
+  promptService: IPromptService;
+  calls: Array<{ sid: string; patch: Record<string, unknown>; source: string; promptId: string | undefined }>;
+} {
+  const calls: Array<{ sid: string; patch: Record<string, unknown>; source: string; promptId: string | undefined }> = [];
+  const applyAgentState = vi
+    .fn()
+    .mockImplementation(async (sid: string, patch: Record<string, unknown>, source: string, promptId?: string) => {
+      calls.push({ sid, patch, source, promptId });
+    });
+  const emitter = new Emitter<never>();
+  const promptService: IPromptService = {
+    _serviceBrand: undefined,
+    submit: vi.fn() as unknown as IPromptService['submit'],
+    abort: vi.fn() as unknown as IPromptService['abort'],
+    applyAgentState,
+    onDidComplete: emitter.event as unknown as IPromptService['onDidComplete'],
+    onDidAbort: emitter.event as unknown as IPromptService['onDidAbort'],
+  };
+  return { promptService, calls };
+}
+
+/**
+ * Fake `IInstantiationService` that only resolves the one service
+ * `SessionService.update` reaches for (`IPromptService`). Other lookups
+ * throw — they would indicate an unintended dependency creeping in.
+ */
+function makeFakeInstantiation(stubs: {
+  promptService: IPromptService;
+}): IInstantiationService {
+  const accessor: ServicesAccessor = {
+    get: <T,>(id: ServiceIdentifier<T>): T => {
+      if ((id as unknown) === (IPromptService as unknown)) {
+        return stubs.promptService as unknown as T;
+      }
+      throw new Error(`unexpected service lookup: ${String((id as unknown as { toString(): string }).toString())}`);
+    },
+  };
+  return {
+    _serviceBrand: undefined,
+    invokeFunction: <R,>(fn: (a: ServicesAccessor) => R): R => fn(accessor),
+    createInstance: (() => {
+      throw new Error('createInstance not supported in this test stub');
+    }) as IInstantiationService['createInstance'],
+    createChild: () => {
+      throw new Error('createChild not supported in this test stub');
+    },
+  } as unknown as IInstantiationService;
+}
 
 beforeEach(() => {
   state = freshState();
-  svc = new SessionService(makeFakeBridge(state));
+  promptStub = makePromptServiceStub();
+  svc = new SessionService(
+    makeFakeBridge(state),
+    makeFakeInstantiation({ promptService: promptStub.promptService }),
+  );
 });
 
 afterEach(() => {
@@ -383,6 +458,51 @@ describe('SessionService.update', () => {
     await svc.update(created.id, {});
     expect(state.renamedTitles.size).toBe(0);
     expect(state.metadataPatches.size).toBe(0);
+    expect(promptStub.calls).toEqual([]);
+  });
+
+  it('forwards agent_config.model through IPromptService.applyAgentState (source="meta")', async () => {
+    await svc.update(created.id, { agent_config: { model: 'kimi-code/k9' } });
+    expect(promptStub.calls).toEqual([
+      { sid: created.id, patch: { model: 'kimi-code/k9' }, source: 'meta', promptId: undefined },
+    ]);
+  });
+
+  it('ignores agent_config.model when empty string (legacy quirk preserved)', async () => {
+    await svc.update(created.id, { agent_config: { model: '' } });
+    expect(promptStub.calls).toEqual([]);
+  });
+
+  it('forwards thinking + permission_mode + plan_mode through applyAgentState in one call', async () => {
+    await svc.update(created.id, {
+      agent_config: {
+        thinking: 'high',
+        permission_mode: 'yolo',
+        plan_mode: true,
+      },
+    });
+    expect(promptStub.calls).toEqual([
+      {
+        sid: created.id,
+        patch: { thinking: 'high', permission_mode: 'yolo', plan_mode: true },
+        source: 'meta',
+        promptId: undefined,
+      },
+    ]);
+  });
+
+  it('combines model + runtime controls into a single applyAgentState call', async () => {
+    await svc.update(created.id, {
+      agent_config: { model: 'kimi-code/k9', plan_mode: false },
+    });
+    expect(promptStub.calls).toHaveLength(1);
+    expect(promptStub.calls[0]?.patch).toEqual({ model: 'kimi-code/k9', plan_mode: false });
+    expect(promptStub.calls[0]?.source).toBe('meta');
+  });
+
+  it('does not call applyAgentState when agent_config carries no runtime fields', async () => {
+    await svc.update(created.id, { agent_config: {} });
+    expect(promptStub.calls).toEqual([]);
   });
 
   it('returns the post-update Session shape', async () => {

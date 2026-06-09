@@ -188,6 +188,37 @@ describe('sessionUpdateSchema', () => {
     ).toEqual({ agent_config: { model: 'moonshot-v1-256k' } });
   });
 
+  it('parses a runtime-controls patch (thinking + permission_mode + plan_mode)', () => {
+    const parsed = sessionUpdateSchema.parse({
+      agent_config: {
+        thinking: 'high',
+        permission_mode: 'yolo',
+        plan_mode: true,
+      },
+    });
+    expect(parsed.agent_config).toEqual({
+      thinking: 'high',
+      permission_mode: 'yolo',
+      plan_mode: true,
+    });
+  });
+
+  it('rejects an unknown thinking level in agent_config', () => {
+    expect(
+      sessionUpdateSchema.safeParse({
+        agent_config: { thinking: 'mega' as unknown },
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects an unknown permission_mode in agent_config', () => {
+    expect(
+      sessionUpdateSchema.safeParse({
+        agent_config: { permission_mode: 'unrestricted' as unknown },
+      }).success,
+    ).toBe(false);
+  });
+
   it('parses an empty update (no-op)', () => {
     expect(sessionUpdateSchema.parse({})).toEqual({});
   });
