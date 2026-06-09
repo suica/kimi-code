@@ -27,6 +27,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { WebSocket as WsWebSocket } from 'ws';
 
 import { DaemonClient, WsClient, type AnyFrame } from '../src/index.js';
+import { createCaseLogger } from './log.js';
 
 const BASE_URL = process.env['DAEMON_URL'] ?? 'http://127.0.0.1:7878';
 const API_PREFIX = '/api/v1';
@@ -51,11 +52,20 @@ interface Envelope<T> {
   request_id?: string;
 }
 
-async function getEnvelope<T>(path: string): Promise<T> {
+async function getEnvelope<T>(
+  path: string,
+  log?: (label: string, value?: unknown) => void,
+): Promise<T> {
   const res = await fetch(`${BASE_URL}${API_PREFIX}${path}`, {
     headers: { accept: 'application/json' },
   });
   const body = (await res.json()) as Envelope<T>;
+  log?.('http envelope', {
+    method: 'GET',
+    path: `${API_PREFIX}${path}`,
+    status: res.status,
+    body,
+  });
   expect(typeof body.code, `${path} missing envelope.code`).toBe('number');
   expect(body.code, `${path} returned code=${body.code} msg=${body.msg ?? ''}`).toBe(0);
   return body.data;
@@ -71,15 +81,18 @@ async function openSocketWithHello(opts: {
   sid: string;
   lastSeq?: number;
   clientId?: string;
+  log?: (label: string, value?: unknown) => void;
 }): Promise<HelloResult> {
   const wsUrl = `${BASE_URL.replace(/^http/, 'ws')}${API_PREFIX}/ws`;
   const ws = new WsClient({ url: wsUrl, wsImpl: WsWebSocket, logger: () => {} });
+  opts.log?.('refresh ws open', { url: wsUrl, sid: opts.sid, last_seq: opts.lastSeq });
   await ws.open();
 
   const arrivals: AnyFrame[] = [];
   ws.onFrame((f) => arrivals.push(f));
 
-  await ws.waitForFrame((f) => f.type === 'server_hello', HANDSHAKE_TIMEOUT_MS);
+  const serverHello = await ws.waitForFrame((f) => f.type === 'server_hello', HANDSHAKE_TIMEOUT_MS);
+  opts.log?.('refresh ws server_hello', frameForLog(serverHello));
 
   const helloId = `hello-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const payload: Record<string, unknown> = {
@@ -89,12 +102,14 @@ async function openSocketWithHello(opts: {
   if (opts.lastSeq !== undefined) {
     payload['last_seq_by_session'] = { [opts.sid]: opts.lastSeq };
   }
+  opts.log?.('refresh ws client_hello', { id: helloId, payload });
   ws.send({ type: 'client_hello', id: helloId, payload });
 
   const ack = await ws.waitForFrame(
     (f) => f.type === 'ack' && f.id === helloId,
     HANDSHAKE_TIMEOUT_MS,
   );
+  opts.log?.('refresh ws ack', frameForLog(ack));
 
   const replayed = arrivals.filter(
     (f) =>
@@ -107,12 +122,16 @@ async function openSocketWithHello(opts: {
       f.session_id === opts.sid &&
       (opts.lastSeq === undefined || f.seq > opts.lastSeq),
   );
+  opts.log?.('refresh ws replayed', {
+    count: replayed.length,
+    frames: replayed.map(frameForLog),
+  });
 
   return { ws, ack, replayed };
 }
 
 const reachable = await daemonReachable();
-const itLive = reachable ? it : it.skip;
+const describeLive = reachable ? describe : describe.skip;
 
 const created: Array<{ client: DaemonClient; sid: string }> = [];
 const sockets: WsClient[] = [];
@@ -139,51 +158,54 @@ afterEach(async () => {
   }
 });
 
-describe('refresh-replay (live daemon required)', () => {
-  if (!reachable) {
-    it.skip(`skipped — no daemon at ${BASE_URL} (set DAEMON_URL or start \`pnpm dev:daemon\`)`, () => {
-      // intentionally empty
-    });
-  }
-
-  itLive('phase 0: /healthz returns ok:true', async () => {
-    const health = await getEnvelope<{ ok: boolean }>('/healthz');
+describeLive('refresh-replay (live daemon required)', () => {
+  it('phase 0: /healthz returns ok:true', async () => {
+    const log = createCaseLogger('refresh: healthz');
+    const health = await getEnvelope<{ ok: boolean }>('/healthz', log);
+    log('data', health);
     expect(health.ok).toBe(true);
   });
 
-  itLive('phase 0: /meta exposes daemon_id, version, started_at', async () => {
+  it('phase 0: /meta exposes daemon_id, version, started_at', async () => {
+    const log = createCaseLogger('refresh: meta');
     const meta = await getEnvelope<{
       daemon_id: string;
       daemon_version: string;
       started_at: string;
       capabilities: Record<string, boolean>;
-    }>('/meta');
+    }>('/meta', log);
+    log('data', meta);
     expect(meta.daemon_id).toMatch(/.+/);
     expect(meta.daemon_version).toMatch(/.+/);
     expect(meta.started_at).toMatch(/.+/);
     expect(meta.capabilities['websocket']).toBe(true);
   });
 
-  itLive('phase 0: /auth returns AuthSummary shape', async () => {
+  it('phase 0: /auth returns AuthSummary shape', async () => {
+    const log = createCaseLogger('refresh: auth');
     const auth = await getEnvelope<{
       ready: boolean;
       providers_count: number;
       default_model: string | null;
       managed_provider: { name: string; status: string } | null;
-    }>('/auth');
+    }>('/auth', log);
+    log('data', auth);
     expect(typeof auth.ready).toBe('boolean');
     expect(typeof auth.providers_count).toBe('number');
   });
 
-  itLive(
+  it(
     'reconnect with caught-up last_seq → ack accepts subscription, no replay events',
     async () => {
+      const log = createCaseLogger('refresh: caught-up replay');
       const client = new DaemonClient({ baseUrl: BASE_URL });
       const session = await client.createSession({ metadata: { cwd: process.cwd() } });
       created.push({ client, sid: session.id });
+      log('created session', session);
 
       await client.connect();
       await client.subscribe(session.id);
+      log('initial subscribe accepted', { session_id: session.id });
 
       let maxSeq = 0;
       client.onFrame((f) => {
@@ -201,14 +223,17 @@ describe('refresh-replay (live daemon required)', () => {
         { content: [{ type: 'text', text: 'Reply with the single word "OK" and nothing else.' }] },
         { waitFor: 'prompt.completed', timeoutMs: PROMPT_TIMEOUT_MS },
       );
+      log('prompt completed frame', frameForLog(finalFrame));
       if (typeof finalFrame.seq === 'number' && finalFrame.seq > maxSeq) {
         maxSeq = finalFrame.seq;
       }
+      log('max seq before reconnect', { session_id: session.id, max_seq: maxSeq });
       expect(maxSeq, 'session must publish at least one event before reconnect').toBeGreaterThan(0);
 
       await client.close();
+      log('closed initial socket');
 
-      const refreshed = await openSocketWithHello({ sid: session.id, lastSeq: maxSeq });
+      const refreshed = await openSocketWithHello({ sid: session.id, lastSeq: maxSeq, log });
       sockets.push(refreshed.ws);
 
       expect(refreshed.ack.code).toBe(0);
@@ -222,19 +247,27 @@ describe('refresh-replay (live daemon required)', () => {
         refreshed.replayed,
         `expected 0 replay events when caught up, got: ${JSON.stringify(refreshed.replayed.map((f) => `${f.type}@${f.seq}`))}`,
       ).toHaveLength(0);
+      log('asserted caught-up replay result', {
+        accepted_subscriptions: payload.accepted_subscriptions ?? [],
+        resync_required: payload.resync_required ?? [],
+        replayed_count: refreshed.replayed.length,
+      });
     },
     PROMPT_TIMEOUT_MS + 30_000,
   );
 
-  itLive(
+  it(
     'reconnect with last_seq=0 → daemon replays buffered events in order before ack',
     async () => {
+      const log = createCaseLogger('refresh: replay from zero');
       const client = new DaemonClient({ baseUrl: BASE_URL });
       const session = await client.createSession({ metadata: { cwd: process.cwd() } });
       created.push({ client, sid: session.id });
+      log('created session', session);
 
       await client.connect();
       await client.subscribe(session.id);
+      log('initial subscribe accepted', { session_id: session.id });
 
       let maxSeq = 0;
       client.onFrame((f) => {
@@ -252,14 +285,17 @@ describe('refresh-replay (live daemon required)', () => {
         { content: [{ type: 'text', text: 'Reply with the single word "OK" and nothing else.' }] },
         { waitFor: 'prompt.completed', timeoutMs: PROMPT_TIMEOUT_MS },
       );
+      log('prompt completed frame', frameForLog(finalFrame));
       if (typeof finalFrame.seq === 'number' && finalFrame.seq > maxSeq) {
         maxSeq = finalFrame.seq;
       }
+      log('max seq before reconnect', { session_id: session.id, max_seq: maxSeq });
       expect(maxSeq).toBeGreaterThan(0);
 
       await client.close();
+      log('closed initial socket');
 
-      const refreshed = await openSocketWithHello({ sid: session.id, lastSeq: 0 });
+      const refreshed = await openSocketWithHello({ sid: session.id, lastSeq: 0, log });
       sockets.push(refreshed.ws);
 
       expect(refreshed.ack.code).toBe(0);
@@ -280,20 +316,45 @@ describe('refresh-replay (live daemon required)', () => {
       expect(Math.max(...seqs)).toBe(maxSeq);
       // Daemon must dispatch buffered events in seq order
       // (eventService.getBufferedSince filters the buffer in insertion order).
-      const sorted = [...seqs].sort((a, b) => a - b);
+      const sorted = seqs.toSorted((a, b) => a - b);
       expect(seqs).toEqual(sorted);
+      log('replay seq assertion', {
+        min_seq: Math.min(...seqs),
+        max_seq: Math.max(...seqs),
+        expected_max_seq: maxSeq,
+        replayed_count: refreshed.replayed.length,
+      });
 
       // Phase 2: REST snapshot reflects the persisted user + assistant pair.
       const { items } = await client.http.listMessages(session.id, { page_size: 100 });
+      log('messages snapshot', {
+        count: items.length,
+        roles: items.map((m) => m.role),
+        messages: items,
+      });
       expect(items.some((m) => m.role === 'user')).toBe(true);
       expect(items.some((m) => m.role === 'assistant')).toBe(true);
 
       // `GET /tasks` returns the documented `{items:[]}` envelope shape.
       const tasks = await getEnvelope<{ items: unknown[] }>(
         `/sessions/${encodeURIComponent(session.id)}/tasks`,
+        log,
       );
+      log('tasks snapshot', tasks);
       expect(Array.isArray(tasks.items)).toBe(true);
     },
     PROMPT_TIMEOUT_MS + 30_000,
   );
 });
+
+function frameForLog(frame: AnyFrame): Record<string, unknown> {
+  return {
+    type: frame.type,
+    seq: frame.seq,
+    session_id: frame.session_id,
+    id: frame.id,
+    code: frame.code,
+    msg: frame.msg,
+    payload: frame.payload,
+  };
+}

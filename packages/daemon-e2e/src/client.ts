@@ -16,6 +16,9 @@ import type {
   ApprovalRequest,
   ApprovalResolveResult,
   ApprovalResponse,
+  CompactSessionRequest,
+  CompactSessionResponse,
+  ForkSessionRequest,
   FsBrowseResponse,
   FsHomeResponse,
   Message,
@@ -146,6 +149,15 @@ export class DaemonClient {
   }
   updateSession(sid: string, body: SessionUpdate): Promise<Session> {
     return this.http.updateSession(sid, body);
+  }
+  forkSession(sid: string, body: ForkSessionRequest = {}): Promise<Session> {
+    return this.http.forkSession(sid, body);
+  }
+  compactSession(
+    sid: string,
+    body: CompactSessionRequest = {},
+  ): Promise<CompactSessionResponse> {
+    return this.http.compactSession(sid, body);
   }
   deleteSession(sid: string): Promise<{ deleted: true }> {
     return this.http.deleteSession(sid);

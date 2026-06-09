@@ -22,6 +22,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { DaemonClient } from '../src/index.js';
+import { createCaseLogger } from './log.js';
 
 const BASE_URL = process.env['DAEMON_URL'] ?? 'http://127.0.0.1:7878';
 const API_PREFIX = '/api/v1';
@@ -39,7 +40,7 @@ async function daemonReachable(): Promise<boolean> {
 }
 
 const reachable = await daemonReachable();
-const itLive = reachable ? it : it.skip;
+const describeLive = reachable ? describe : describe.skip;
 
 const created: Array<{ client: DaemonClient; sid: string }> = [];
 
@@ -58,17 +59,12 @@ afterEach(async () => {
   }
 });
 
-describe('session resume + status (live daemon required)', () => {
-  if (!reachable) {
-    it.skip(`skipped — no daemon at ${BASE_URL} (set DAEMON_URL or start \`pnpm dev:daemon\`)`, () => {
-      // intentionally empty
-    });
-  }
-
+describeLive('session resume + status (live daemon required)', () => {
   // ── Gap 1: cold-session /messages ──────────────────────────────────────
-  itLive(
+  it(
     'GET /messages on a persisted session returns 200 (resumeSession injection)',
     async () => {
+      const log = createCaseLogger('session resume: persisted messages');
       const probe = new DaemonClient({ baseUrl: BASE_URL });
 
       // Seed: ensure at least one session exists in the store. (If a prior
@@ -76,20 +72,31 @@ describe('session resume + status (live daemon required)', () => {
       // either way, the resumeSession code path is the same.)
       const seeded = await probe.createSession({ metadata: { cwd: process.cwd() } });
       created.push({ client: probe, sid: seeded.id });
+      log('seeded session', seeded);
       await probe.connect();
       await probe.subscribe(seeded.id);
-      await probe.submitAndWait(
+      const promptResult = await probe.submitAndWait(
         seeded.id,
         { content: [{ type: 'text', text: 'Reply with "OK".' }] },
         { waitFor: 'prompt.completed', timeoutMs: PROMPT_TIMEOUT_MS },
       );
+      log('seed prompt completed', {
+        prompt_id: promptResult.prompt_id,
+        user_message_id: promptResult.user_message_id,
+        final_frame: frameForLog(promptResult.finalFrame),
+      });
       await probe.close();
+      log('closed seed client');
 
       // Fresh client — closing the previous WS doesn't evict the bridge's
       // in-memory session, but it ensures the call goes through the REST
       // resume path (no stale subscription state).
       const fresh = new DaemonClient({ baseUrl: BASE_URL });
       const { items: sessions } = await fresh.listSessions({ page_size: 20 });
+      log('fresh listSessions snapshot', {
+        count: sessions.length,
+        sessions: sessions.map((s) => sessionSummaryForLog(s)),
+      });
       expect(sessions.length).toBeGreaterThan(0);
 
       // Probe up to 3 sessions to keep the test deterministic across daemon
@@ -97,9 +104,15 @@ describe('session resume + status (live daemon required)', () => {
       const probeSet = sessions.slice(0, 3);
       for (const s of probeSet) {
         const { items: msgs } = await fresh.listMessages(s.id, { page_size: 5 });
+        log('fresh listMessages snapshot', {
+          session: sessionSummaryForLog(s),
+          count: msgs.length,
+          messages: msgs,
+        });
         expect(Array.isArray(msgs), `messages for ${s.id} should be an array`).toBe(true);
       }
       await fresh.close();
+      log('closed fresh client');
     },
     PROMPT_TIMEOUT_MS + 30_000,
   );
@@ -110,21 +123,25 @@ describe('session resume + status (live daemon required)', () => {
   // pull (likely from the bridge's `ISessionService.getStatus(sid)` or
   // similar). When the fix lands the test starts passing and vitest fails
   // *this* assertion shape — that's the cue to remove `.fails`.
-  itLive.fails(
+  it.fails(
     'GET /sessions/{sid}.status transitions idle → running → idle across a prompt',
     async () => {
+      const log = createCaseLogger('session status: live transition');
       const client = new DaemonClient({ baseUrl: BASE_URL });
       const session = await client.createSession({ metadata: { cwd: process.cwd() } });
       created.push({ client, sid: session.id });
+      log('created session', session);
       expect(session.status).toBe('idle');
 
       await client.connect();
       await client.subscribe(session.id);
+      log('subscribe accepted', { session_id: session.id });
 
       // Fire-and-forget submit so we can poll while the prompt is mid-flight.
       const submit = await client.submitPrompt(session.id, {
         content: [{ type: 'text', text: 'Reply with "OK".' }],
       });
+      log('submit response', submit);
 
       // Race the daemon: poll status quickly until we observe a non-idle
       // value or `prompt.completed` lands. Either outcome ends the loop; we
@@ -139,16 +156,26 @@ describe('session resume + status (live daemon required)', () => {
         { timeoutMs: PROMPT_TIMEOUT_MS },
       );
       const deadline = Date.now() + 5_000;
+      const statusSamples: Array<{ at_ms: number; status: string; current_prompt_id?: string }> = [];
+      const startedAt = Date.now();
       while (Date.now() < deadline && !seenRunning) {
         const snap = await client.http.getSession(session.id);
+        statusSamples.push({
+          at_ms: Date.now() - startedAt,
+          status: snap.status,
+          current_prompt_id: snap.current_prompt_id,
+        });
         if (snap.status !== 'idle') {
           seenRunning = true;
           break;
         }
         await new Promise((r) => setTimeout(r, 50));
       }
-      await ackPromise;
+      const completedFrame = await ackPromise;
+      log('status poll samples', statusSamples);
+      log('prompt completed frame', frameForLog(completedFrame));
       const after = await client.http.getSession(session.id);
+      log('final session snapshot', after);
 
       expect(seenRunning, 'expected at least one non-idle status reading during prompt').toBe(true);
       expect(after.status).toBe('idle');
@@ -156,3 +183,30 @@ describe('session resume + status (live daemon required)', () => {
     PROMPT_TIMEOUT_MS + 30_000,
   );
 });
+
+function frameForLog(frame: { type: string; seq?: number; session_id?: string; payload?: unknown }): Record<string, unknown> {
+  return {
+    type: frame.type,
+    seq: frame.seq,
+    session_id: frame.session_id,
+    payload: frame.payload,
+  };
+}
+
+function sessionSummaryForLog(session: {
+  id: string;
+  title: string;
+  status: string;
+  message_count: number;
+  last_seq: number;
+  metadata: Record<string, unknown>;
+}): Record<string, unknown> {
+  return {
+    id: session.id,
+    title: session.title,
+    status: session.status,
+    message_count: session.message_count,
+    last_seq: session.last_seq,
+    cwd: session.metadata['cwd'],
+  };
+}

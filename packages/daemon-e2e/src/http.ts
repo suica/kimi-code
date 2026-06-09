@@ -5,7 +5,10 @@
 import type {
   ApprovalResolveResult,
   ApprovalResponse,
+  CompactSessionRequest,
+  CompactSessionResponse,
   Envelope,
+  ForkSessionRequest,
   FsBrowseResponse,
   FsHomeResponse,
   Message,
@@ -55,10 +58,10 @@ export class HttpClient {
     let envelope: Envelope<T>;
     try {
       envelope = JSON.parse(text) as Envelope<T>;
-    } catch (cause) {
+    } catch (error) {
       throw new Error(
         `daemon ${method} ${path} returned non-JSON (HTTP ${res.status}): ${text.slice(0, 200)}`,
-        { cause: cause as Error },
+        { cause: error },
       );
     }
     return unwrap(envelope);
@@ -87,6 +90,19 @@ export class HttpClient {
     return this.request<Session>(
       'POST',
       `/sessions/${encodeURIComponent(sid)}/profile`,
+      body,
+    );
+  }
+  forkSession(sid: string, body: ForkSessionRequest = {}): Promise<Session> {
+    return this.request('POST', `/sessions/${encodeURIComponent(sid)}:fork`, body);
+  }
+  compactSession(
+    sid: string,
+    body: CompactSessionRequest = {},
+  ): Promise<CompactSessionResponse> {
+    return this.request(
+      'POST',
+      `/sessions/${encodeURIComponent(sid)}:compact`,
       body,
     );
   }
@@ -176,5 +192,5 @@ function qs(query: Record<string, unknown> | undefined): string {
     if (v === undefined) continue;
     parts.push(`${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`);
   }
-  return parts.length ? `?${parts.join('&')}` : '';
+  return parts.length > 0 ? `?${parts.join('&')}` : '';
 }
